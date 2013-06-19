@@ -11,6 +11,11 @@ import org.openstreetmap.osmosis.core.domain.v0_6
 
 import scala.collection.{mutable, immutable}
 
+import com.twitter.logging.Logger
+import com.twitter.logging.{Logger, LoggerFactory, FileHandler, ConsoleHandler, Policy}
+import com.twitter.logging.config._
+
+
 case class Tag( val key : String, val value : String )
 case class Coord( val lon : Double, val lat : Double )
 case class Node( val id : Long, val coord : Coord, val tags : Array[Tag] )
@@ -19,6 +24,11 @@ case class Way( val id : Long, val nodes : Array[Node], val tags : Array[Tag] )
 class CrunchSink extends Sink
 {
     import scala.collection.JavaConversions._
+    
+    Logger.clearHandlers()
+    LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
+    
+    private val log = Logger.get(getClass)
     
     def inUk( c : Coord ) = c.lon > -9.23 && c.lon < 2.69 && c.lat > 49.84 && c.lat < 60.85
         
@@ -46,7 +56,7 @@ class CrunchSink extends Sink
                 if ( inUk(c) )
                 {
                     ukNodes += 1
-                    if ( (ukNodes % 100000) == 0 ) println( "Nodes: " + ukNodes )
+                    if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes )
                     
                     nodesById.put( n.getId(), Node( n.getId(), c, n.getTags().map { t => Tag( t.getKey(), t.getValue() ) }.toArray ))
                 }
@@ -58,9 +68,10 @@ class CrunchSink extends Sink
                 
                 if ( nodeIds.forall( nid => nodesById contains nid ) )
                 {
+                    // Tag: highway=* or junction=*
                     val nodes = nodeIds.map( nid => nodesById(nid) )
                     ukWays += 1
-                    if ( (ukWays % 10000) == 0 ) println( "Ways: " + ukWays )
+                    if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays )
                     val way = Way( w.getId(), nodes, w.getTags().map { t => Tag( t.getKey(), t.getValue() ) }.toArray )
                     ways.append(way)
                 }
@@ -68,18 +79,6 @@ class CrunchSink extends Sink
             
             case _ =>
         }
-        // entity.getId() : Lo
-        // .getVersion() : Int
-        // .getTimestamp() : Date
-        // getUser() : OsmUser (.getId() : Int, .getName() : String)
-        // Collection<Tag> getTags() (.getKey(), .getValue())
-        // Map<String, Object> getMetaTags()
-        
-        // Way extends Entity
-        // List<WayNode> getWayNodes() (.getNodeId() : Long)
-        
-        // class Node extends Entity
-        // getLatitude, getLongitude
     }
     
     def complete()
@@ -113,3 +112,4 @@ object OSMCrunch extends App
         osmc.run()
     }
 }
+
