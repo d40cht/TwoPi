@@ -31,6 +31,8 @@ case class Tag( val keyId : Int, val valueId : Int )
     def this() = this(-1, -1)
 }
 
+
+
 class StringMap
 {
     private var nextId = 0
@@ -62,6 +64,7 @@ case class TagStringRegistry( val keyMap : StringMap, val valMap : StringMap )
     def this() = this( new StringMap(), new StringMap() )
     def apply( key : String, value : String ) = new Tag( keyMap(key), valMap(value) )
 }
+
 
 case class Coord( val lon : Double, val lat : Double )
 {
@@ -282,6 +285,12 @@ class MapWithIndex( val map : OSMMap )
             
         wis.map( wi => map.ways(wi) )
     }
+    
+    implicit class RichTag( val tag : Tag )
+    {
+        def key = map.tagRegistry.keyMap( tag.keyId )
+        def value = map.tagRegistry.valMap( tag.valueId )
+    }
 }
 
 object CalculateWayLength extends App with Logging
@@ -303,35 +312,24 @@ object CalculateWayLength extends App with Logging
 
         dist * meterConversion
     }
-    
-    
-    
+
     
     override def main( args : Array[String] )
     {
         Logger.clearHandlers()
         LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
         
-        val rtree = new com.vividsolutions.jts.index.strtree.STRtree()
         val loadedMap = OSMMap.load( new File( args(0) ) )
      
-        //val osmCRS = CRS.decode("EPSG:4326")
-           
         var acc = 0.0
         var segments = 0
+
         for ( (w, i) <- loadedMap.ways.zipWithIndex )
         {
             if ( (i % 1000) == 0 ) log.info( "Adding way: " + i )
-            w.nodes.foreach
-            { n =>
-                val env = new Envelope( new Coordinate( n.coord.lon, n.coord.lat ) )
-                
-                rtree.insert( env, w )
-            }
-            
+           
             for ( Array(n1, n2) <- w.nodes.sliding(2) )
             {
-                // TODO: Calculate great circle distance here.
                 acc += distFrom( n1.coord.lat, n1.coord.lon, n2.coord.lat, n2.coord.lon )
                 segments +=1
                 
