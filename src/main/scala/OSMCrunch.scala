@@ -69,14 +69,41 @@ case class TagStringRegistry( val keyMap : StringMap, val valMap : StringMap )
 case class Coord( val lon : Double, val lat : Double )
 {
     def this() = this(0.0, 0.0)
+    
+    def interpolate( other : Coord, frac : Double ) =
+    {
+        assert( frac >= 0.0 && frac <= 1.0, "Frac outside expected range: " + frac )
+        
+        new Coord( other.lon * frac + lon * (1.0-frac), other.lat * frac + lat * (1.0-frac) )
+    }
+    
+    def distFrom( other : Coord ) : Double = 
+    {
+        val (lat1, lng1) = (lon, lat)
+        val (lat2, lng2) = (other.lon, other.lat)
+        
+        val earthRadius = 3958.75
+        val dLat = Math.toRadians(lat2-lat1)
+        val dLng = Math.toRadians(lng2-lng1)
+        val a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLng/2) * Math.sin(dLng/2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+        val dist = earthRadius * c
+
+        val meterConversion = 1609
+
+        dist * meterConversion
+    }
 }
+
 case class Node( val coord : Coord, val tags : Array[Tag] )
 {
     def this() = this( null, Array() )
 }
-case class Way( val id : Long, val nodeIds : Array[Int], val tags : Array[Tag] )
+case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
 {
-    def this() = this( -1, Array(), Array() )
+    def this() = this( Array(), Array() )
 }
 
 case class OSMMap( val nodes : Array[Node], val ways : Array[Way], val tagRegistry : TagStringRegistry )
@@ -214,7 +241,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     ukWays += 1
                     ukWayNodes += nodeIds.length
                     if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays.toDouble / 1000000.0 + "M" + ", " + ukWayNodes.toDouble / 1000000.0 + "M" )
-                    val way = Way( w.getId(), wayNodes, wayTags.toArray.map( t => tsr(t._1, t._2) ) )
+                    val way = Way( wayNodes, wayTags.toArray.map( t => tsr(t._1, t._2) ) )
                     ways.append(way)
                     
                     wayNodes.foreach( wnid => wayNodeSet.add(wnid) )
@@ -288,22 +315,6 @@ object OSMCrunch extends App
     }
 }
 
-// Yuk yuk yuk.
-class PackedIntPairArray
-{
-    private val cont = mutable.ArrayBuffer[Long]()
-    
-    def add( a : Int, b : Int ) { cont.append( a.toLong << 32 | b.toLong ) }
-    def apply( index : Int ) : (Int, Int) =
-    {   
-        val res = cont(index)
-        
-        ((res >> 32).toInt, res.toInt)
-        
-    }
-    
-    def size = cont.size
-}
 
 class MapWithIndex( val map : OSMMap )
 {
@@ -364,27 +375,77 @@ class MapWithIndex( val map : OSMMap )
     }
 }
 
+
+object RecalculateAddPoints extends App with Logging
+{
+    def recalculate( inputMap : OSMMap, maxNodeDist : Double ) : OSMMap =
+    {
+        val newNodes = mutable.ArrayBuffer[Node]()
+        val newWays = mutable.ArrayBuffer[Way]()
+        
+        def getInpNode( nId : Int ) = inputMap.nodes(nId)
+        
+        def addNode( n : Node ) : Int =
+        {
+            newNodes.append( n )
+            newNodes.size - 1
+        }
+        
+        def addWay( w : Way ) =
+        {
+            newWays.append( w )
+        }
+        
+        for ( (w, i) <- inputMap.ways.zipWithIndex )
+        {
+            if ( (i % 1000) == 0 ) log.info( "Adding way: " + i )
+          
+            if ( !w.nodeIds.isEmpty )
+            {
+                val wayNodeIds = mutable.ArrayBuffer[Int]()
+                wayNodeIds.append( addNode( getInpNode(w.nodeIds.head) ) )
+
+                
+                for ( Array(nId1, nId2) <- w.nodeIds.sliding(2) )
+                {
+                    val n1 = inputMap.nodes(nId1)
+                    val n2 = inputMap.nodes(nId2)
+                    val segmentDist = n1.coord.distFrom( n2.coord )
+                    
+                    if ( segmentDist > maxNodeDist )
+                    {
+                        val newPoints = (segmentDist / maxNodeDist).toInt
+                        val increment = segmentDist / newPoints.toDouble
+                        for ( i <- 1 until newPoints )
+                        {
+                            val frac = i.toDouble / newPoints.toDouble
+                            val pc = n1.coord.interpolate( n2.coord, frac )
+                            val tags = Array( inputMap.tagRegistry( "synthetic", "true" ) )
+                            wayNodeIds.append( addNode( new Node( pc, tags ) ) )
+                        }
+                    }
+                    wayNodeIds.append( addNode( n2 ) )
+                }
+                
+                addWay( new Way( wayNodeIds.toArray, w.tags ) )
+            }
+        }
+        
+        
+
+        new OSMMap( newNodes.toArray, newWays.toArray, inputMap.tagRegistry )
+    }
+    
+    override def main( args : Array[String] )
+    {
+        val loadedMap = OSMMap.load( new File( args(0) ) )
+        val res = recalculate( loadedMap, 50.0 )
+        OSMMap.save( res, new File( args(1) ) )
+    }
+}
+
 object CalculateWayLength extends App with Logging
 {
-    import com.vividsolutions.jts.geom.{Coordinate, Envelope}
-    
-    def distFrom(lat1 : Double, lng1 : Double, lat2 : Double, lng2 : Double ) : Double =
-    {
-        val earthRadius = 3958.75;
-        val dLat = Math.toRadians(lat2-lat1)
-        val dLng = Math.toRadians(lng2-lng1)
-        val a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                   Math.sin(dLng/2) * Math.sin(dLng/2)
-        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-        val dist = earthRadius * c
-
-        val meterConversion = 1609
-
-        dist * meterConversion
-    }
-
-    
     override def main( args : Array[String] )
     {
         Logger.clearHandlers()
@@ -403,7 +464,8 @@ object CalculateWayLength extends App with Logging
             {
                 val n1 = loadedMap.nodes(nId1)
                 val n2 = loadedMap.nodes(nId2)
-                acc += distFrom( n1.coord.lat, n1.coord.lon, n2.coord.lat, n2.coord.lon )
+                val segmentDist = n1.coord.distFrom( n2.coord )
+                acc += segmentDist
                 segments +=1
                 
             }
