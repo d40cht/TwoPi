@@ -102,7 +102,7 @@ object OSMMap extends Logging
     {
         log.info( "Reading map from disk." )
         val kryo = new Kryo()
-        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( new File( "./summary.bin" ) ) ) )
+        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( fileName ) ) )
         val map = kryo.readObject( input, classOf[OSMMap] )
         log.info( "Number of ways: " + map.ways.size )
         
@@ -172,6 +172,8 @@ class CrunchSink extends Sink with Logging
                 }
             }
             
+            // TODO: And relations please
+            
             case _ =>
         }
     }
@@ -216,16 +218,16 @@ object OSMCrunch extends App
         Logger.clearHandlers()
         LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
         
-        //val f = "oxfordshire-latest.osm.pbf"
-        val f = "great-britain-latest.osm.pbf"
+        val f = "oxfordshire-latest.osm.pbf"
+        //val f = "great-britain-latest.osm.pbf"
         //val f = "europe-latest.osm.pbf"
        
-        val mapFile = new File( "./summary.bin" )
+        val mapFile = new File( args(1) )
         
         { 
             val map =
             {
-                val osmc = new OSMCrunch( new File("/backup/Data/OSM/" + f) )
+                val osmc = new OSMCrunch( new File(args(0)) )
                 osmc.run()
             }
             
@@ -233,6 +235,110 @@ object OSMCrunch extends App
         }
         
         val loadedMap = OSMMap.load( mapFile )
+    }
+}
+
+class MapWithIndex( val map : OSMMap )
+{
+    import com.infomatiq.jsi.{Rectangle, Point}
+    import com.infomatiq.jsi.rtree._
+    
+    private val index =
+    {
+        val t = new RTree()
+        t.init(null)
+
+        map.ways.zipWithIndex.foreach
+        { case (w, wi) =>
+        
+            w.nodes.foreach
+            { n=>
+                
+                //val env = new Envelope( new Coordinate( n.coord.lon, n.coord.lat ) )
+                //t.insert( env, w )
+                t.add( new Rectangle( n.coord.lon.toFloat, n.coord.lat.toFloat, n.coord.lon.toFloat, n.coord.lat.toFloat ), wi )
+            }
+        }
+        
+        t
+    }
+    
+    def get( c : Coord, n : Int  ) : Seq[Way] =
+    {
+        val wis = mutable.ArrayBuffer[Int]()
+        
+        index.nearestN(
+            new Point( c.lon.toFloat, c.lat.toFloat ),
+            new gnu.trove.TIntProcedure
+            {
+                def execute( wi : Int ) =
+                {
+                    wis.append(wi)
+                    true
+                }
+            },
+            n,
+            Float.MaxValue )
+            
+        wis.map( wi => map.ways(wi) )
+    }
+}
+
+object CalculateWayLength extends App with Logging
+{
+    import com.vividsolutions.jts.geom.{Coordinate, Envelope}
+    
+    def distFrom(lat1 : Double, lng1 : Double, lat2 : Double, lng2 : Double ) : Double =
+    {
+        val earthRadius = 3958.75;
+        val dLat = Math.toRadians(lat2-lat1)
+        val dLng = Math.toRadians(lng2-lng1)
+        val a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLng/2) * Math.sin(dLng/2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+        val dist = earthRadius * c
+
+        val meterConversion = 1609
+
+        dist * meterConversion
+    }
+    
+    
+    
+    
+    override def main( args : Array[String] )
+    {
+        Logger.clearHandlers()
+        LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
+        
+        val rtree = new com.vividsolutions.jts.index.strtree.STRtree()
+        val loadedMap = OSMMap.load( new File( args(0) ) )
+     
+        //val osmCRS = CRS.decode("EPSG:4326")
+           
+        var acc = 0.0
+        var segments = 0
+        for ( (w, i) <- loadedMap.ways.zipWithIndex )
+        {
+            if ( (i % 1000) == 0 ) log.info( "Adding way: " + i )
+            w.nodes.foreach
+            { n =>
+                val env = new Envelope( new Coordinate( n.coord.lon, n.coord.lat ) )
+                
+                rtree.insert( env, w )
+            }
+            
+            for ( Array(n1, n2) <- w.nodes.sliding(2) )
+            {
+                // TODO: Calculate great circle distance here.
+                acc += distFrom( n1.coord.lat, n1.coord.lon, n2.coord.lat, n2.coord.lon )
+                segments +=1
+                
+            }
+        }
+        
+        log.info( "Total distance: " + acc + ", average segment length: " + (acc/segments.toDouble) )
     }
 }
 
