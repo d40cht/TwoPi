@@ -74,14 +74,14 @@ case class Node( val coord : Coord, val tags : Array[Tag] )
 {
     def this() = this( null, Array() )
 }
-case class Way( val id : Long, val nodes : Array[Node], val tags : Array[Tag] )
+case class Way( val id : Long, val nodeIds : Array[Int], val tags : Array[Tag] )
 {
     def this() = this( -1, Array(), Array() )
 }
 
-case class OSMMap( val ways : Array[Way], val tagRegistry : TagStringRegistry )
+case class OSMMap( val nodes : Array[Node], val ways : Array[Way], val tagRegistry : TagStringRegistry )
 {
-    def this() = this( Array(), null )
+    def this() = this( Array(), Array(), null )
 }
 
 object OSMMap extends Logging
@@ -113,7 +113,54 @@ object OSMMap extends Logging
     }
 }
 
-class CrunchSink extends Sink with Logging
+abstract class SimpleSink extends Sink with Logging
+{
+    def initialize(metaData : java.util.Map[String, Object])
+    {
+        log.debug( "initialize" )
+    }
+    
+    def complete()
+    {
+        log.debug( "complete" )
+    }
+    
+    def release()
+    {
+        log.debug( "release" )
+    }
+}
+
+class HighwayNodes extends SimpleSink
+{
+    import scala.collection.JavaConversions._
+    
+    val wayNodeSet = mutable.Set[Long]()
+    
+    def process(entityContainer : EntityContainer)
+    {
+        val entity = entityContainer.getEntity()
+        
+        entity match
+        {
+            case w : v0_6.Way =>
+            {
+                val wayTags = w.getTags().map { t => ( t.getKey(), t.getValue() ) }.toMap
+                
+                // Tag: highway=* or junction=*
+                if ( ((wayTags contains "highway") || (wayTags contains "junction")) )
+                {
+                    val nodeIds = w.getWayNodes().map( _.getNodeId() ).toArray
+                    nodeIds.foreach( nid => wayNodeSet.add(nid) )
+                }
+            }
+            
+            case _ =>
+        }
+    }
+}
+
+class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
 {
     import scala.collection.JavaConversions._
     
@@ -123,16 +170,12 @@ class CrunchSink extends Sink with Logging
     var ukWays = 0
     var ukWayNodes = 0
     
-    def initialize(metaData : java.util.Map[String, Object])
-    {
-        println( "initialize" )
-    }
-    
-    val nodesById = mutable.Map[Long, Node]()
-    val wayNodeSet = mutable.Set[Long]()
-    
-    val ways = mutable.ArrayBuffer[Way]()
     val tsr = new TagStringRegistry()
+    
+    val nodesById = mutable.Map[Long, Int]()
+    val ways = mutable.ArrayBuffer[Way]()
+    val nodes = mutable.ArrayBuffer[Node]()
+    
     
     def process(entityContainer : EntityContainer)
     {
@@ -143,35 +186,38 @@ class CrunchSink extends Sink with Logging
             case n : v0_6.Node =>
             {
                 val c = new Coord( n.getLongitude(), n.getLatitude() )
+                val nId = n.getId()
                 
-                if ( inUk(c) )
+                if ( wayNodeSet contains nId )
                 {
                     ukNodes += 1
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
                     val nodeTags = n.getTags().map { t => tsr( t.getKey(), t.getValue() ) }.toArray
-                    //val nodeTags = Array[Tag]()
                     
-                    nodesById.put( n.getId(), Node( c, nodeTags ))
+                    nodes.append( Node( c, nodeTags ) )
+                    nodesById.put( nId, nodes.size-1 )
                 }
             }
             
             case w : v0_6.Way =>
             {
-                val nodeIds : Array[Long] = w.getWayNodes().map( _.getNodeId() ).toArray
+                val nodeIds = w.getWayNodes().map( _.getNodeId() ).toArray
                 
-                val haveAllNodes = nodeIds.forall( nid => nodesById contains nid )
+                val haveAllNodes = nodeIds.forall( nid => wayNodeSet contains nid )
                 val wayTags = w.getTags().map { t => ( t.getKey(), t.getValue() ) }.toMap
-                if ( haveAllNodes && (wayTags contains "highway") )
+                
+                // Tag: highway=* or junction=*
+                if ( haveAllNodes && ((wayTags contains "highway") || (wayTags contains "junction")) )
                 {
-                    // Tag: highway=* or junction=*
-                    nodeIds.foreach( nid => wayNodeSet.add(nid) )
-                    val nodes = nodeIds.map( nid => nodesById(nid) )
+                    val wayNodes = nodeIds.map( nid => nodesById(nid) )
                     ukWays += 1
                     ukWayNodes += nodeIds.length
                     if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays.toDouble / 1000000.0 + "M" + ", " + ukWayNodes.toDouble / 1000000.0 + "M" )
-                    val way = Way( w.getId(), nodes, wayTags.toArray.map( t => tsr(t._1, t._2) ) )
+                    val way = Way( w.getId(), wayNodes, wayTags.toArray.map( t => tsr(t._1, t._2) ) )
                     ways.append(way)
+                    
+                    wayNodes.foreach( wnid => wayNodeSet.add(wnid) )
                 }
             }
             
@@ -181,20 +227,13 @@ class CrunchSink extends Sink with Logging
         }
     }
     
-    def getData() = new OSMMap( ways.toArray, tsr )
-    
-    def complete()
+    def getData() =
     {
-        log.info( "complete" )
-    }
-    
-    def release()
-    {
-        log.info( "release" )
+        new OSMMap( nodes.toArray, ways.toArray, tsr )
     }
 }
 
-class OSMCrunch( val dataFileName : File )
+class OSMCrunch( val dataFileName : File ) extends Logging
 {
     import java.io._
     
@@ -202,8 +241,20 @@ class OSMCrunch( val dataFileName : File )
     {
         val osmMap = 
         {
+            log.info( "Pass 1: Collecting ids of highway nodes" )
+            val wayNodeSet =
+            {
+                val reader = new OsmosisReader( new BufferedInputStream( new FileInputStream( dataFileName ) ) )
+                val hn = new HighwayNodes()
+                reader.setSink( hn )   
+                reader.run()
+                
+                hn.wayNodeSet
+            }
+            
+            log.info( "Pass 2: Building map" )
             val reader = new OsmosisReader( new BufferedInputStream( new FileInputStream( dataFileName ) ) )
-            val cs = new CrunchSink()
+            val cs = new CrunchSink(wayNodeSet)
             reader.setSink( cs )   
             reader.run()
             cs.getData()
@@ -220,11 +271,7 @@ object OSMCrunch extends App
     {
         Logger.clearHandlers()
         LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
-        
-        val f = "oxfordshire-latest.osm.pbf"
-        //val f = "great-britain-latest.osm.pbf"
-        //val f = "europe-latest.osm.pbf"
-       
+
         val mapFile = new File( args(1) )
         
         { 
@@ -241,49 +288,73 @@ object OSMCrunch extends App
     }
 }
 
+// Yuk yuk yuk.
+class PackedIntPairArray
+{
+    private val cont = mutable.ArrayBuffer[Long]()
+    
+    def add( a : Int, b : Int ) { cont.append( a.toLong << 32 | b.toLong ) }
+    def apply( index : Int ) : (Int, Int) =
+    {   
+        val res = cont(index)
+        
+        ((res >> 32).toInt, res.toInt)
+        
+    }
+    
+    def size = cont.size
+}
+
 class MapWithIndex( val map : OSMMap )
 {
     import com.infomatiq.jsi.{Rectangle, Point}
-    import com.infomatiq.jsi.rtree._
+    import com.infomatiq.jsi.rtree.RTree
     
-    private val index =
+    private val (index, nodeToWayMap) =
     {
+        var nodeToWayMap = mutable.Map[Int, Array[Int]]()
+        
         val t = new RTree()
         t.init(null)
 
         map.ways.zipWithIndex.foreach
         { case (w, wi) =>
         
-            w.nodes.foreach
-            { n=>
+            w.nodeIds.foreach
+            { nId =>
                 
-                //val env = new Envelope( new Coordinate( n.coord.lon, n.coord.lat ) )
-                //t.insert( env, w )
-                t.add( new Rectangle( n.coord.lon.toFloat, n.coord.lat.toFloat, n.coord.lon.toFloat, n.coord.lat.toFloat ), wi )
+                val n = map.nodes(nId)
+                if ( !nodeToWayMap.contains(nId) )
+                {
+                    t.add( new Rectangle( n.coord.lon.toFloat, n.coord.lat.toFloat, n.coord.lon.toFloat, n.coord.lat.toFloat ), nId )
+                }
+                val old = nodeToWayMap.getOrElse( nId, Array[Int]() )
+                
+                nodeToWayMap.put( nId, (old :+ wi).distinct )
             }
         }
         
-        t
+        (t, nodeToWayMap)
     }
     
-    def get( c : Coord, n : Int  ) : Seq[Way] =
+    def get( c : Coord, n : Int  ) : Seq[(Node, Way)] =
     {
-        val wis = mutable.ArrayBuffer[Int]()
+        val nis = mutable.ArrayBuffer[Int]()
         
         index.nearestN(
             new Point( c.lon.toFloat, c.lat.toFloat ),
             new gnu.trove.TIntProcedure
             {
-                def execute( wi : Int ) =
+                def execute( ni : Int ) =
                 {
-                    wis.append(wi)
+                    nis.append(ni)
                     true
                 }
             },
             n,
             Float.MaxValue )
             
-        wis.map( wi => map.ways(wi) )
+        nis.flatMap( ni => nodeToWayMap(ni).distinct.map( wi => (map.nodes(ni), map.ways(wi)) ) )
     }
     
     implicit class RichTag( val tag : Tag )
@@ -328,8 +399,10 @@ object CalculateWayLength extends App with Logging
         {
             if ( (i % 1000) == 0 ) log.info( "Adding way: " + i )
            
-            for ( Array(n1, n2) <- w.nodes.sliding(2) )
+            for ( Array(nId1, nId2) <- w.nodeIds.sliding(2) )
             {
+                val n1 = loadedMap.nodes(nId1)
+                val n2 = loadedMap.nodes(nId2)
                 acc += distFrom( n1.coord.lat, n1.coord.lon, n2.coord.lat, n2.coord.lon )
                 segments +=1
                 
