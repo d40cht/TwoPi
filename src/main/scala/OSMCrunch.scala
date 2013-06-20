@@ -1,7 +1,8 @@
 package org.seacourt.osm
 
 
-import java.io.{File, BufferedInputStream, FileInputStream}
+import java.io.{File, BufferedInputStream, FileInputStream, FileOutputStream}
+import java.util.zip._
 
 import crosby.binary.osmosis.OsmosisReader
 
@@ -20,8 +21,12 @@ import com.esotericsoftware.kryo.io.{ Input, Output }
 
 import com.twitter.chill._
 
+trait Logging
+{
+    lazy val log = Logger.get(getClass)
+}
 
-case class Tag private( val keyId : Int, val valueId : Int )
+case class Tag( val keyId : Int, val valueId : Int )
 {
     def this() = this(-1, -1)
 }
@@ -52,11 +57,9 @@ class StringMap
     def apply( id : Int ) = stringArray(id)
 }
 
-object Tag
-{
-    val keyMap = new StringMap()
-    val valMap = new StringMap()
-    
+case class TagStringRegistry( val keyMap : StringMap, val valMap : StringMap )
+{   
+    def this() = this( new StringMap(), new StringMap() )
     def apply( key : String, value : String ) = new Tag( keyMap(key), valMap(value) )
 }
 
@@ -73,11 +76,43 @@ case class Way( val id : Long, val nodes : Array[Node], val tags : Array[Tag] )
     def this() = this( -1, Array(), Array() )
 }
 
-class CrunchSink extends Sink
+case class OSMMap( val ways : Array[Way], val tagRegistry : TagStringRegistry )
+{
+    def this() = this( Array(), null )
+}
+
+object OSMMap extends Logging
+{
+    def save( map : OSMMap, fileName : File )
+    {
+        import java.io._
+        import java.util.zip._
+        
+        log.info( "Serialising to: " + fileName )
+        val kryo = new Kryo()
+        
+        val output = new Output( new GZIPOutputStream( new FileOutputStream( fileName ) ) )
+        kryo.writeObject(output, map)
+        output.close
+        
+        log.info( "Complete." )
+    }
+    
+    def load( fileName : File ) : OSMMap =
+    {
+        log.info( "Reading map from disk." )
+        val kryo = new Kryo()
+        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( new File( "./summary.bin" ) ) ) )
+        val map = kryo.readObject( input, classOf[OSMMap] )
+        log.info( "Number of ways: " + map.ways.size )
+        
+        map
+    }
+}
+
+class CrunchSink extends Sink with Logging
 {
     import scala.collection.JavaConversions._
-    
-    private val log = Logger.get(getClass)
     
     def inUk( c : Coord ) = c.lon > -9.23 && c.lon < 2.69 && c.lat > 49.84 && c.lat < 60.85
         
@@ -91,8 +126,10 @@ class CrunchSink extends Sink
     }
     
     val nodesById = mutable.Map[Long, Node]()
-    val ways = mutable.ArrayBuffer[Way]()
     val wayNodeSet = mutable.Set[Long]()
+    
+    val ways = mutable.ArrayBuffer[Way]()
+    val tsr = new TagStringRegistry()
     
     def process(entityContainer : EntityContainer)
     {
@@ -109,7 +146,7 @@ class CrunchSink extends Sink
                     ukNodes += 1
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
-                    val nodeTags = n.getTags().map { t => Tag( t.getKey(), t.getValue() ) }.toArray
+                    val nodeTags = n.getTags().map { t => tsr( t.getKey(), t.getValue() ) }.toArray
                     //val nodeTags = Array[Tag]()
                     
                     nodesById.put( n.getId(), Node( c, nodeTags ))
@@ -130,7 +167,7 @@ class CrunchSink extends Sink
                     ukWays += 1
                     ukWayNodes += nodeIds.length
                     if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays.toDouble / 1000000.0 + "M" + ", " + ukWayNodes.toDouble / 1000000.0 + "M" )
-                    val way = Way( w.getId(), nodes, wayTags.toArray.map( t => Tag(t._1, t._2) ) )
+                    val way = Way( w.getId(), nodes, wayTags.toArray.map( t => tsr(t._1, t._2) ) )
                     ways.append(way)
                 }
             }
@@ -139,24 +176,7 @@ class CrunchSink extends Sink
         }
     }
     
-    def saveToDisk( fileName : File )
-    {
-        import java.io._
-        import java.util.zip._
-        
-        log.info( "Reading complete. Clearing out irrelevant nodes" )
-        nodesById.retain( (nid, n) => wayNodeSet.contains(nid) )
-        log.info( "Complete." )
-        
-        log.info( "Serialising to: " + fileName )
-        val kryo = new Kryo()
-        
-        val output = new Output( new GZIPOutputStream( new FileOutputStream( fileName ) ) )
-        kryo.writeObject(output, ways)
-        output.close
-        
-        log.info( "Complete." )
-    }
+    def getData() = new OSMMap( ways.toArray, tsr )
     
     def complete()
     {
@@ -173,15 +193,19 @@ class OSMCrunch( val dataFileName : File )
 {
     import java.io._
     
-    def run()
+    def run() : OSMMap =
     {
-        val reader = new OsmosisReader( new BufferedInputStream( new FileInputStream( dataFileName ) ) )
-        val cs = new CrunchSink()
-        reader.setSink( cs )
+        val osmMap = 
+        {
+            val reader = new OsmosisReader( new BufferedInputStream( new FileInputStream( dataFileName ) ) )
+            val cs = new CrunchSink()
+            reader.setSink( cs )   
+            reader.run()
+            cs.getData()
+        }
         
-        reader.run()
+        osmMap
         
-        cs.saveToDisk( new File( "./summary.bin" ) )
     }
 }
 
@@ -189,24 +213,26 @@ object OSMCrunch extends App
 {    
     override def main( args : Array[String] )
     {
-        import java.util.zip._
-        
         Logger.clearHandlers()
         LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
-
-        val log = Logger.get(getClass)
         
         //val f = "oxfordshire-latest.osm.pbf"
         val f = "great-britain-latest.osm.pbf"
         //val f = "europe-latest.osm.pbf"
-        val osmc = new OSMCrunch( new File("/backup/Data/OSM/" + f) )
-        osmc.run()
+       
+        val mapFile = new File( "./summary.bin" )
         
-        log.info( "Reading ways from disk." )
-        val kryo = new Kryo()
-        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( new File( "./summary.bin" ) ) ) )
-        val ways = kryo.readObject( input, classOf[mutable.ArrayBuffer[Way]] )
-        log.info( "Number of ways: " + ways.size )
+        { 
+            val map =
+            {
+                val osmc = new OSMCrunch( new File("/backup/Data/OSM/" + f) )
+                osmc.run()
+            }
+            
+            OSMMap.save( map, mapFile )
+        }
+        
+        val loadedMap = OSMMap.load( mapFile )
     }
 }
 
