@@ -21,6 +21,15 @@ import com.esotericsoftware.kryo.io.{ Input, Output }
 
 import com.twitter.chill._
 
+/* TODO:
+
+    * Add GeoTIFF reader and annotate all nodes with a height
+    * Re-code gpx file to binary (using Kryo streams)
+    * Experiment (with particle filters) snapping gpx traces to the map
+    * Experiment with auto-classifying gpx files
+    * Experiment with overlaying on a map
+*/
+
 trait Logging
 {
     lazy val log = Logger.get(getClass)
@@ -472,6 +481,102 @@ object CalculateWayLength extends App with Logging
         }
         
         log.info( "Total distance: " + acc + ", average segment length: " + (acc/segments.toDouble) )
+    }
+}
+
+/*
+
+In metadata.xml, for each track:
+
+<gpxFile id="912" timestamp="2005-11-07T16:02:38Z" points="656" lat="50.8240170" lon="-0.1451670" visibility="public" uid="999" user="mikelmaron" filename="public/000/000/000000912.gpx">
+  <description>a cab ride from lewes to the nearest harley davidson outlet on bonfire night</description>
+  <tags>
+    <tag>lewes</tag>
+  </tags>
+</gpxFile>
+*/
+
+case class GPXTrackPoint( val lon : Double, val lat : Double, val time : java.util.Date )
+case class GPXTrackSeg( val points : Array[GPXTrackPoint] )
+case class GPXTrack( val fname : String, val name : String, val segs : Array[GPXTrackSeg] )
+
+object ProcessGPXToBin extends App with Logging
+{
+    override def main( args : Array[String] )
+    {
+        import java.util.zip.{GZIPInputStream}
+        import org.xeustechnologies.jtar._
+        
+        Logger.clearHandlers()
+        LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
+        
+        // Process the metadata first
+        /*val pp = new scala.xml.pull.XMLEventReader( io.Source.fromFile( new java.io.File("/home/alex/Devel/AW/tmp/gpx-planet-2013-04-09/metadata.xml") ) )
+        
+        pp.foreach
+        {
+            case s : scala.xml.pull.EvElemStart =>
+            case e : scala.xml.pull.EvElemStart =>
+        }*/
+        
+        //"/backup/Data/OSM/gpx-planet-2013-04-09.tar.gz"
+        val jt = new TarInputStream( new BufferedInputStream(
+            new GZIPInputStream( new FileInputStream( args(0) ) ) ) )
+            
+        val kryo = new Kryo()
+        val output = new Output( new GZIPOutputStream( new FileOutputStream( args(1) ) ) )
+        
+        //2011-07-15T10:52:03Z
+        //yyyy-MM-dd'T'HH:mm:ss.SSZ
+        val df = new java.text.SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss" )
+        var te = jt.getNextEntry()
+        while ( te != null )
+        {
+            val fname = te.getName()
+            
+            if ( fname.toString.endsWith(".gpx") )
+            {
+                log.info( te.getName() )
+                
+                // Assume no GPX trails are greater than 100Mb(!)
+                val data = new Array[Byte](100*1024*1024)
+                val size = jt.read(data)
+                val inXML = scala.xml.XML.load( new java.io.ByteArrayInputStream(data, 0, size) )
+                
+                (inXML \\ "trk").foreach
+                { trk =>
+                
+                    val name = (trk \ "name").text
+                    val segs = (trk \\ "trkseg").map
+                    { seg =>
+                    
+                        val points = ( seg \ "trkpt" ).map
+                        { trkpt =>
+                        
+                            val lat = (trkpt \ "@lat").text.toDouble
+                            val lon = (trkpt \ "@lat").text.toDouble
+                            val timeText = (trkpt \ "time").text.trim
+                            
+                            val time = df.parse(timeText)
+                            
+                            new GPXTrackPoint( lon, lat, time )
+                        }.toArray
+                        
+                        new GPXTrackSeg( points )
+                    }.toArray
+                    
+                    val track = new GPXTrack( te.getName(), name, segs )
+                    
+                    kryo.writeObject(output, track)
+                    output.flush
+                    
+                }
+            }
+            
+            te = jt.getNextEntry()
+        }
+        
+        output.close
     }
 }
 
