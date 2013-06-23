@@ -496,6 +496,85 @@ In metadata.xml, for each track:
 </gpxFile>
 */
 
+val xll = header(2).trim.split(" ").last.toInt
+                    val yll = header(3).trim.split(" ").last.toInt
+                    val cellsize = header(4).trim.split(" ").last.toInt
+                    
+                    val data = new Array[Short](ncols*nrows)
+
+case class SRTMTile( val ncols : Int, val nrows : Int, val xll : Double, val yll : Double, val cellSize : Double, val data : Array[Short] )
+
+object ProcessSRTMAsciiToBin extends App with Logging
+{
+    //val jt = new TarInputStream( new BufferedInputStream(
+            new GZIPInputStream( new FileInputStream( args(0) ) ) ) )
+    override def main( args : Array[String] )
+    {
+        val inputDir = new java.io.File(args(0))
+        val outputDir = new java.io.File(args(1))
+        outputDir.mkdirs
+        
+        val kryo = new Kryo()
+        
+        for ( els <- inputDir.listdirs )
+        {
+            val jt = new ZipInputStream( new BufferedInputStream( new FileInputStream( els ) ) )
+            
+            var te = jt.getNextEntry()
+            while ( te != null )
+            {
+                var te = jt.getNextEntry()
+                
+                if ( fname.toString.endsWith(".asc") )
+                {
+                    log.info( te.getName() )
+                    
+                    // Assume no ASCII files are greater than 2Gb
+                    val data = new Array[Byte](2048*1024*1024)
+                    val size = jt.read(data)
+                    val asStr = String( data, size, "utf-8" )
+                    
+                    val lines = asStr.split("\n")
+                    // ncols         6000
+                    // nrows         6000
+                    // xllcorner     -80
+                    // yllcorner     20
+                    // cellsize      0.00083333333333333
+                    // NODATA_value  -9999
+                    val header = lines.take(6).toIndexedSeq
+                    val ncols = header(0).trim.split(" ").last.toInt
+                    val nrows = header(1).trim.split(" ").last.toInt
+                    assert( ncols == 6000 )
+                    assert( nrows == 6000 )
+                    val xll = header(2).trim.split(" ").last.toDouble
+                    val yll = header(3).trim.split(" ").last.toDouble
+                    val cellsize = header(4).trim.split(" ").last.toDouble
+                    
+                    val data = new Array[Short](ncols*nrows)
+                    var i = 0
+                    for ( l <- lines )
+                    {
+                        for ( el <- l.split(" ") )
+                        {
+                            data(i) = el.trim.toShort
+                            i += 1
+                        }
+                    }
+                    
+                    val tile = new SRTMTile( ncols, nrows, xll, yll, cellSize, data )
+                    
+                    val fname = outputDir / "%0.2f_%0.2f.bin".format( xll, yll )
+                    val output = new Output( new GZIPOutputStream( new FileOutputStream( fname ) ) )
+                    kryo.writeObject(output, tile)
+                    output.close
+                }
+            }
+            
+            jt.close
+        }
+    }
+}
+
 case class GPXTrackPoint( val lon : Double, val lat : Double, val time : java.util.Date )
 case class GPXTrackSeg( val points : Array[GPXTrackPoint] )
 case class GPXTrack( val fname : String, val name : String, val segs : Array[GPXTrackSeg] )
@@ -538,8 +617,8 @@ object ProcessGPXToBin extends App with Logging
             {
                 log.info( te.getName() )
                 
-                // Assume no GPX trails are greater than 100Mb(!)
-                val data = new Array[Byte](100*1024*1024)
+                // Assume no GPX trails are greater than 1Gb(!)
+                val data = new Array[Byte](1024*1024*1024)
                 val size = jt.read(data)
                 val inXML = scala.xml.XML.load( new java.io.ByteArrayInputStream(data, 0, size) )
                 
