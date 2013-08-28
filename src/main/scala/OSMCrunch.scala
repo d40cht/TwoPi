@@ -110,6 +110,7 @@ case class Node( val coord : Coord, val tags : Array[Tag] )
 {
     def this() = this( null, Array() )
 }
+
 case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
 {
     def this() = this( Array(), Array() )
@@ -496,18 +497,11 @@ In metadata.xml, for each track:
 </gpxFile>
 */
 
-val xll = header(2).trim.split(" ").last.toInt
-                    val yll = header(3).trim.split(" ").last.toInt
-                    val cellsize = header(4).trim.split(" ").last.toInt
-                    
-                    val data = new Array[Short](ncols*nrows)
 
 case class SRTMTile( val ncols : Int, val nrows : Int, val xll : Double, val yll : Double, val cellSize : Double, val data : Array[Short] )
 
 object ProcessSRTMAsciiToBin extends App with Logging
 {
-    //val jt = new TarInputStream( new BufferedInputStream(
-            new GZIPInputStream( new FileInputStream( args(0) ) ) ) )
     override def main( args : Array[String] )
     {
         val inputDir = new java.io.File(args(0))
@@ -516,23 +510,37 @@ object ProcessSRTMAsciiToBin extends App with Logging
         
         val kryo = new Kryo()
         
-        for ( els <- inputDir.listdirs )
+        for ( els <- inputDir.listFiles )
         {
             val jt = new ZipInputStream( new BufferedInputStream( new FileInputStream( els ) ) )
             
             var te = jt.getNextEntry()
             while ( te != null )
             {
-                var te = jt.getNextEntry()
+                val fname = te.getName()
+                val size = te.getSize()
                 
                 if ( fname.toString.endsWith(".asc") )
                 {
-                    log.info( te.getName() )
+                    log.info( te.getName() + " - " + size.toString )
                     
                     // Assume no ASCII files are greater than 2Gb
-                    val data = new Array[Byte](2048*1024*1024)
-                    val size = jt.read(data)
-                    val asStr = String( data, size, "utf-8" )
+                    val rbufSize = 8192
+                    val rbuf = new Array[Byte](rbufSize)
+                    val data = new Array[Byte](size.toInt)
+                    var completeSize = 0
+                    var offset = 0
+                    var rsize = jt.read(rbuf)
+                    while ( rsize != -1 )
+                    {
+                        completeSize += rsize
+                        //log.info( "Offset: " + offset + " - " + rsize + " - " + size )
+                        java.lang.System.arraycopy( rbuf, 0, data, offset, rsize )
+                        offset += rsize
+                        rsize = jt.read(rbuf, 0, rbufSize)
+                        
+                    }
+                    val asStr = new String( data,"utf-8" )
                     
                     val lines = asStr.split("\n")
                     // ncols         6000
@@ -548,26 +556,30 @@ object ProcessSRTMAsciiToBin extends App with Logging
                     assert( nrows == 6000 )
                     val xll = header(2).trim.split(" ").last.toDouble
                     val yll = header(3).trim.split(" ").last.toDouble
-                    val cellsize = header(4).trim.split(" ").last.toDouble
+                    val cellSize = header(4).trim.split(" ").last.toDouble
                     
-                    val data = new Array[Short](ncols*nrows)
+                    val dataArray = new Array[Short](ncols*nrows)
                     var i = 0
-                    for ( l <- lines )
+                    for ( l <- lines.drop(6) )
                     {
-                        for ( el <- l.split(" ") )
+                        //log.info( i.toString + " - " + l )
+                        for ( el <- l.trim.split(" ") )
                         {
-                            data(i) = el.trim.toShort
+                            dataArray(i) = el.trim.toShort
                             i += 1
                         }
                     }
                     
-                    val tile = new SRTMTile( ncols, nrows, xll, yll, cellSize, data )
+                    assert( i == ncols * nrows )
+                    val tile = new SRTMTile( ncols, nrows, xll, yll, cellSize, dataArray )
                     
-                    val fname = outputDir / "%0.2f_%0.2f.bin".format( xll, yll )
+                    val fname = new File( outputDir, "%.2f_%.2f.bin".format( xll, yll ).replace("-", "m") )
                     val output = new Output( new GZIPOutputStream( new FileOutputStream( fname ) ) )
                     kryo.writeObject(output, tile)
                     output.close
                 }
+                
+                te = jt.getNextEntry()
             }
             
             jt.close
@@ -609,46 +621,64 @@ object ProcessGPXToBin extends App with Logging
         //yyyy-MM-dd'T'HH:mm:ss.SSZ
         val df = new java.text.SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss" )
         var te = jt.getNextEntry()
+        val toProcess = mutable.ArrayBuffer[(String, Array[Byte])]()
+
         while ( te != null )
         {
-            val fname = te.getName()
+            val fname = new String( te.getName() )
             
             if ( fname.toString.endsWith(".gpx") )
             {
-                log.info( te.getName() )
-                
-                // Assume no GPX trails are greater than 1Gb(!)
-                val data = new Array[Byte](1024*1024*1024)
+                log.info( fname )
+                  
+                val toAlloc = te.getSize()
+                val data = new Array[Byte](toAlloc.toInt)
                 val size = jt.read(data)
-                val inXML = scala.xml.XML.load( new java.io.ByteArrayInputStream(data, 0, size) )
-                
-                (inXML \\ "trk").foreach
-                { trk =>
-                
-                    val name = (trk \ "name").text
-                    val segs = (trk \\ "trkseg").map
-                    { seg =>
+           
+                try
+                {
+                    val tp = new java.io.ByteArrayInputStream(data)
+                    val inXML = scala.xml.XML.load( tp )
+                    tp.close
                     
-                        val points = ( seg \ "trkpt" ).map
-                        { trkpt =>
+                    val tracks = (inXML \\ "trk").seq.map
+                    { trk =>
+                    
+                        val name = new String( (trk \ "name").text )
+                        val segs = (trk \\ "trkseg").map
+                        { seg =>
                         
-                            val lat = (trkpt \ "@lat").text.toDouble
-                            val lon = (trkpt \ "@lat").text.toDouble
-                            val timeText = (trkpt \ "time").text.trim
+                            val points = ( seg \ "trkpt" ).map
+                            { trkpt =>
                             
-                            val time = df.parse(timeText)
+                                val lat = (trkpt \ "@lat").text.toDouble
+                                val lon = (trkpt \ "@lat").text.toDouble
+                                val timeText = new String( (trkpt \ "time").text.trim )
+                                
+                                val time = df.parse(timeText)
+                                
+                                new GPXTrackPoint( lon, lat, time )
+                            }.toArray
                             
-                            new GPXTrackPoint( lon, lat, time )
+                            new GPXTrackSeg( points )
                         }.toArray
                         
-                        new GPXTrackSeg( points )
-                    }.toArray
+                        new GPXTrack( fname, name, segs )
+                    }.toList
                     
-                    val track = new GPXTrack( te.getName(), name, segs )
+                    tracks.foreach
+                    { track =>
                     
-                    kryo.writeObject(output, track)
-                    output.flush
-                    
+                        kryo.writeObject(output, track)
+                        output.flush
+                    }
+                }
+                catch
+                {
+                    case e : java.lang.Throwable =>
+                    {
+                        log.error( "GPX trail parse failed: " + e.toString )
+                    }
                 }
             }
             

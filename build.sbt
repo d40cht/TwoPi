@@ -44,6 +44,8 @@ libraryDependencies += "com.vividsolutions" % "jts" % "1.13"
 
 libraryDependencies += "net.sourceforge.jsi" % "jsi" % "1.0.0"
 
+libraryDependencies += "org.scalaz" % "scalaz-core_2.10" % "7.0.3"
+
 scalacOptions ++= Seq( "-deprecation", "-Xlint", "-optimize" )
 
 
