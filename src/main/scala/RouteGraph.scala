@@ -36,6 +36,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
     def runDijkstra( startNode : RouteNode ) : mutable.HashMap[Int, RouteAnnotation] =
     {
         val sn = RouteAnnotation( startNode, 0.0 )
+        val visited = mutable.HashSet[Int]()
         val annotations = mutable.HashMap( startNode.nodeId -> sn )
         
         implicit val raOrdering = Ordering.fromLessThan( (ra1 : RouteAnnotation, ra2 : RouteAnnotation) =>
@@ -51,21 +52,30 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
             val minEl = q.head
             q -= minEl
             
+            visited.add(minEl.node.nodeId)
+            
+            //println( minEl.node.nodeId )
+            
             minEl.node.destinations.foreach
             { case (node, edge) =>
                 
-                val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue ) )
-                val thisCost = minEl.cost + edge.cost
-                
-                if ( nodeAnnot.cost > thisCost )
+                if ( !visited.contains(node.nodeId) )
                 {
-                    q -= nodeAnnot
+                    val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue ) )
+                    val thisCost = minEl.cost + edge.cost
                     
-                    nodeAnnot.cost = thisCost
-                    nodeAnnot.dist = minEl.dist + edge.dist
-                    nodeAnnot.parent = Some( minEl )
+                    //println( nodeAnnot.cost, thisCost )
                     
-                    q += nodeAnnot
+                    if ( nodeAnnot.cost > thisCost )
+                    {
+                        q -= nodeAnnot
+                        
+                        nodeAnnot.cost = thisCost
+                        nodeAnnot.dist = minEl.dist + edge.dist
+                        nodeAnnot.parent = Some( minEl )
+                        
+                        q += nodeAnnot
+                    }
                 }
             }
         }
@@ -78,6 +88,8 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
     {
         val startAnnotation = runDijkstra( startNode )
         
+        println( "Computing distances from start node" )
+        
         // First remote node is between 1/4 and 3/8 of total dist and of min cost
         val annot1 = startAnnotation
             .filter { case (n, annot) => annot.dist > targetDist * 0.25 && annot.dist < targetDist * 0.375 }
@@ -87,8 +99,11 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
             ._2
             
         
+        println( "Computing distances from second node" )
         val node2Annotation = runDijkstra( annot1.node )
         
+        
+        println( "Computing possible midpoints" )
         val possibleMidPoints = node2Annotation
             // Add distance annotation from the start node
             .map { case (nid, annot) => (nid, annot1, startAnnotation(nid) ) }
@@ -97,6 +112,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
             .toSeq
         
         // Enumerate all pairs of midpoints that sum to roughly the target distance
+        println( "Enumerating mid points (%d*%d)".format( possibleMidPoints.size, possibleMidPoints.size ) )
         val possibleMidPointPairs = possibleMidPoints.flatMap
         { case (nid1, annot11, annot12) =>
         
@@ -153,6 +169,7 @@ object RoutableGraph
         // Find all non-synthetic nodes which belong to more than one way
         val routeNodeIds =
         {
+            var startEndNodes = mutable.ArrayBuffer[Int]()
             val nodeWayMembershipCount = mutable.Map[Int, Int]()
             
             def incCount( nid : Int ) =
@@ -163,21 +180,28 @@ object RoutableGraph
             for ( w <- osmMap.ways )
             {
                 val realNodes = w.nodeIds.filter( nid => !osmMap.nodes(nid).synthetic ).toVector
-                incCount(realNodes.head)
-                incCount(realNodes.last)
+                startEndNodes.append( realNodes.head )
+                startEndNodes.append( realNodes.last )
                 realNodes.foreach( nid => incCount(nid) )
             }
             
-            nodeWayMembershipCount
+            println( "Num nodes: %d".format( nodeWayMembershipCount.size ) )
+            
+            val junctionNodes = nodeWayMembershipCount
                 .filter { case (nid, count) => count > 1 }
                 .map { case (nid, count) => nid }
                 .toSet
+                
+            println( "Num junction nodes: %d and start/end nodes: %d".format( junctionNodes.size, startEndNodes.size ) )
+                
+            (junctionNodes ++ startEndNodes).toSet
         }
         
         // Build the route graph
         {
             val routeNodeMap = mutable.Map[Int, RouteNode]()
             
+            var edgeCount = 0
             for ( w <- osmMap.ways )
             {
                 var dist = 0.0
@@ -205,6 +229,7 @@ object RoutableGraph
                             val edge = new RouteEdge( dist, dist )
                             rn.addEdge( lrn, edge )
                             lrn.addEdge( rn, edge )
+                            edgeCount += 1
                         }
                         
                         lastRouteNode = Some(rn)
@@ -215,6 +240,7 @@ object RoutableGraph
                 }
             }
             
+            println( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
             new RoutableGraph( osmMap, routeNodeMap.map { _._2 }.toArray )
         }
     }
@@ -233,11 +259,13 @@ object GenerateRoute extends App
         
         val closestNode = rg.getClosest( startCoords )
         
+        println( "Closest: " + closestNode.node.coord )
+        
         val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0 )
         
         for ( rn <- routeNodes )
         {
-            println( "%f, %f".format( rn.node.coord.lon, rn.node.coord.lat ) )
+            println( "%f, %f".format( rn.node.coord.lat, rn.node.coord.lon ) )
         }
     }
 }
