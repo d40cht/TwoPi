@@ -86,6 +86,7 @@ case class Coord( val lon : Double, val lat : Double )
         new Coord( other.lon * frac + lon * (1.0-frac), other.lat * frac + lat * (1.0-frac) )
     }
     
+    // Returns metres
     def distFrom( other : Coord ) : Double = 
     {
         val (lat1, lng1) = (lon, lat)
@@ -100,7 +101,7 @@ case class Coord( val lon : Double, val lat : Double )
         val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
         val dist = earthRadius * c
 
-        val meterConversion = 1609
+        val meterConversion = 1609.0
 
         dist * meterConversion
     }

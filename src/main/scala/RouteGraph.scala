@@ -1,8 +1,10 @@
-package org.seacourt.osm
+package org.seacourt.osm.route
+
+import org.seacourt.osm._
 
 import scala.collection.{mutable, immutable}
 
-case class RouteNode( val nodeId : Int )
+case class RouteNode( val nodeId : Int, val node : Node )
 {
     val destinations = mutable.ArrayBuffer[(RouteNode, RouteEdge)]()
     
@@ -16,14 +18,22 @@ case class RouteEdge( val dist : Double, val cost : Double )
 
 case class RouteAnnotation( val node : RouteNode, var cost : Double )
 {
-    var dist                        = 0.0
-    var parent : Option[RouteNode]  = None
+    var dist                                = 0.0
+    var parent : Option[RouteAnnotation]    = None
 }
 
 
-class RoutableGraph( val nodes : Array[RouteNode] )
+class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
 {
-    def runDijkstra( startNode : RouteNode ) =
+    def getClosest( coord : Coord ) : RouteNode =
+    {
+        // Horribly inefficient. Use an RTree shortly, or use IndexedMap as a starting point
+        nodes
+            .sortBy( rn => rn.node.coord.distFrom( coord ) )
+            .head
+    }
+
+    def runDijkstra( startNode : RouteNode ) : mutable.HashMap[Int, RouteAnnotation] =
     {
         val sn = RouteAnnotation( startNode, 0.0 )
         val annotations = mutable.HashMap( startNode.nodeId -> sn )
@@ -53,7 +63,7 @@ class RoutableGraph( val nodes : Array[RouteNode] )
                     
                     nodeAnnot.cost = thisCost
                     nodeAnnot.dist = minEl.dist + edge.dist
-                    nodeAnnot.parent = Some( minEl.node )
+                    nodeAnnot.parent = Some( minEl )
                     
                     q += nodeAnnot
                 }
@@ -64,7 +74,7 @@ class RoutableGraph( val nodes : Array[RouteNode] )
     }
     
     
-    def buildRoute( startNode : RouteNode, targetDist : Double ) =
+    def buildRoute( startNode : RouteNode, targetDist : Double ) : Seq[RouteNode] =
     {
         val startAnnotation = runDijkstra( startNode )
         
@@ -77,37 +87,62 @@ class RoutableGraph( val nodes : Array[RouteNode] )
             ._2
             
         
-        val node2Allocation = runDijkstra( annot1.node )
+        val node2Annotation = runDijkstra( annot1.node )
         
-        val possibleMidPoints = node2Allocation
+        val possibleMidPoints = node2Annotation
             // Add distance annotation from the start node
-            .map { case (n, annot) => (n, annot1, startAnnotation(n) ) }
+            .map { case (nid, annot) => (nid, annot1, startAnnotation(nid) ) }
             // Total distance must be less than 3/4 of the full distance
-            .filter { case (n, annot1, annot2) => (annot1.dist + annot2.dist) < 0.75 * targetDist }
+            .filter { case (nid, annot1, annot2) => (annot1.dist + annot2.dist) < 0.75 * targetDist }
             .toSeq
         
         // Enumerate all pairs of midpoints that sum to roughly the target distance
         val possibleMidPointPairs = possibleMidPoints.flatMap
-        { case (n1, annot11, annot12) =>
+        { case (nid1, annot11, annot12) =>
         
             possibleMidPoints
                 .filter
                 {
-                    case (n2, annot21, annot22) =>
+                    case (nid2, annot21, annot22) =>
                     
                     val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
                     
-                    ( (n1 != n2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
+                    ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
                 }
-                .map { case (n2, annot21, annot22) => (n1, n2, annot11.cost + annot12.cost + annot21.cost + annot22.cost) }
+                .map { case (nid2, annot21, annot22) => (nid1, nid2, annot11.cost + annot12.cost + annot21.cost + annot22.cost) }
         }
         .sortBy( _._3 )
 
         // Find the best pair by cumulative cost
-        val (best1, best2, cost) = possibleMidPoints.head
+        val (bestId1, bestId2, cost) = possibleMidPointPairs.head
         
-        // Now the route is startNode -> best1 -> annot1 -> best2 -> startNode
+        
+        def traceBack( endNode : RouteAnnotation ) : Seq[RouteAnnotation] =
+        {
+            val routeAnnotations = mutable.ArrayBuffer[RouteAnnotation]()
             
+            var iterNode : Option[RouteAnnotation] = Some(endNode)
+            do
+            {
+                routeAnnotations.append( iterNode.get )
+                iterNode = iterNode.get.parent
+            }
+            while ( iterNode != None )
+            
+            routeAnnotations
+        }
+        
+        // Now the route is:
+        // * startNode -> best1 -> annot1 -> best2 -> startNode. Enumerate
+        // the coordinates on the way.
+        
+        val fullRoute =
+            traceBack( startAnnotation(bestId1) ).reverse ++
+            traceBack( node2Annotation(bestId1) ) ++
+            traceBack( node2Annotation(bestId2) ).reverse ++
+            traceBack( startAnnotation(bestId2) )
+
+        fullRoute.map( _.node )
     }
 }
 
@@ -162,7 +197,7 @@ object RoutableGraph
                     
                     if ( isRouteNode )
                     {
-                        val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid) )
+                        val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node) )
                         
                         lastRouteNode.foreach
                         { lrn =>
@@ -180,7 +215,29 @@ object RoutableGraph
                 }
             }
             
-            new RoutableGraph( routeNodeMap.map { _._2 }.toArray )
+            new RoutableGraph( osmMap, routeNodeMap.map { _._2 }.toArray )
+        }
+    }
+}
+
+object GenerateRoute extends App
+{    
+    override def main( args : Array[String] )
+    {
+        val mapFile = new java.io.File( args(0) )
+        val startCoords = Coord( args(1).toDouble, args(2).toDouble )
+        val distInkm = args(3).toDouble
+        
+        val map = OSMMap.load( mapFile )
+        val rg = RoutableGraph( map )
+        
+        val closestNode = rg.getClosest( startCoords )
+        
+        val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0 )
+        
+        for ( rn <- routeNodes )
+        {
+            println( "%f, %f".format( rn.node.coord.lon, rn.node.coord.lat ) )
         }
     }
 }
