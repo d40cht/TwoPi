@@ -2,9 +2,14 @@ package org.seacourt.osm
 
 import scala.collection.{mutable, immutable}
 
-case class RouteNode( val id : Int )
+case class RouteNode( val nodeId : Int )
 {
-    def destinations = Seq[(RouteEdge, RouteNode)]()
+    val destinations = mutable.ArrayBuffer[(RouteNode, RouteEdge)]()
+    
+    def addEdge( dest : RouteNode, edge : RouteEdge ) =
+    {
+        destinations.append( (dest, edge) )
+    }
 }
 
 case class RouteEdge( val dist : Double, val cost : Double )
@@ -21,12 +26,12 @@ class RoutableGraph( val nodes : Array[RouteNode] )
     def runDijkstra( startNode : RouteNode ) =
     {
         val sn = RouteAnnotation( startNode, 0.0 )
-        val annotations = mutable.HashMap( startNode -> sn )
+        val annotations = mutable.HashMap( startNode.nodeId -> sn )
         
         implicit val raOrdering = Ordering.fromLessThan( (ra1 : RouteAnnotation, ra2 : RouteAnnotation) =>
         {
             if ( ra1.cost != ra2.cost ) ra1.cost < ra2.cost
-            else ra1.node.id < ra2.node.id
+            else ra1.node.nodeId < ra2.node.nodeId
         } )
         
         var q = immutable.TreeSet[RouteAnnotation](sn)
@@ -37,9 +42,9 @@ class RoutableGraph( val nodes : Array[RouteNode] )
             q -= minEl
             
             minEl.node.destinations.foreach
-            { case (edge, node) =>
+            { case (node, edge) =>
                 
-                val nodeAnnot = annotations.getOrElseUpdate( node, RouteAnnotation( node, Double.MaxValue ) )
+                val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue ) )
                 val thisCost = minEl.cost + edge.cost
                 
                 if ( nodeAnnot.cost > thisCost )
@@ -103,6 +108,80 @@ class RoutableGraph( val nodes : Array[RouteNode] )
         
         // Now the route is startNode -> best1 -> annot1 -> best2 -> startNode
             
+    }
+}
+
+object RoutableGraph
+{
+    def apply( osmMap : OSMMap ) =
+    {
+        // Find all non-synthetic nodes which belong to more than one way
+        val routeNodeIds =
+        {
+            val nodeWayMembershipCount = mutable.Map[Int, Int]()
+            
+            def incCount( nid : Int ) =
+            {
+                nodeWayMembershipCount.update(nid, nodeWayMembershipCount.getOrElse(nid, 0) + 1)
+            }
+            
+            for ( w <- osmMap.ways )
+            {
+                val realNodes = w.nodeIds.filter( nid => !osmMap.nodes(nid).synthetic ).toVector
+                incCount(realNodes.head)
+                incCount(realNodes.last)
+                realNodes.foreach( nid => incCount(nid) )
+            }
+            
+            nodeWayMembershipCount
+                .filter { case (nid, count) => count > 1 }
+                .map { case (nid, count) => nid }
+                .toSet
+        }
+        
+        // Build the route graph
+        {
+            val routeNodeMap = mutable.Map[Int, RouteNode]()
+            
+            for ( w <- osmMap.ways )
+            {
+                var dist = 0.0
+                var lastNode : Option[Node] = None
+                var lastRouteNode : Option[RouteNode] = None
+                for ( nid <- w.nodeIds )
+                {
+                    val isRouteNode = routeNodeIds contains nid
+                    val node = osmMap.nodes(nid)
+                    
+                    // Update cumulative way distance
+                    lastNode.foreach
+                    { ln =>
+                    
+                        dist += ln.coord.distFrom( node.coord )
+                    }
+                    
+                    if ( isRouteNode )
+                    {
+                        val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid) )
+                        
+                        lastRouteNode.foreach
+                        { lrn =>
+                        
+                            val edge = new RouteEdge( dist, dist )
+                            rn.addEdge( lrn, edge )
+                            lrn.addEdge( rn, edge )
+                        }
+                        
+                        lastRouteNode = Some(rn)
+                        dist = 0.0
+                    }
+                    
+                    lastNode = Some(node)
+                }
+            }
+            
+            new RoutableGraph( routeNodeMap.map { _._2 }.toArray )
+        }
     }
 }
 

@@ -106,9 +106,9 @@ case class Coord( val lon : Double, val lat : Double )
     }
 }
 
-case class Node( val coord : Coord, val tags : Array[Tag] )
+case class Node( val coord : Coord, val tags : Array[Tag], synthetic : Boolean )
 {
-    def this() = this( null, Array() )
+    def this() = this( null, Array(), false )
 }
 
 case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
@@ -232,7 +232,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     
                     val nodeTags = n.getTags().map { t => tsr( t.getKey(), t.getValue() ) }.toArray
                     
-                    nodes.append( Node( c, nodeTags ) )
+                    nodes.append( Node( c, nodeTags, false ) )
                     nodesById.put( nId, nodes.size-1 )
                 }
             }
@@ -430,8 +430,8 @@ object RecalculateAddPoints extends App with Logging
                         {
                             val frac = i.toDouble / newPoints.toDouble
                             val pc = n1.coord.interpolate( n2.coord, frac )
-                            val tags = Array( inputMap.tagRegistry( "synthetic", "true" ) )
-                            wayNodeIds.append( addNode( new Node( pc, tags ) ) )
+                            val tags = Array[Tag]()
+                            wayNodeIds.append( addNode( new Node( pc, tags, true ) ) )
                         }
                     }
                     wayNodeIds.append( addNode( n2 ) )
