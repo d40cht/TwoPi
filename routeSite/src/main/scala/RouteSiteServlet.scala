@@ -13,7 +13,7 @@ import org.seacourt.osm.route.RoutableGraph
 
 class RouteGraphHolder
 {
-    val mapFile = new java.io.File( "/home/alex.wilson/Devel/AW/OSM-Crunch/oxfordshire.bin" )    
+    val mapFile = new java.io.File( "./oxfordshire.bin" )    
     val map = OSMMap.load( mapFile )
     val rg = RoutableGraph( map )
 }
@@ -95,7 +95,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
             <div>
                 <h1>Main page</h1>
                 
-                Say <a href="hello-scalate">hello</a> to me.
+                <a href="/displayroute">Navigate to navigate.</a>
             </div>
         }
     }
@@ -110,6 +110,43 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         }
     }
     
+    get("/displayroute")
+    {
+        val lon = params.getOrElse("lon","-1.361461").toDouble
+        val lat = params.getOrElse("lat", "51.709").toDouble
+        val distInKm = params.getOrElse("distance", "30.0").toDouble
+        val seed = params.getOrElse("seed", "1").toInt
+        
+        val onLoad = "init( %f, %f, 13, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
+        
+        <html>
+        <head>
+            <!-- Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
+            <title>Simple OSM GPX Track</title>
+            <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+            <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
+            <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+         
+            <script src="/js/osmmap.js"></script>
+         
+        </head>
+        <!-- body.onload is called once the page is loaded (call the 'init' function) -->
+        <body onload={onLoad}>
+            <!-- define a DIV into which the map will appear. Make it take up the whole window -->
+            <div style="width:90%; height:80%" id="map"></div>
+            <div style="align: center">
+                <form action="/displayroute" method="get">
+                    Longitude: <input name="lon" id="lon" type="text" value={lon.toString}></input>
+                    Latitude: <input name="lat" id="lat" type="text" value={lat.toString}></input>
+                    Distance (km): <input name="distance" type="text" value={distInKm.toString}></input>
+                    Seed: <input name="seed" type="text" value={(seed+1).toString}></input>
+                    <input type="submit" value="Generate route"/>
+                </form>
+            </div>
+        </body>
+        </html>
+    }
+    
     // Render to: http://www.darrinward.com/lat-long/
     // e.g. http://localhost:8080/route?data=-1.3611464,51.7094267,50.0,3
     get("/route")
@@ -117,13 +154,11 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         if ( rghOption.isEmpty ) rghOption = Some( new RouteGraphHolder() )
         
         val rgh = rghOption.get
-
-        val els = params("data").split(",")
         
-        val lon = els(0).toDouble
-        val lat = els(1).toDouble
-        val distInKm = els(2).toDouble
-        val seed = els(3).toInt
+        val lon = params("lon").toDouble
+        val lat = params("lat").toDouble
+        val distInKm = params("distance").toDouble
+        val seed = params("seed").toInt
         
         val startCoords = Coord(lon, lat)
         
@@ -134,10 +169,20 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         val routeNodes = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
         
-        routeNodes.map
-        { rn =>
-            "%f,%f".format( rn.node.coord.lat, rn.node.coord.lon )
-        }.mkString("\n")
+        <gpx>
+            <trk>
+                <name>Example route</name>
+                <trkseg>
+                {
+                    routeNodes.map
+                    { rn =>
+                    
+                        <trkpt lat={rn.node.coord.lat.toString} lon={rn.node.coord.lon.toString}/>
+                    }
+                }
+                </trkseg>
+            </trk>
+        </gpx>
     }
 }
 

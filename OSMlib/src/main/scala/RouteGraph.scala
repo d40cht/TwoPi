@@ -261,8 +261,14 @@ object RoutableGraph
                     .filter { _._1 == "highway" }
                     .map { _._2 }
                     .headOption
+                    
+                val nameAnnotation = w.tags
+                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
+                    .filter { _._1 == "name" }
+                    .map { _._2 }
+                    .headOption
                 
-                val costMultiplier = highwayAnnotation match
+                var costMultiplier = highwayAnnotation match
                 {
                      case None => 1.0
                      case Some( valueString ) =>
@@ -279,9 +285,18 @@ object RoutableGraph
                         else if ( valueString.startsWith( "secondary" ) ) 1.0
                         else if ( valueString.startsWith( "tertiary" ) ) 1.0
                         else if ( valueString.startsWith( "unclassified" ) ) 1.0
-                        else if ( valueString.startsWith( "cycleway" ) ) 1.0
+                        else if ( valueString.startsWith( "cycleway" ) ) 1.2
+                        //else if ( valueString.startsWith( "bridleway" ) ) 1.2
                         else 100.0
                      }
+                }
+                
+                nameAnnotation.foreach
+                { n =>
+                    if (n.matches("A[0-9]+"))
+                    {
+                        costMultiplier *= 2.0
+                    }
                 }
                 
                 var dist = 0.0
