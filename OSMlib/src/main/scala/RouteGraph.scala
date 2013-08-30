@@ -28,12 +28,18 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
     def getClosest( coord : Coord ) : RouteNode =
     {
         // Horribly inefficient. Use an RTree shortly, or use IndexedMap as a starting point
-        nodes
-            .sortBy( rn => rn.node.coord.distFrom( coord ) )
-            .head
+        var minDist : Option[(Double, RouteNode)] = None
+        nodes.foreach
+        { rn => 
+            val d = rn.node.coord.distFrom( coord )
+            
+            if ( minDist.isEmpty || d < minDist.get._1 ) minDist = Some( (d, rn) )
+        }
+        
+        minDist.get._2
     }
 
-    def runDijkstra( startNode : RouteNode ) : mutable.HashMap[Int, RouteAnnotation] =
+    def runDijkstra( startNode : RouteNode, maxDist : Double, random : util.Random ) : mutable.HashMap[Int, RouteAnnotation] =
     {
         val sn = RouteAnnotation( startNode, 0.0 )
         val visited = mutable.HashSet[Int]()
@@ -44,6 +50,8 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
             if ( ra1.cost != ra2.cost ) ra1.cost < ra2.cost
             else ra1.node.nodeId < ra2.node.nodeId
         } )
+        
+        val edgeCostMultipliers = mutable.HashMap[RouteEdge, Double]()
         
         var q = immutable.TreeSet[RouteAnnotation](sn)
      
@@ -61,12 +69,14 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
                 
                 if ( !visited.contains(node.nodeId) )
                 {
+                    val ecm = edgeCostMultipliers.getOrElseUpdate( edge, (1.0 + 0.1*random.nextGaussian) )
                     val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue ) )
-                    val thisCost = minEl.cost + edge.cost
+                    val thisCost = minEl.cost + (edge.cost * ecm)
+                    val thisDist = minEl.dist + edge.dist
                     
                     //println( nodeAnnot.cost, thisCost )
                     
-                    if ( nodeAnnot.cost > thisCost )
+                    if ( nodeAnnot.cost > thisCost && thisDist < maxDist )
                     {
                         q -= nodeAnnot
                         
@@ -87,7 +97,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
     def buildRoute( startNode : RouteNode, targetDist : Double, seed : Int ) : Seq[RouteNode] =
     {
         val random = new util.Random( seed )
-        val startAnnotation = runDijkstra( startNode )
+        val startAnnotation = runDijkstra( startNode, targetDist, random )
         
         println( "Computing distances from start node" )
 
@@ -98,7 +108,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
             
         // Choose randomly from the top 50% by cost
         val candidateDestinations = allDestinations
-            .take( allDestinations.size / 2 )
+            //.take( allDestinations.size / 2 )
             .toVector
             
         val elementIndex = random.nextInt( candidateDestinations.size )
@@ -106,12 +116,13 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
         val annot1 = candidateDestinations(elementIndex)._2
         
         println( "Computing distances from second node" )
-        val node2Annotation = runDijkstra( annot1.node )
+        val node2Annotation = runDijkstra( annot1.node, targetDist, random )
         
         
         println( "Computing possible midpoints" )
         val possibleMidPoints = node2Annotation
             // Add distance annotation from the start node
+            .filter { case (nid, annot) => startAnnotation contains nid }
             .map { case (nid, annot) => (nid, annot1, startAnnotation(nid) ) }
             .filter { case (nid, annot1, annot2) => (annot1.dist + annot2.dist) < 0.8 * targetDist }
             .toSeq
@@ -320,22 +331,36 @@ object GenerateRoute extends App
     override def main( args : Array[String] )
     {
         val mapFile = new java.io.File( args(0) )
-        val startCoords = Coord( args(1).toDouble, args(2).toDouble )
-        val distInkm = args(3).toDouble
-        val seed = args(4).toInt
         
         val map = OSMMap.load( mapFile )
         val rg = RoutableGraph( map )
         
-        val closestNode = rg.getClosest( startCoords )
-        
-        println( "Closest: " + closestNode.node.coord )
-        
-        val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0, seed )
-        
-        for ( rn <- routeNodes )
+        for ( ln <- io.Source.stdin.getLines )
         {
-            println( "%f, %f".format( rn.node.coord.lat, rn.node.coord.lon ) )
+            try
+            {
+                val els = ln.split(" ")
+                
+                val startCoords = Coord( els(0).toDouble, els(1).toDouble )
+                val distInkm = els(2).toDouble
+                val seed = els(3).toInt
+                
+                println( "Finding closest node..." )
+                val closestNode = rg.getClosest( startCoords )
+                
+                println( "Closest: " + closestNode.node.coord )
+                
+                val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0, seed )
+                
+                for ( rn <- routeNodes )
+                {
+                    println( "%f, %f".format( rn.node.coord.lat, rn.node.coord.lon ) )
+                }
+            }
+            catch
+            {
+                case e : java.lang.Throwable => println( "Unhandled exception: " + e )
+            }
         }
     }
 }
