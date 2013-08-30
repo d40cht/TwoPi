@@ -69,7 +69,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
                 
                 if ( !visited.contains(node.nodeId) )
                 {
-                    val ecm = edgeCostMultipliers.getOrElseUpdate( edge, (1.0 + 0.1*random.nextGaussian) )
+                    val ecm = 1.0//edgeCostMultipliers.getOrElseUpdate( edge, (1.0 + 0.1*random.nextGaussian) )
                     val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue ) )
                     val thisCost = minEl.cost + (edge.cost * ecm)
                     val thisDist = minEl.dist + edge.dist
