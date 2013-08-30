@@ -110,6 +110,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         }
     }
     
+    // Render to: http://www.darrinward.com/lat-long/
     // e.g. http://localhost:8080/route?data=-1.3611464,51.7094267,50.0,3
     get("/route")
     {
