@@ -118,7 +118,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         val distInKm = params.getOrElse("distance", "30.0").toDouble
         val seed = params.getOrElse("seed", "1").toInt
         
-        val onLoad = "init( %f, %f, 13, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
+        val onLoad = "init( %f, %f, 12, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
         
         template( "Display route" )
         {

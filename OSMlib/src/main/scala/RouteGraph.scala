@@ -92,6 +92,12 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
         annotations
     }
     
+    def quantiseCoord( c : Coord ) =
+    {
+        def q( v : Double ) = ((v * 50.0).toInt).toDouble / 50.0
+        
+        new Coord( lon = q(c.lon), lat = q(c.lat) )
+    }
     
     def buildRoute( startNode : RouteNode, targetDist : Double, seed : Int ) : Seq[RouteNode] =
     {
@@ -100,10 +106,15 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
         
         println( "Computing distances from start node" )
 
-        val allDestinations = startAnnotation
-            .filter { case (n, annot) => annot.dist > targetDist * 0.2 && annot.dist < targetDist * 0.6 }
+        val allDestinationsRaw = startAnnotation
+            .filter { case (nid, annot) => annot.dist > targetDist * 0.2 && annot.dist < targetDist * 0.6 }
             .toSeq
-            .sortBy { case (n, annot) => annot.cost }
+            .sortBy { case (nid, annot) => annot.cost }
+            
+        val allDestinations = allDestinationsRaw
+            .groupBy { case (n, annot) => quantiseCoord( annot.node.node.coord ) }
+            .map { case (c, allPoints) => allPoints.sortBy( _._2.cost ).head }
+            
             
         // Choose randomly from the top 50% by cost
         val candidateDestinations = allDestinations
@@ -293,7 +304,8 @@ object RoutableGraph
                         else if ( valueString.startsWith( "tertiary" ) ) 1.0
                         else if ( valueString.startsWith( "unclassified" ) ) 1.0
                         else if ( valueString.startsWith( "cycleway" ) ) 1.2
-                        //else if ( valueString.startsWith( "bridleway" ) ) 1.2
+                        //else if ( valueString.startsWith( "bridleway" ) ) 0.9
+                        //else if ( valueString.startsWith( "footpath" ) ) 0.9
                         else 100.0
                      }
                 }
