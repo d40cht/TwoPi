@@ -118,7 +118,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
             
         // Choose randomly from the top 50% by cost
         val candidateDestinations = allDestinations
-            //.take( allDestinations.size / 2 )
+            .take( allDestinations.size / 2 )
             .toVector
             
         val elementIndex = random.nextInt( candidateDestinations.size )
@@ -198,13 +198,14 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
                     (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
                 }
         }
-        .filter { _._4 > 0.9 }
-        .sortBy( x => x._3 / x._4 )
+        .filter { _._4 > 0.8 }
+        //.sortBy( x => x._3 / x._4 )
+        .sortBy( x => x._3 )
         .toVector
         
         println( "Possible mid-point pairs: " + possibleMidPointPairs.size )
         
-        val chosenPairIndex = random.nextInt( possibleMidPointPairs.size / 4 )
+        val chosenPairIndex = random.nextInt( possibleMidPointPairs.size / 2 )
 
         // Find the best pair by cumulative cost
         val (bestId1, bestId2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22) = possibleMidPointPairs(chosenPairIndex)
@@ -232,10 +233,67 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
     }
 }
 
+class RTreeIndex[T]
+{
+    import com.infomatiq.jsi.{Rectangle, Point}
+    import com.infomatiq.jsi.rtree.RTree
+    
+    val index = new RTree()
+    index.init(null)
+    
+    val objMap = mutable.ArrayBuffer[T]()
+    
+    def add( c : Coord, value : T )
+    {
+        val thisId = objMap.size
+        objMap.append( value )
+        index.add( new Rectangle( c.lon.toFloat, c.lat.toFloat, c.lon.toFloat, c.lat.toFloat ), thisId )
+    }
+    
+    def nearest( c : Coord, n : Int ) : Seq[T] =
+    {
+        val ids = mutable.ArrayBuffer[Int]()
+        
+        index.nearestN(
+            new Point( c.lon.toFloat, c.lat.toFloat ),
+            new gnu.trove.TIntProcedure
+            {
+                def execute( id : Int ) =
+                {
+                    ids.append(id)
+                    true
+                }
+            },
+            n,
+            Float.MaxValue )
+            
+        ids.map( id => objMap(id) )
+    }
+    
+    def nearest( c : Coord ) : Option[T] = nearest(c, 1).headOption
+}
+
+//ID      Lat     Lon     Average Variance        Votes   Geograph URI
+//1       51.7026 -2.20985        4.1111  1.8765  4,5,3,5,1,4,4,5,6       http://www.geograph.org.uk/photo/7
+
 object RoutableGraph
 {
     def apply( osmMap : OSMMap ) =
     {
+        val scenicMap = new RTreeIndex[Double]()
+        
+        io.Source.fromFile( new java.io.File("data/scenicOrNot.tsv") ).getLines.drop(1).foreach
+        { l =>
+        
+            val els = l.split("\t").map( _.trim)
+            val lat = els(1).toDouble
+            val lon = els(2).toDouble
+            val score = (els(3).toDouble - 1.0) / 9.0
+            
+            scenicMap.add( new Coord( lat=lat, lon=lon ), score )
+        }
+        
+        
         // Find all non-synthetic nodes which belong to more than one way
         val routeNodeIds =
         {
@@ -282,7 +340,7 @@ object RoutableGraph
                     
                 val nameAnnotation = w.tags
                     .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
-                    .filter { _._1 == "name" }
+                    .filter { _._1 == "ref" }
                     .map { _._2 }
                     .headOption
                 
@@ -293,12 +351,12 @@ object RoutableGraph
                      {
                         if ( valueString.startsWith( "motorway" ) ) 10.0
                         else if ( valueString.startsWith( "bridleway" ) ) 1.5
-                        else if ( valueString.startsWith( "track" ) ) 1.5
+                        //else if ( valueString.startsWith( "track" ) ) 1.5
                         else if ( valueString.startsWith( "residential" ) ) 1.5
-                        else if ( valueString.startsWith( "trunk" ) ) 1.3
+                        else if ( valueString.startsWith( "trunk" ) ) 1.8
                         // Not yet classified, so be conservative
                         else if ( valueString.startsWith( "primary" ) ) 1.2
-                        else if ( valueString.startsWith( "service" ) ) 1.1
+                        //else if ( valueString.startsWith( "service" ) ) 1.1
                         else if ( valueString.startsWith( "road" ) ) 1.0
                         else if ( valueString.startsWith( "secondary" ) ) 1.0
                         else if ( valueString.startsWith( "tertiary" ) ) 1.0
@@ -314,9 +372,22 @@ object RoutableGraph
                 { n =>
                     if (n.matches("A[0-9]+"))
                     {
-                        costMultiplier *= 2.0
+                        costMultiplier = 1.5
                     }
                 }
+                
+                val scenicValues = w.nodeIds.map
+                { nid =>
+                
+                    val node = osmMap.nodes(nid)
+                    scenicMap.nearest(node.coord).get
+                }.toSeq
+                
+                val scenicValue = scenicValues.sum / scenicValues.size
+                
+                // 1.0 is very scenic     => multiply by 0.5
+                // 0.0 is very not scenic => multiply by 1.5
+                costMultiplier *= (1.0 + (0.5-scenicValue))
                 
                 var dist = 0.0
                 var lastNode : Option[Node] = None
