@@ -4,7 +4,7 @@ import org.scalatra._
 import scalate.ScalateSupport
 
 import org.seacourt.osm.{OSMMap, Coord}
-import org.seacourt.osm.route.RoutableGraph
+import org.seacourt.osm.route.{RoutableGraph, RouteNode}
 
 // In sbt:
 //
@@ -13,7 +13,8 @@ import org.seacourt.osm.route.RoutableGraph
 
 class RouteGraphHolder
 {
-    val mapFile = new java.io.File( "./oxfordshire.bin" )    
+    //val mapFile = new java.io.File( "./uk.bin" )
+    val mapFile = new java.io.File( "./oxfordshire.bin" )
     val map = OSMMap.load( mapFile )
     val rg = RoutableGraph( map )
 }
@@ -119,32 +120,35 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         val onLoad = "init( %f, %f, 13, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
         
-        <html>
-        <head>
-            <!-- Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
-            <title>Simple OSM GPX Track</title>
-            <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
-            <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
-            <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-         
-            <script src="/js/osmmap.js"></script>
-         
-        </head>
-        <!-- body.onload is called once the page is loaded (call the 'init' function) -->
-        <body onload={onLoad}>
-            <!-- define a DIV into which the map will appear. Make it take up the whole window -->
-            <div style="width:90%; height:80%" id="map"></div>
-            <div style="align: center">
-                <form action="/displayroute" method="get">
-                    Longitude: <input name="lon" id="lon" type="text" value={lon.toString}></input>
-                    Latitude: <input name="lat" id="lat" type="text" value={lat.toString}></input>
-                    Distance (km): <input name="distance" type="text" value={distInKm.toString}></input>
-                    Seed: <input name="seed" type="text" value={(seed+1).toString}></input>
-                    <input type="submit" value="Generate route"/>
-                </form>
-            </div>
-        </body>
-        </html>
+        template( "Display route" )
+        {
+            <html>
+            <head>
+                <!-- Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
+                <title>Simple OSM GPX Track</title>
+                <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+                <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
+                <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+             
+                <script src="/js/osmmap.js"></script>
+             
+            </head>
+            <!-- body.onload is called once the page is loaded (call the 'init' function) -->
+            <body onload={onLoad}>
+                <!-- define a DIV into which the map will appear. Make it take up the whole window -->
+                <div style="width:90%; height:80%" id="map"></div>
+                <div style="align: center">
+                    <form action="/displayroute" method="get">
+                        Longitude: <input name="lon" id="lon" type="text" value={lon.toString}></input>
+                        Latitude: <input name="lat" id="lat" type="text" value={lat.toString}></input>
+                        Distance (km): <input name="distance" type="text" value={distInKm.toString}></input>
+                        Seed: <input name="seed" type="text" value={(seed+1).toString}></input>
+                        <input type="submit" value="Generate route"/>
+                    </form>
+                </div>
+            </body>
+            </html>
+        }
     }
     
     // Render to: http://www.darrinward.com/lat-long/
@@ -169,6 +173,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         val routeNodes = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
         
+        var lastRN : Option[RouteNode] = None
+        var cumDistance = 0.0
         <gpx>
             <trk>
                 <name>Example route</name>
@@ -177,7 +183,16 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                     routeNodes.map
                     { rn =>
                     
-                        <trkpt lat={rn.node.coord.lat.toString} lon={rn.node.coord.lon.toString}/>
+                        val dist = lastRN match
+                        {
+                            case Some( lrn ) => lrn.node.coord.distFrom( rn.node.coord )
+                            case None => 0.0
+                        }
+                        cumDistance += dist
+                        
+                        val res = <trkpt lat={rn.node.coord.lat.toString} lon={rn.node.coord.lon.toString} distance={cumDistance.toString}/>
+                        lastRN = Some( rn )
+                        res
                     }
                 }
                 </trkseg>

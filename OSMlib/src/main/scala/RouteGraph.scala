@@ -16,9 +16,8 @@ case class RouteNode( val nodeId : Int, val node : Node )
 
 case class RouteEdge( val dist : Double, val cost : Double )
 
-case class RouteAnnotation( val node : RouteNode, var cost : Double )
+case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : Double )
 {
-    var dist                                = 0.0
     var parent : Option[RouteAnnotation]    = None
 }
 
@@ -41,7 +40,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
 
     def runDijkstra( startNode : RouteNode, maxDist : Double, random : util.Random ) : mutable.HashMap[Int, RouteAnnotation] =
     {
-        val sn = RouteAnnotation( startNode, 0.0 )
+        val sn = RouteAnnotation( startNode, 0.0, 0.0 )
         val visited = mutable.HashSet[Int]()
         val annotations = mutable.HashMap( startNode.nodeId -> sn )
         
@@ -70,7 +69,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
                 if ( !visited.contains(node.nodeId) )
                 {
                     val ecm = 1.0//edgeCostMultipliers.getOrElseUpdate( edge, (1.0 + 0.1*random.nextGaussian) )
-                    val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue ) )
+                    val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue, Double.MaxValue ) )
                     val thisCost = minEl.cost + (edge.cost * ecm)
                     val thisDist = minEl.dist + edge.dist
                     
@@ -123,7 +122,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
         val possibleMidPoints = node2Annotation
             // Add distance annotation from the start node
             .filter { case (nid, annot) => startAnnotation contains nid }
-            .map { case (nid, annot) => (nid, annot1, startAnnotation(nid) ) }
+            .map { case (nid, annot) => (nid, startAnnotation(nid), annot ) }
             .filter { case (nid, annot1, annot2) => (annot1.dist + annot2.dist) < 0.8 * targetDist }
             .toSeq
             .sortBy { case (nid, annot1, annot2) => (annot1.cost + annot2.cost) }
@@ -169,7 +168,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
                 {
                     case (nid2, annot21, annot22) =>
                     
-                    val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
+                    val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
                     
                     ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
                 }
@@ -185,7 +184,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
                     //val relativeDist = annot21.node.node.coord.distFrom( annot11.node.node.coord ) / targetDist
                     
                     // Upweight routes where nid1 and nid2 are farther apart
-                    (nid1, nid2, cost, circularityRatio, routeDist)
+                    (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
                 }
         }
         .filter { _._4 > 0.9 }
@@ -197,18 +196,26 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode] )
         val chosenPairIndex = random.nextInt( possibleMidPointPairs.size / 4 )
 
         // Find the best pair by cumulative cost
-        val (bestId1, bestId2, cost, circularityRatio, routeDist) = possibleMidPointPairs(chosenPairIndex)
+        val (bestId1, bestId2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22) = possibleMidPointPairs(chosenPairIndex)
         
         
-        println( "Route has distance: %.2fkm".format( routeDist / 1000.0 ) )
+        println( "Route has distance: %.2fkm, cost: %.2f, circularity ratio: %f".format( routeDist / 1000.0, cost / 1000.0, circularityRatio ) )
+        println( annot11.dist, annot12.dist, annot21.dist, annot22.dist )
+        
         
         
         // Now the route is:
         // * startNode -> best1 -> annot1 -> best2 -> startNode. Enumerate
         // the coordinates on the way.
         
-        val fullRoute = routeNodes( bestId1, bestId2 )
-            
+        val best1 = startAnnotation(bestId1)
+        val best2 = startAnnotation(bestId2)
+        println( startNode.node.coord.lat + ", " + startNode.node.coord.lon )
+        println( annot1.node.node.coord.lat + ", " + annot1.node.node.coord.lon )
+        println( best1.node.node.coord.lat + ", " + best1.node.node.coord.lon )
+        println( best2.node.node.coord.lat + ", " + best2.node.node.coord.lon )
+        
+        val fullRoute = routeNodes( bestId1, bestId2 )    
 
         fullRoute.map( _.node )
     }
