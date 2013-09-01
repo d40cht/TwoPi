@@ -29,7 +29,7 @@ function init( lon, lat, zoom, routeUrl ) {
             'featureselected':function(evt)
             {
                 var feature = evt.feature;
-                alert( "select" );
+                document.location.href = feature.attributes.url;
             },
             
             'featureunselected':function(evt)
@@ -39,6 +39,12 @@ function init( lon, lat, zoom, routeUrl ) {
         }
     });
     map.addLayer(layerMarkers);
+    
+    var selectCtrl = new OpenLayers.Control.SelectFeature(layerMarkers,
+        {clickout: true}
+    );
+    map.addControl(selectCtrl);
+    selectCtrl.activate();
 
     // Add the Layer with the GPX Track
     var lgpx = new OpenLayers.Layer.PointTrack("Lakeside cycle ride", {
@@ -52,14 +58,15 @@ function init( lon, lat, zoom, routeUrl ) {
     });
     map.addLayer(lgpx);
     
-    var addPlaceMarker = function( lonLat, label )
+    var addPlaceMarker = function( lonLat, url )
     {
         var size = new OpenLayers.Size(21, 25);
         var feature = new OpenLayers.Feature.Vector(
             new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ),
             {some:'data'},
-            {externalGraphic: 'http://www.openstreetmap.org/openlayers/img/marker.png', graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h},
-            {title: label});
+            {externalGraphic: 'http://www.openstreetmap.org/openlayers/img/marker.png', graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h});
+            
+        feature.attributes = { url : url };
             
         layerMarkers.addFeatures([feature]);
         
@@ -94,7 +101,6 @@ function init( lon, lat, zoom, routeUrl ) {
     
     var clickHandler = function(e)
     {
-        alert( e.feature );
         var lonLat = map.getLonLatFromPixel(e.xy);
         layerMarkers.removeFeatures([feature]);
         feature = addPlaceMarker( lonLat );

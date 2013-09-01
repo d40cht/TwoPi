@@ -13,8 +13,8 @@ import org.seacourt.osm.route.{RoutableGraph, RouteNode}
 
 class RouteGraphHolder
 {
-    //val mapFile = new java.io.File( "./uk.bin" )
-    val mapFile = new java.io.File( "./oxfordshire.bin" )
+    val mapFile = new java.io.File( "./uk.bin" )
+    //val mapFile = new java.io.File( "./oxfordshire.bin" )
     val map = OSMMap.load( mapFile )
     val rg = RoutableGraph( map )
 }
