@@ -23,7 +23,21 @@ function init( lon, lat, zoom, routeUrl ) {
     map.addLayer(layerCycleMap);
     //layerGoogle = new OpenLayers.Layer.Google("Google Streets");
     //map.addLayer(layerGoogle);
-    layerMarkers = new OpenLayers.Layer.Markers("Markers");
+    layerMarkers = new OpenLayers.Layer.Vector("Markers", {
+        eventListeners:
+        {
+            'featureselected':function(evt)
+            {
+                var feature = evt.feature;
+                alert( "select" );
+            },
+            
+            'featureunselected':function(evt)
+            {
+                var feature = evt.feature;
+            }
+        }
+    });
     map.addLayer(layerMarkers);
 
     // Add the Layer with the GPX Track
@@ -37,27 +51,60 @@ function init( lon, lat, zoom, routeUrl ) {
         projection: new OpenLayers.Projection("EPSG:4326")
     });
     map.addLayer(lgpx);
+    
+    var addPlaceMarker = function( lonLat, label )
+    {
+        var size = new OpenLayers.Size(21, 25);
+        var feature = new OpenLayers.Feature.Vector(
+            new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ),
+            {some:'data'},
+            {externalGraphic: 'http://www.openstreetmap.org/openlayers/img/marker.png', graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h},
+            {title: label});
+            
+        layerMarkers.addFeatures([feature]);
+        
+        return feature;
+    }
+    
+    var request = OpenLayers.Request.GET({
+        url: routeUrl,
+        callback: function(request)
+        {
+            var asXML = request.responseXML;
+            var pic = asXML.getElementsByTagName("pic");
+            for ( var i = 0; i < pic.length; i++ )
+            {
+                var lon = pic[i].getAttribute("lon");
+                var lat = pic[i].getAttribute("lat");
+                var link = pic[i].getAttribute("link");
+                
+                var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+                
+                addPlaceMarker( lonLat, link );
+            }
+        }
+    });
 
     var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
     map.setCenter(lonLat, zoom);
 
-    var size = new OpenLayers.Size(21, 25);
-    var offset = new OpenLayers.Pixel(-(size.w/2), -size.h);
-    var icon = new OpenLayers.Icon('http://www.openstreetmap.org/openlayers/img/marker.png',size,offset);
-    var marker = new OpenLayers.Marker(lonLat,icon);
-    layerMarkers.addMarker(marker);
-   
-    // Add a click handler
-    map.events.register("click", map, function(e)
+    
+    
+    var feature = addPlaceMarker( lonLat, "Start" );
+    
+    var clickHandler = function(e)
     {
+        alert( e.feature );
         var lonLat = map.getLonLatFromPixel(e.xy);
-        //marker.map = map;
-        layerMarkers.removeMarker(marker);
-        marker = new OpenLayers.Marker(lonLat.clone(),icon);
-        layerMarkers.addMarker(marker);
+        layerMarkers.removeFeatures([feature]);
+        feature = addPlaceMarker( lonLat );
+        
         lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
         
         $("#lon").val( lonLat.lon );
         $("#lat").val( lonLat.lat );
-    } );
+    }
+   
+    // Add a click handler
+    map.events.register("click", map, clickHandler );
 }

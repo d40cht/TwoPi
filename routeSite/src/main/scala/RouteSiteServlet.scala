@@ -18,12 +18,13 @@ class RouteGraphHolder
     val map = OSMMap.load( mapFile )
     val rg = RoutableGraph( map )
 }
-
+// Weird cost:
+// http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
 class RouteSiteServlet extends ScalatraServlet with ScalateSupport
 {
     var rghOption : Option[RouteGraphHolder] = None
     
-    def template( pageName : String )( pageBody : scala.xml.Elem ) =
+    def template( pageName : String )( sideBar : scala.xml.Elem )( pageBody : scala.xml.Elem ) =
     {
         <html>
             <head>
@@ -60,31 +61,21 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                   </div>
                 </div>
 
-                <div class="container">
+                <div class="container-fluid">
 
-                  {
-                    pageBody
-                  }
+                    <div class="span2">
+                    {
+                        sideBar
+                    }
+                    </div>
+                    
+                    <div class="span10">
+                    {
+                        pageBody
+                    }
+                    </div>
 
-                </div> <!-- /container -->
-
-                <!-- Le javascript
-                ================================================== -->
-                <!-- Placed at the end of the document so the pages load faster -->
-                <script src="../assets/js/jquery.js"></script>
-                <script src="../assets/js/bootstrap-transition.js"></script>
-                <script src="../assets/js/bootstrap-alert.js"></script>
-                <script src="../assets/js/bootstrap-modal.js"></script>
-                <script src="../assets/js/bootstrap-dropdown.js"></script>
-                <script src="../assets/js/bootstrap-scrollspy.js"></script>
-                <script src="../assets/js/bootstrap-tab.js"></script>
-                <script src="../assets/js/bootstrap-tooltip.js"></script>
-                <script src="../assets/js/bootstrap-popover.js"></script>
-                <script src="../assets/js/bootstrap-button.js"></script>
-                <script src="../assets/js/bootstrap-collapse.js"></script>
-                <script src="../assets/js/bootstrap-carousel.js"></script>
-                <script src="../assets/js/bootstrap-typeahead.js"></script>
-
+                </div>
               </body>
         </html>
     }
@@ -92,6 +83,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
     get("/")
     {
         template("Routility")
+        {
+            <h3>Sidebar</h3>
+        }
         {
             <div>
                 <h1>Main page</h1>
@@ -104,6 +98,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
     get("/hello-scalate")
     {
         template("Thank-you!")
+        {
+            <h3>Sidebar</h3>
+        }
         {
             <div>
                 <h1>Why, thank-you.</h1>
@@ -122,6 +119,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         template( "Display route" )
         {
+            <h3>Sidebar</h3>
+        }
+        {
             <html>
             <head>
                 <!-- Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
@@ -129,15 +129,14 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                 <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
                 <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
                 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-             
                 <script src="/js/osmmap.js"></script>
              
             </head>
             <!-- body.onload is called once the page is loaded (call the 'init' function) -->
             <body onload={onLoad}>
                 <!-- define a DIV into which the map will appear. Make it take up the whole window -->
-                <div style="width:90%; height:80%" id="map"></div>
-                <div style="align: center">
+                <div style="width:100%; height:80%" id="map"></div>
+                <div style="text-align:center">
                     <form action="/displayroute" method="get">
                         Longitude: <input name="lon" id="lon" type="text" value={lon.toString}></input>
                         Latitude: <input name="lat" id="lat" type="text" value={lat.toString}></input>
@@ -155,6 +154,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
     // e.g. http://localhost:8080/route?data=-1.3611464,51.7094267,50.0,3
     get("/route")
     {
+        contentType="text/xml"
+        
         if ( rghOption.isEmpty ) rghOption = Some( new RouteGraphHolder() )
         
         val rgh = rghOption.get
@@ -171,7 +172,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         println( "Closest: " + closestNode.node.coord )
         
-        val routeNodes = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
+        val route = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
+        val routeNodes = route.routeNodes
+        val pics = route.picList
         
         var lastRN : Option[RouteNode] = None
         var cumDistance = 0.0
@@ -197,6 +200,15 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                 }
                 </trkseg>
             </trk>
+            <pics>
+            {
+                pics.map
+                { pic =>
+                    
+                    <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} link={pic.link}/>
+                }
+            }
+            </pics>
         </gpx>
     }
 }
