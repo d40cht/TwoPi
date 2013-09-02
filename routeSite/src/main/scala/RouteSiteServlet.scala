@@ -140,7 +140,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                     
                     val imageUrl = imgUrl( picIndex, hash )
                     
-                    <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={pic.link} title={title}/>
+                    <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={pic.link} title={title} author={authorName}/>
                 }
             }
             </pics>
@@ -277,8 +277,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                         val fullLink = (p \ "@link").text
                         val imageUrl = (p \ "@img").text
                         val title = (p \ "@title").text
+                        val credits = "Copyright %s and licensed for reuse under the Creative Commons Licence.".format( (p \ "@author").text )
                         
-                        <a href={fullLink}><img src={imageUrl}/></a>
+                        <a href={fullLink}><img src={imageUrl} alt={credits} title={credits}/></a>
                         <br/>
                         <div>{title}</div>
                         <br/>
