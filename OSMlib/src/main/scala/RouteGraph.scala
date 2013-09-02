@@ -287,7 +287,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
             }
             .flatten
             .distinct
-            .filter( _.score > 2.0 )
+            .filter( _.score > 0.3 )
             .sortBy( -_.score )
             .take(10)
         

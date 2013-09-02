@@ -47,7 +47,7 @@ function init( lon, lat, zoom, routeUrl ) {
     selectCtrl.activate();
 
     // Add the Layer with the GPX Track
-    var lgpx = new OpenLayers.Layer.PointTrack("Lakeside cycle ride", {
+    var lgpx = new OpenLayers.Layer.PointTrack("Track", {
         strategies: [new OpenLayers.Strategy.Fixed()],
         protocol: new OpenLayers.Protocol.HTTP({
             url: routeUrl,
@@ -58,13 +58,13 @@ function init( lon, lat, zoom, routeUrl ) {
     });
     map.addLayer(lgpx);
     
-    var addPlaceMarker = function( lonLat, url )
+    var addPlaceMarker = function( lonLat, imgUrl, url )
     {
-        var size = new OpenLayers.Size(21, 25);
+        var size = new OpenLayers.Size(12, 20);
         var feature = new OpenLayers.Feature.Vector(
             new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ),
             {some:'data'},
-            {externalGraphic: 'http://www.openstreetmap.org/openlayers/img/marker.png', graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h});
+            {externalGraphic: imgUrl, graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h});
             
         feature.attributes = { url : url };
             
@@ -87,7 +87,7 @@ function init( lon, lat, zoom, routeUrl ) {
                 
                 var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
                 
-                addPlaceMarker( lonLat, link );
+                addPlaceMarker( lonLat, "http://labs.google.com/ridefinder/images/mm_20_green.png", link );
             }
         }
     });
@@ -97,13 +97,13 @@ function init( lon, lat, zoom, routeUrl ) {
 
     
     
-    var feature = addPlaceMarker( lonLat, "Start" );
+    var feature = addPlaceMarker( lonLat, "http://labs.google.com/ridefinder/images/mm_20_purple.png", "Start" );
     
     var clickHandler = function(e)
     {
         var lonLat = map.getLonLatFromPixel(e.xy);
         layerMarkers.removeFeatures([feature]);
-        feature = addPlaceMarker( lonLat );
+        feature = addPlaceMarker( lonLat, "http://labs.google.com/ridefinder/images/mm_20_purple.png", "Start" );
         
         lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
         
