@@ -39,6 +39,8 @@ object Toplevel extends Build
     lazy val routeSite = Project( id="routeSite", base=file("routeSite"),
         settings=commonSettings ++ ScalatraPlugin.scalatraWithJRebel ++ scalateSettings ++ Seq(
             libraryDependencies ++= Seq(
+                "javax.transaction" % "jta" % "1.1",
+                "net.sf.ehcache" % "ehcache" % "2.7.2",
                 "org.scalaj" %% "scalaj-http" % "0.3.9" exclude("junit", "junit"),
                 "net.liftweb" %% "lift-json" % "2.5.1",
                 "org.scalatra" %% "scalatra" % scalatraVersion,

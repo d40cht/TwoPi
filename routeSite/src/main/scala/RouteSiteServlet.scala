@@ -15,8 +15,8 @@ import org.seacourt.osm.route.{RoutableGraph, RouteNode}
 
 class RouteGraphHolder
 {
-    //val mapFile = new java.io.File( "./uk.bin" )
-    val mapFile = new java.io.File( "./oxfordshire.bin" )
+    val mapFile = new java.io.File( "./uk.bin" )
+    //val mapFile = new java.io.File( "./oxfordshire.bin" )
     val map = OSMMap.load( mapFile )
     val rg = RoutableGraph( map )
 }
@@ -24,6 +24,8 @@ class RouteGraphHolder
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
 class RouteSiteServlet extends ScalatraServlet with ScalateSupport
 {
+    import net.sf.ehcache.{CacheManager, Element}
+
     private var rghOption : Option[RouteGraphHolder] = None
     
     private def getRGH =
@@ -32,11 +34,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         rghOption.get
     }
     
-    private val cache = mutable.Map[String, Any]()
+    CacheManager.getInstance().addCache("memoized")
+   
     
     def cached[T](name : String, args : Any* )( body : => T ) =
     {
         import java.security.MessageDigest
+        
 
         def md5(s: String) : String =
         {
@@ -45,16 +49,30 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         val hash = md5( name + "_" + List(args:_*).map( _.toString ).mkString("_") ).toString
         
-        /*if ( cache contains hash )
+        val cache = CacheManager.getInstance().getCache("memoized")   
+        try
         {
-            cache(hash).asInstanceOf[T]
-        }
-        else*/
-        {
-            val result = body
-            cache(hash) = result
+            cache.acquireWriteLockOnKey( hash )
             
-            result
+            if ( cache.isKeyInCache(hash) )
+            {
+                println( "Cached element found" )
+                val el = cache.get(hash)
+                el.getObjectValue.asInstanceOf[T]
+            }
+            else
+            {
+                println( "Cached element not found - running function" )
+                val result = body
+                
+                cache.put( new Element( hash, result ) )
+                
+                result
+            }
+        }
+        finally
+        {
+            cache.releaseWriteLockOnKey( hash )
         }
     }
     
@@ -236,23 +254,21 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         }
     }
     
-    get("/displayroute2")
+    
+    get("/displayroute")
     {
-        import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
-        import scalaj.http.Http
-        implicit val formats = DefaultFormats
-        
         val lon = params.getOrElse("lon","-1.361461").toDouble
         val lat = params.getOrElse("lat", "51.709").toDouble
         val distInKm = params.getOrElse("distance", "30.0").toDouble
         val seed = params.getOrElse("seed", "1").toInt
         
+        val onLoad = "init( %f, %f, 12, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
+        
         val xmlData = getRouteXML( lon, lat, distInKm, seed )
         
-        template( "Route pictures" )
+        template( "Display route", onBodyLoad=Some(onLoad) )
         {
             <div>
-                <h3>Route information</h3>
                 {
                     val pics = xmlData \\ "pic"
                     pics.map
@@ -269,25 +285,6 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                     }
                 }
             </div>
-        }
-        {
-            <h3>Empty</h3>
-        }
-    }
-    
-    
-    get("/displayroute")
-    {
-        val lon = params.getOrElse("lon","-1.361461").toDouble
-        val lat = params.getOrElse("lat", "51.709").toDouble
-        val distInKm = params.getOrElse("distance", "30.0").toDouble
-        val seed = params.getOrElse("seed", "1").toInt
-        
-        val onLoad = "init( %f, %f, 12, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
-        
-        template( "Display route", onBodyLoad=Some(onLoad) )
-        {
-            <h3>Sidebar</h3>
         }
         {
             <div>
