@@ -4,7 +4,7 @@ import org.seacourt.osm._
 
 import scala.collection.{mutable, immutable}
 
-case class RouteNode( val nodeId : Int, val node : Node )
+case class RouteNode( val nodeId : Int, val coord : Coord )
 {
     val destinations = mutable.ArrayBuffer[(RouteNode, RouteEdge)]()
     
@@ -77,7 +77,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
         var minDist : Option[(Double, RouteNode)] = None
         nodes.foreach
         { rn => 
-            val d = rn.node.coord.distFrom( coord )
+            val d = rn.coord.distFrom( coord )
             
             if ( minDist.isEmpty || d < minDist.get._1 ) minDist = Some( (d, rn) )
         }
@@ -159,7 +159,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
             .sortBy { case (nid, annot) => annot.cost }
             
         val allDestinations = allDestinationsRaw
-            .groupBy { case (n, annot) => quantiseCoord( annot.node.node.coord ) }
+            .groupBy { case (n, annot) => quantiseCoord( annot.node.coord ) }
             .map { case (c, allPoints) => allPoints.sortBy( _._2.cost ).head }
             
             
@@ -239,7 +239,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
                     
                     val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
                     val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
-                    //val relativeDist = annot21.node.node.coord.distFrom( annot11.node.node.coord ) / targetDist
+                    //val relativeDist = annot21.coord.distFrom( annot11.coord ) / targetDist
                     
                     // Upweight routes where nid1 and nid2 are farther apart
                     (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
@@ -269,10 +269,10 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
         
         val best1 = startAnnotation(bestId1)
         val best2 = startAnnotation(bestId2)
-        println( startNode.node.coord.lat + ", " + startNode.node.coord.lon )
-        println( annot1.node.node.coord.lat + ", " + annot1.node.node.coord.lon )
-        println( best1.node.node.coord.lat + ", " + best1.node.node.coord.lon )
-        println( best2.node.node.coord.lat + ", " + best2.node.node.coord.lon )
+        println( startNode.coord.lat + ", " + startNode.coord.lon )
+        println( annot1.node.coord.lat + ", " + annot1.node.coord.lon )
+        println( best1.node.coord.lat + ", " + best1.node.coord.lon )
+        println( best2.node.coord.lat + ", " + best2.node.coord.lon )
         
         val fullRoute = routeNodes( bestId1, bestId2 )
 
@@ -281,8 +281,8 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
         val pics = nodeList.map
             { n =>
             
-                val nearest = scenicMap.nearest( n.node.coord ).get
-                if ( nearest.coord.distFrom( n.node.coord ) < 200.0 ) Some( nearest )
+                val nearest = scenicMap.nearest( n.coord ).get
+                if ( nearest.coord.distFrom( n.coord ) < 200.0 ) Some( nearest )
                 else None
             }
             .flatten
@@ -433,7 +433,7 @@ object RoutableGraph
                     
                     if ( isRouteNode )
                     {
-                        val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node) )
+                        val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord) )
                         
                         lastRouteNode.foreach
                         { lrn =>
@@ -480,13 +480,13 @@ object GenerateRoute extends App
                 println( "Finding closest node..." )
                 val closestNode = rg.getClosest( startCoords )
                 
-                println( "Closest: " + closestNode.node.coord )
+                println( "Closest: " + closestNode.coord )
                 
                 val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0, seed ).routeNodes
                 
                 for ( rn <- routeNodes )
                 {
-                    println( "%f, %f".format( rn.node.coord.lat, rn.node.coord.lon ) )
+                    println( "%f, %f".format( rn.coord.lat, rn.coord.lon ) )
                 }
             }
             catch
