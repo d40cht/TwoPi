@@ -4,6 +4,8 @@ import org.scalatra.sbt._
 import org.scalatra.sbt.PluginKeys._
 import com.mojolly.scalate.ScalatePlugin._
 import ScalateKeys._
+import sbtassembly.Plugin._
+import AssemblyKeys._
 
 
 object Toplevel extends Build
@@ -14,7 +16,7 @@ object Toplevel extends Build
         scalaVersion    := "2.10.2",
         version         := "0.0.1",
         organization := "org.seacourt",
-        scalacOptions   ++= Seq( "-deprecation", "-Xlint"),//, "-optimize" ),
+        scalacOptions   ++= Seq( "-deprecation", "-Xlint", "-optimize" ),
         resolvers       ++= Seq(
             Resolver.sonatypeRepo("snapshots"),
             "sourceforge jsi repository" at "http://sourceforge.net/projects/jsi/files/m2_repo",
@@ -37,7 +39,7 @@ object Toplevel extends Build
     )
     
     lazy val routeSite = Project( id="routeSite", base=file("routeSite"),
-        settings=commonSettings ++ ScalatraPlugin.scalatraWithJRebel ++ scalateSettings ++ Seq(
+        settings=commonSettings ++ assemblySettings ++ ScalatraPlugin.scalatraWithJRebel ++ scalateSettings ++ Seq(
             libraryDependencies ++= Seq(
                 "javax.transaction" % "jta" % "1.1",
                 "net.sf.ehcache" % "ehcache" % "2.7.2",
@@ -47,7 +49,7 @@ object Toplevel extends Build
                 "org.scalatra" %% "scalatra-scalate" % scalatraVersion,
                 "org.scalatra" %% "scalatra-specs2" % scalatraVersion % "test",
                 "ch.qos.logback" % "logback-classic" % "1.0.6" % "runtime",
-                "org.eclipse.jetty" % "jetty-webapp" % "8.1.8.v20121106" % "container",
+                "org.eclipse.jetty" % "jetty-webapp" % "8.1.8.v20121106" % "container;compile",
                 "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" % "container;provided;test" artifacts (Artifact("javax.servlet", "jar", "jar"))
             ),
             scalateTemplateConfig in Compile <<= (sourceDirectory in Compile){ base =>
@@ -61,7 +63,15 @@ object Toplevel extends Build
                         Some("templates")
                     )
                 )
-            }
+            },
+            mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
+            {
+                case "com/esotericsoftware/minlog/Log$Logger.class" => MergeStrategy.first
+                case "com/esotericsoftware/minlog/Log.class" => MergeStrategy.first
+                case "osmosis-plugins.conf" => MergeStrategy.first
+                case "about.html" => MergeStrategy.first
+                case x  => old(x)
+            } }
         )
     )
     .dependsOn( OSMlib )

@@ -8,6 +8,11 @@ import scalate.ScalateSupport
 import org.seacourt.osm.{OSMMap, Coord}
 import org.seacourt.osm.route.{RoutableGraph, RouteNode, RTreeIndex, ScenicPoint}
 
+import org.eclipse.jetty.server.Server
+import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
+import org.eclipse.jetty.webapp.WebAppContext
+import org.scalatra.servlet.ScalatraListener
+
 // In sbt:
 //
 // > container:start
@@ -30,7 +35,7 @@ class RouteGraphHolder
             val lon = els(2).toDouble
             val score = (els(3).toDouble - 1.0) / 9.0
             val picLink = els(6)
-            val picIndex = picLink.split("/").last.toLong
+            val picIndex = picLink.split("/").last.toInt
             
             val c = new Coord( lat=lat, lon=lon )
             scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
@@ -40,7 +45,7 @@ class RouteGraphHolder
     }
     else
     {
-        RoutableGraph.load( new java.io.File( "./uk.bin.rg" ) )
+        RoutableGraph.load( new java.io.File( "./default.bin.rg" ) )
     }
 }
 // Weird cost:
@@ -346,5 +351,23 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         
         getRouteXML( lon, lat, distInKm, seed )
     }
+}
+
+object JettyLauncher { // this is my entry object as specified in sbt project definition
+  def main(args: Array[String]) {
+    val port = if(System.getenv("PORT") != null) System.getenv("PORT").toInt else 8080
+
+    val server = new Server(port)
+    val context = new WebAppContext()
+    context setContextPath "/"
+    context.setResourceBase("src/main/webapp")
+    context.addEventListener(new ScalatraListener)
+    context.addServlet(classOf[DefaultServlet], "/")
+
+    server.setHandler(context)
+
+    server.start
+    server.join
+  }
 }
 
