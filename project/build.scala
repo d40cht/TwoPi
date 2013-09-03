@@ -14,7 +14,7 @@ object Toplevel extends Build
         scalaVersion    := "2.10.2",
         version         := "0.0.1",
         organization := "org.seacourt",
-        scalacOptions   ++= Seq( "-deprecation", "-Xlint", "-optimize" ),
+        scalacOptions   ++= Seq( "-deprecation", "-Xlint"),//, "-optimize" ),
         resolvers       ++= Seq(
             Resolver.sonatypeRepo("snapshots"),
             "sourceforge jsi repository" at "http://sourceforge.net/projects/jsi/files/m2_repo",

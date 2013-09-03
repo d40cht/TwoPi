@@ -6,7 +6,7 @@ import org.scalatra._
 import scalate.ScalateSupport
 
 import org.seacourt.osm.{OSMMap, Coord}
-import org.seacourt.osm.route.{RoutableGraph, RouteNode}
+import org.seacourt.osm.route.{RoutableGraph, RouteNode, RTreeIndex, ScenicPoint}
 
 // In sbt:
 //
@@ -15,10 +15,33 @@ import org.seacourt.osm.route.{RoutableGraph, RouteNode}
 
 class RouteGraphHolder
 {
-    val mapFile = new java.io.File( "./uk.bin" )
-    //val mapFile = new java.io.File( "./oxfordshire.bin" )
-    val map = OSMMap.load( mapFile )
-    val rg = RoutableGraph( map )
+    val rg = if ( false )
+    {
+        //val mapFile = new java.io.File( "./uk.bin" )
+        val mapFile = new java.io.File( "./oxfordshire.bin" )
+        val map = OSMMap.load( mapFile )
+        
+        val scenicMap = new RTreeIndex[ScenicPoint]()
+        io.Source.fromFile( new java.io.File("data/scenicOrNot.tsv") ).getLines.drop(1).foreach
+        { l =>
+        
+            val els = l.split("\t").map( _.trim)
+            val lat = els(1).toDouble
+            val lon = els(2).toDouble
+            val score = (els(3).toDouble - 1.0) / 9.0
+            val picLink = els(6)
+            val picIndex = picLink.split("/").last.toLong
+            
+            val c = new Coord( lat=lat, lon=lon )
+            scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
+        }
+        
+        RoutableGraph( map, scenicMap )
+    }
+    else
+    {
+        RoutableGraph.load( new java.io.File( "./oxfordshire.bin.rg" ) )
+    }
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
@@ -88,7 +111,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         println( "Finding closest node..." )
         val closestNode = rgh.rg.getClosest( startCoords )
         
-        println( "Closest: " + closestNode.node.coord )
+        println( "Closest: " + closestNode.coord )
         
         val route = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
         val routeNodes = route.routeNodes
@@ -106,12 +129,12 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                     
                         val dist = lastRN match
                         {
-                            case Some( lrn ) => lrn.node.coord.distFrom( rn.node.coord )
+                            case Some( lrn ) => lrn.coord.distFrom( rn.coord )
                             case None => 0.0
                         }
                         cumDistance += dist
                         
-                        val res = <trkpt lat={rn.node.coord.lat.toString} lon={rn.node.coord.lon.toString} distance={cumDistance.toString}/>
+                        val res = <trkpt lat={rn.coord.lat.toString} lon={rn.coord.lon.toString} distance={cumDistance.toString}/>
                         lastRN = Some( rn )
                         res
                     }
@@ -123,8 +146,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                 pics.map
                 { pic =>
 
-                    val fullLink = pic.link
-                    val picIndex = fullLink.split("/").last.toInt
+                    val picIndex = pic.picIndex
                     
                     val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
                     { inputStream => 
@@ -140,7 +162,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                     
                     val imageUrl = imgUrl( picIndex, hash )
                     
-                    <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={pic.link} title={title} author={authorName}/>
+                    val link = "http://www.geograph.org.uk/photo/" + pic.picIndex
+                    
+                    <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={link} title={title} author={authorName}/>
                 }
             }
             </pics>
@@ -238,7 +262,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         }
     }
     
-    private def imgUrl( index : Int, hash : String ) : String =
+    private def imgUrl( index : Long, hash : String ) : String =
     {
         val yz = index / 1000000
         val ab = (index % 1000000) / 10000

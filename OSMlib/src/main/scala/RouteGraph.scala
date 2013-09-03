@@ -4,6 +4,11 @@ import org.seacourt.osm._
 
 import scala.collection.{mutable, immutable}
 
+case class ScenicPoint( coord : Coord, score : Double, picIndex : Long )
+{
+    assert( score >= 0.0 && score <= 1.0 )
+}
+
 case class RouteNode( val nodeId : Int, val coord : Coord )
 {
     val destinations = mutable.ArrayBuffer[(RouteNode, RouteEdge)]()
@@ -14,11 +19,14 @@ case class RouteNode( val nodeId : Int, val coord : Coord )
     }
 }
 
-case class RouteEdge( val dist : Double, val cost : Double )
+case class RouteEdge( val dist : Double, val cost : Double, val scenicPoints : Array[ScenicPoint] )
+
+
+case class PathElement( ra : RouteAnnotation, re : Option[RouteEdge] )
 
 case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : Double )
 {
-    var parent : Option[RouteAnnotation]    = None
+    var parent : Option[PathElement]    = None
 }
 
 class RTreeIndex[T]
@@ -61,15 +69,9 @@ class RTreeIndex[T]
     def nearest( c : Coord ) : Option[T] = nearest(c, 1).headOption
 }
 
-case class ScenicPoint( coord : Coord, score : Double, link : String )
-{
-    assert( score >= 0.0 && score <= 1.0 )
-} 
-
-
 case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
 
-class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scenicMap : RTreeIndex[ScenicPoint] )
+class RoutableGraph( val nodes : Array[RouteNode] )
 {
     def getClosest( coord : Coord ) : RouteNode =
     {
@@ -128,7 +130,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
                         
                         nodeAnnot.cost = thisCost
                         nodeAnnot.dist = minEl.dist + edge.dist
-                        nodeAnnot.parent = Some( minEl )
+                        nodeAnnot.parent = Some( PathElement(minEl, Some(edge)) )
                         
                         q += nodeAnnot
                     }
@@ -193,17 +195,21 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
         val trimmedSample1 = random.shuffle(trimmedMidPoints).take( 200 )
         val trimmedSample2 = random.shuffle(trimmedMidPoints).take( 200 )
             
-        def routeNodes( id1 : Int, id2 : Int ) =
+        
+            
+        def routeNodes( id1 : Int, id2 : Int ) : Seq[PathElement] =
         {
-            def traceBack( endNode : RouteAnnotation ) : Seq[RouteAnnotation] =
+            def traceBack( endNode : RouteAnnotation ) : Seq[PathElement] =
             {
-                val routeAnnotations = mutable.ArrayBuffer[RouteAnnotation]()
+                val routeAnnotations = mutable.ArrayBuffer[PathElement]()
                 
-                var iterNode : Option[RouteAnnotation] = Some(endNode)
+                var iterNode : Option[PathElement] = Some( PathElement(endNode, None) )
+                
                 do
                 {
-                    routeAnnotations.append( iterNode.get )
-                    iterNode = iterNode.get.parent
+                    val PathElement(ra, re) = iterNode.get
+                    routeAnnotations.append( PathElement(ra, re) )
+                    iterNode = ra.parent
                 }
                 while ( iterNode != None )
                 
@@ -234,7 +240,7 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
                 .map
                 { case (nid2, annot21, annot22) =>
                 
-                    val routeNodeIds = routeNodes( nid1, nid2 ).map( _.node.nodeId )
+                    val routeNodeIds = routeNodes( nid1, nid2 ).map( _.ra.node.nodeId )
                     val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
                     
                     val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
@@ -276,16 +282,11 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
         
         val fullRoute = routeNodes( bestId1, bestId2 )
 
-        val nodeList = fullRoute.map( _.node )
+        val nodeList = fullRoute.map( _.ra.node )
+        val edgeList = fullRoute.flatMap( _.re )
         
-        val pics = nodeList.map
-            { n =>
-            
-                val nearest = scenicMap.nearest( n.coord ).get
-                if ( nearest.coord.distFrom( n.coord ) < 200.0 ) Some( nearest )
-                else None
-            }
-            .flatten
+        val pics = edgeList
+            .flatMap( _.scenicPoints )
             .distinct
             .filter( _.score > 0.3 )
             .sortBy( -_.score )
@@ -296,30 +297,113 @@ class RoutableGraph( val osmMap : OSMMap, val nodes : Array[RouteNode], val scen
 }
 
 
-
-//ID      Lat     Lon     Average Variance        Votes   Geograph URI
-//1       51.7026 -2.20985        4.1111  1.8765  4,5,3,5,1,4,4,5,6       http://www.geograph.org.uk/photo/7
-
 object RoutableGraph
 {
-    def apply( osmMap : OSMMap ) =
+    import java.io._
+    
+    def save( rg : RoutableGraph, output : File )
     {
-        val scenicMap = new RTreeIndex[ScenicPoint]()
-        
-        io.Source.fromFile( new java.io.File("data/scenicOrNot.tsv") ).getLines.drop(1).foreach
-        { l =>
-        
-            val els = l.split("\t").map( _.trim)
-            val lat = els(1).toDouble
-            val lon = els(2).toDouble
-            val score = (els(3).toDouble - 1.0) / 9.0
-            val picLink = els(6)
+        val ops = new DataOutputStream( new BufferedOutputStream( new FileOutputStream( output ) ) )
+        try
+        {
+            ops.writeInt( rg.nodes.size )
             
-            val c = new Coord( lat=lat, lon=lon )
-            scenicMap.add( c, new ScenicPoint( c, score, picLink ) )
+            for ( n <- rg.nodes )
+            {
+                ops.writeInt( n.nodeId )
+                ops.writeDouble( n.coord.lon )
+                ops.writeDouble( n.coord.lat )
+            }
+            
+            for ( n <- rg.nodes )
+            {
+                ops.writeInt( n.nodeId )
+                ops.writeInt( n.destinations.size )
+                for ( (destNode, edge) <- n.destinations )
+                {
+                    ops.writeInt( destNode.nodeId )
+                    ops.writeDouble( edge.dist )
+                    ops.writeDouble( edge.cost )
+                    ops.writeInt( edge.scenicPoints.size )
+                    for ( sp <- edge.scenicPoints )
+                    {
+                        ops.writeDouble( sp.coord.lon )
+                        ops.writeDouble( sp.coord.lat )
+                        ops.writeDouble( sp.score )
+                        ops.writeLong( sp.picIndex )
+                    }
+                }
+            }
         }
+        finally
+        {
+            ops.close
+        }
+    }
+    
+    def load( input : File ) =
+    {
+        val ips = new DataInputStream( new BufferedInputStream( new FileInputStream( input ) ) )
         
-        
+        try
+        {
+            val nodeMap = mutable.HashMap[Int, RouteNode]()
+            val numNodes = ips.readInt
+            println( "Reading node data for : " + numNodes )
+            (0 until numNodes).foreach
+            { _ =>
+                val nodeId = ips.readInt
+                val nodeLon = ips.readDouble
+                val nodeLat = ips.readDouble
+                
+                val node = new RouteNode( nodeId, new Coord( nodeLon, nodeLat ) )
+                
+                nodeMap += (nodeId -> node)
+            }
+            
+            println( "Reading edge data for : " + numNodes )
+            (0 until numNodes).foreach
+            { _ =>
+                val sourceId = ips.readInt
+                val numDests = ips.readInt
+                
+                (0 until numDests).foreach
+                { _ =>
+                    val destId = ips.readInt
+                    val edgeDist = ips.readDouble
+                    val edgeCost = ips.readDouble
+                    
+                    val numScenicPoints = ips.readInt
+                    val sps = (0 until numScenicPoints).map
+                    { _ =>
+                    
+                        val spLon = ips.readDouble
+                        val spLat = ips.readDouble
+                        val score = ips.readDouble
+                        val picIndex = ips.readLong
+                        
+                        new ScenicPoint( new Coord( spLon, spLat ), score, picIndex )
+                    }
+                    
+                    val edge = new RouteEdge( edgeDist, edgeCost, sps.to[Array] )
+                    
+                    val sourceNode = nodeMap( sourceId )
+                    val destNode = nodeMap( destId )                    
+                    
+                    sourceNode.addEdge( destNode, edge )
+                }
+            }
+            
+            new RoutableGraph( nodeMap.map( _._2 ).toArray )
+        }
+        finally
+        {
+            ips.close
+        }
+    }
+    
+    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint] ) =
+    {
         // Find all non-synthetic nodes which belong to more than one way
         val routeNodeIds =
         {
@@ -403,26 +487,22 @@ object RoutableGraph
                     }
                 }
                 
-                val scenicValues = w.nodeIds.map
-                { nid =>
-                
-                    val node = osmMap.nodes(nid)
-                    scenicMap.nearest(node.coord).get.score
-                }.toSeq
-                
-                val scenicValue = scenicValues.sum / scenicValues.size
-                
-                // 1.0 is very scenic     => multiply by 0.5
-                // 0.0 is very not scenic => multiply by 1.5
-                costMultiplier *= (1.0 + (0.5-scenicValue))
                 
                 var dist = 0.0
                 var lastNode : Option[Node] = None
                 var lastRouteNode : Option[RouteNode] = None
+                var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
                 for ( nid <- w.nodeIds )
                 {
                     val isRouteNode = routeNodeIds contains nid
                     val node = osmMap.nodes(nid)
+                    
+                    val nearestScenicPoint = scenicMap.nearest(node.coord).get
+                    
+                    if ( nearestScenicPoint.coord.distFrom(node.coord) < 200.0 )
+                    {
+                        scenicPoints.append( nearestScenicPoint )
+                    }
                     
                     // Update cumulative way distance
                     lastNode.foreach
@@ -433,18 +513,29 @@ object RoutableGraph
                     
                     if ( isRouteNode )
                     {
+                        val scenicScore = if ( !scenicPoints.isEmpty )
+                        {
+                            val scenicValue = scenicPoints.map( _.score ).sum / scenicPoints.size.toDouble
+                            (1.0 + (0.5-scenicValue))
+                        }
+                        else
+                        {
+                            1.0
+                        }
+                        
                         val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord) )
                         
                         lastRouteNode.foreach
                         { lrn =>
                         
-                            val edge = new RouteEdge( dist, dist * costMultiplier )
+                            val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore, scenicPoints.distinct.toArray )
                             rn.addEdge( lrn, edge )
                             lrn.addEdge( rn, edge )
                             edgeCount += 1
                         }
                         
                         lastRouteNode = Some(rn)
+                        scenicPoints.clear()
                         dist = 0.0
                     }
                     
@@ -453,7 +544,7 @@ object RoutableGraph
             }
             
             println( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
-            new RoutableGraph( osmMap, routeNodeMap.map { _._2 }.toArray, scenicMap )
+            new RoutableGraph( routeNodeMap.map { _._2 }.toArray )
         }
     }
 }
@@ -465,7 +556,28 @@ object GenerateRoute extends App
         val mapFile = new java.io.File( args(0) )
         
         val map = OSMMap.load( mapFile )
-        val rg = RoutableGraph( map )
+        
+        
+        val scenicMap = new RTreeIndex[ScenicPoint]()
+        io.Source.fromFile( new java.io.File("data/scenicOrNot.tsv") ).getLines.drop(1).foreach
+        { l =>
+        
+            val els = l.split("\t").map( _.trim)
+            val lat = els(1).toDouble
+            val lon = els(2).toDouble
+            val score = (els(3).toDouble - 1.0) / 9.0
+            val picLink = els(6)
+            val picIndex = picLink.split("/").last.toLong
+            
+            val c = new Coord( lat=lat, lon=lon )
+            scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
+        }
+        
+        val rgFile = new java.io.File(mapFile + ".rg")
+        val rgi = RoutableGraph( map, scenicMap )
+        RoutableGraph.save( rgi, rgFile )
+        
+        val rg = RoutableGraph.load( rgFile )
         
         for ( ln <- io.Source.stdin.getLines )
         {
