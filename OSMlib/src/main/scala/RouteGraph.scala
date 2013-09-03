@@ -4,7 +4,7 @@ import org.seacourt.osm._
 
 import scala.collection.{mutable, immutable}
 
-case class ScenicPoint( coord : Coord, score : Double, picIndex : Long )
+case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
 {
     assert( score >= 0.0 && score <= 1.0 )
 }
@@ -71,7 +71,7 @@ class RTreeIndex[T]
 
 case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
 
-class RoutableGraph( val nodes : Array[RouteNode] )
+class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] )
 {
     def getClosest( coord : Coord ) : RouteNode =
     {
@@ -195,8 +195,6 @@ class RoutableGraph( val nodes : Array[RouteNode] )
         val trimmedSample1 = random.shuffle(trimmedMidPoints).take( 200 )
         val trimmedSample2 = random.shuffle(trimmedMidPoints).take( 200 )
             
-        
-            
         def routeNodes( id1 : Int, id2 : Int ) : Seq[PathElement] =
         {
             def traceBack( endNode : RouteAnnotation ) : Seq[PathElement] =
@@ -288,7 +286,6 @@ class RoutableGraph( val nodes : Array[RouteNode] )
         val pics = edgeList
             .flatMap( _.scenicPoints )
             .distinct
-            .filter( _.score > 0.3 )
             .sortBy( -_.score )
             .take(10)
         
@@ -300,19 +297,28 @@ class RoutableGraph( val nodes : Array[RouteNode] )
 object RoutableGraph
 {
     import java.io._
+    import java.util.zip._
     
     def save( rg : RoutableGraph, output : File )
     {
-        val ops = new DataOutputStream( new BufferedOutputStream( new FileOutputStream( output ) ) )
+        val ops = new DataOutputStream( new GZIPOutputStream( new BufferedOutputStream( new FileOutputStream( output ) ) ) )
         try
         {
             ops.writeInt( rg.nodes.size )
-            
             for ( n <- rg.nodes )
             {
                 ops.writeInt( n.nodeId )
                 ops.writeDouble( n.coord.lon )
                 ops.writeDouble( n.coord.lat )
+            }
+            
+            ops.writeInt( rg.scenicPoints.size )
+            for ( sp <- rg.scenicPoints )
+            {
+                ops.writeDouble( sp.coord.lon )
+                ops.writeDouble( sp.coord.lat )
+                ops.writeDouble( sp.score )
+                ops.writeInt( sp.picIndex )
             }
             
             for ( n <- rg.nodes )
@@ -327,10 +333,7 @@ object RoutableGraph
                     ops.writeInt( edge.scenicPoints.size )
                     for ( sp <- edge.scenicPoints )
                     {
-                        ops.writeDouble( sp.coord.lon )
-                        ops.writeDouble( sp.coord.lat )
-                        ops.writeDouble( sp.score )
-                        ops.writeLong( sp.picIndex )
+                        ops.writeInt( sp.picIndex )
                     }
                 }
             }
@@ -343,7 +346,7 @@ object RoutableGraph
     
     def load( input : File ) =
     {
-        val ips = new DataInputStream( new BufferedInputStream( new FileInputStream( input ) ) )
+        val ips = new DataInputStream( new GZIPInputStream( new BufferedInputStream( new FileInputStream( input ) ) ) )
         
         try
         {
@@ -361,6 +364,17 @@ object RoutableGraph
                 nodeMap += (nodeId -> node)
             }
             
+            val numScenicPoints = ips.readInt
+            val spMap = (0 until numScenicPoints).map
+            { _ =>
+                val spLon = ips.readDouble
+                val spLat = ips.readDouble
+                val score = ips.readDouble
+                val picIndex = ips.readInt
+                
+                (picIndex -> new ScenicPoint( new Coord( spLon, spLat ), score, picIndex ))
+            }.toMap
+            
             println( "Reading edge data for : " + numNodes )
             (0 until numNodes).foreach
             { _ =>
@@ -377,12 +391,8 @@ object RoutableGraph
                     val sps = (0 until numScenicPoints).map
                     { _ =>
                     
-                        val spLon = ips.readDouble
-                        val spLat = ips.readDouble
-                        val score = ips.readDouble
-                        val picIndex = ips.readLong
-                        
-                        new ScenicPoint( new Coord( spLon, spLat ), score, picIndex )
+                        val spIndex = ips.readInt
+                        spMap(spIndex)
                     }
                     
                     val edge = new RouteEdge( edgeDist, edgeCost, sps.to[Array] )
@@ -394,7 +404,7 @@ object RoutableGraph
                 }
             }
             
-            new RoutableGraph( nodeMap.map( _._2 ).toArray )
+            new RoutableGraph( nodeMap.map( _._2 ).toArray, spMap.map( _._2 ).toArray )
         }
         finally
         {
@@ -436,6 +446,8 @@ object RoutableGraph
         }
         
         // Build the route graph
+        var allSPs = mutable.HashSet[ScenicPoint]()
+        
         {
             val routeNodeMap = mutable.Map[Int, RouteNode]()
             
@@ -454,97 +466,103 @@ object RoutableGraph
                     .map { _._2 }
                     .headOption
                 
-                var costMultiplier = highwayAnnotation match
+                var costMultiplierOption = highwayAnnotation match
                 {
-                     case None => 1.0
+                     case None => None
                      case Some( valueString ) =>
                      {
-                        if ( valueString.startsWith( "motorway" ) ) 10.0
-                        else if ( valueString.startsWith( "bridleway" ) ) 1.0
-                        else if ( valueString.startsWith( "track" ) ) 1.0
-                        else if ( valueString.startsWith( "residential" ) ) 1.5
-                        else if ( valueString.startsWith( "trunk" ) ) 1.8
+                        if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
+                        else if ( valueString.startsWith( "bridleway" ) ) Some( 1.0 )
+                        else if ( valueString.startsWith( "track" ) ) Some( 1.0 )
+                        else if ( valueString.startsWith( "residential" ) ) Some( 1.5 )
+                        else if ( valueString.startsWith( "trunk" ) ) Some( 1.8 )
                         // Not yet classified, so be conservative
-                        else if ( valueString.startsWith( "primary" ) ) 1.2
+                        else if ( valueString.startsWith( "primary" ) ) Some( 1.2 )
                         //else if ( valueString.startsWith( "service" ) ) 1.1
-                        else if ( valueString.startsWith( "road" ) ) 1.0
-                        else if ( valueString.startsWith( "secondary" ) ) 1.0
-                        else if ( valueString.startsWith( "tertiary" ) ) 1.0
-                        else if ( valueString.startsWith( "unclassified" ) ) 1.0
-                        else if ( valueString.startsWith( "cycleway" ) ) 1.2
-                        else if ( valueString.startsWith( "bridleway" ) ) 0.9
-                        else if ( valueString.startsWith( "footway" ) ) 0.9
-                        else if ( valueString.startsWith( "footpath" ) ) 0.9
-                        else 100.0
+                        else if ( valueString.startsWith( "road" ) ) Some( 1.0 )
+                        else if ( valueString.startsWith( "secondary" ) ) Some( 1.0 )
+                        else if ( valueString.startsWith( "tertiary" ) ) Some( 1.0 )
+                        else if ( valueString.startsWith( "unclassified" ) ) Some( 1.0 )
+                        else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
+                        else if ( valueString.startsWith( "bridleway" ) ) Some( 0.9 )
+                        else if ( valueString.startsWith( "footway" ) ) Some( 0.9 )
+                        else if ( valueString.startsWith( "footpath" ) ) Some( 0.9 )
+                        else None
                      }
                 }
                 
-                nameAnnotation.foreach
-                { n =>
-                    if (n.matches("A[0-9]+"))
-                    {
-                        costMultiplier = 1.5
-                    }
-                }
+                costMultiplierOption.foreach
+                { costMultiplierPre =>
                 
-                
-                var dist = 0.0
-                var lastNode : Option[Node] = None
-                var lastRouteNode : Option[RouteNode] = None
-                var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
-                for ( nid <- w.nodeIds )
-                {
-                    val isRouteNode = routeNodeIds contains nid
-                    val node = osmMap.nodes(nid)
-                    
-                    val nearestScenicPoint = scenicMap.nearest(node.coord).get
-                    
-                    if ( nearestScenicPoint.coord.distFrom(node.coord) < 200.0 )
-                    {
-                        scenicPoints.append( nearestScenicPoint )
-                    }
-                    
-                    // Update cumulative way distance
-                    lastNode.foreach
-                    { ln =>
-                    
-                        dist += ln.coord.distFrom( node.coord )
-                    }
-                    
-                    if ( isRouteNode )
-                    {
-                        val scenicScore = if ( !scenicPoints.isEmpty )
+                    var costMultiplier = costMultiplierPre
+                    nameAnnotation.foreach
+                    { n =>
+                        if (n.matches("A[0-9]+"))
                         {
-                            val scenicValue = scenicPoints.map( _.score ).sum / scenicPoints.size.toDouble
-                            (1.0 + (0.5-scenicValue))
+                            costMultiplier = 1.5
                         }
-                        else
-                        {
-                            1.0
-                        }
-                        
-                        val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord) )
-                        
-                        lastRouteNode.foreach
-                        { lrn =>
-                        
-                            val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore, scenicPoints.distinct.toArray )
-                            rn.addEdge( lrn, edge )
-                            lrn.addEdge( rn, edge )
-                            edgeCount += 1
-                        }
-                        
-                        lastRouteNode = Some(rn)
-                        scenicPoints.clear()
-                        dist = 0.0
                     }
                     
-                    lastNode = Some(node)
+                    
+                    var dist = 0.0
+                    var lastNode : Option[Node] = None
+                    var lastRouteNode : Option[RouteNode] = None
+                    var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
+                    for ( nid <- w.nodeIds )
+                    {
+                        val isRouteNode = routeNodeIds contains nid
+                        val node = osmMap.nodes(nid)
+                        
+                        val nearestScenicPoint = scenicMap.nearest(node.coord).get
+                        
+                        if ( nearestScenicPoint.coord.distFrom(node.coord) < 200.0 )
+                        {
+                            scenicPoints.append( nearestScenicPoint )
+                            allSPs.add( nearestScenicPoint )
+                        }
+                        
+                        // Update cumulative way distance
+                        lastNode.foreach
+                        { ln =>
+                        
+                            dist += ln.coord.distFrom( node.coord )
+                        }
+                        
+                        if ( isRouteNode )
+                        {
+                            val scenicScore = if ( !scenicPoints.isEmpty )
+                            {
+                                val scenicValue = scenicPoints.map( _.score ).sum / scenicPoints.size.toDouble
+                                (1.0 + (0.5-scenicValue))
+                            }
+                            else
+                            {
+                                1.0
+                            }
+                            
+                            val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord) )
+                            
+                            lastRouteNode.foreach
+                            { lrn =>
+                            
+                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore, scenicPoints.distinct.toArray )
+                                rn.addEdge( lrn, edge )
+                                lrn.addEdge( rn, edge )
+                                edgeCount += 1
+                            }
+                            
+                            lastRouteNode = Some(rn)
+                            scenicPoints.clear()
+                            dist = 0.0
+                        }
+                        
+                        lastNode = Some(node)
+                    }
                 }
             }
             
             println( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
-            new RoutableGraph( routeNodeMap.map { _._2 }.toArray )
+            new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
         }
     }
 }
@@ -567,7 +585,7 @@ object GenerateRoute extends App
             val lon = els(2).toDouble
             val score = (els(3).toDouble - 1.0) / 9.0
             val picLink = els(6)
-            val picIndex = picLink.split("/").last.toLong
+            val picIndex = picLink.split("/").last.toInt
             
             val c = new Coord( lat=lat, lon=lon )
             scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )

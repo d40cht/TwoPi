@@ -40,7 +40,7 @@ class RouteGraphHolder
     }
     else
     {
-        RoutableGraph.load( new java.io.File( "./oxfordshire.bin.rg" ) )
+        RoutableGraph.load( new java.io.File( "./uk.bin.rg" ) )
     }
 }
 // Weird cost:
