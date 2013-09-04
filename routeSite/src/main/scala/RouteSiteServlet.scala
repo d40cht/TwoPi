@@ -5,7 +5,7 @@ import scala.collection.{mutable, immutable}
 import org.scalatra._
 import scalate.ScalateSupport
 
-import org.seacourt.osm.{OSMMap, Coord}
+import org.seacourt.osm.{OSMMap, Coord, Logging}
 import org.seacourt.osm.route.{RoutableGraph, RouteNode, RTreeIndex, ScenicPoint}
 
 import org.eclipse.jetty.server.Server
@@ -20,37 +20,11 @@ import org.scalatra.servlet.ScalatraListener
 
 class RouteGraphHolder
 {
-    val rg = if ( false )
-    {
-        //val mapFile = new java.io.File( "./uk.bin" )
-        val mapFile = new java.io.File( "./oxfordshire.bin" )
-        val map = OSMMap.load( mapFile )
-        
-        val scenicMap = new RTreeIndex[ScenicPoint]()
-        io.Source.fromFile( new java.io.File("data/scenicOrNot.tsv") ).getLines.drop(1).foreach
-        { l =>
-        
-            val els = l.split("\t").map( _.trim)
-            val lat = els(1).toDouble
-            val lon = els(2).toDouble
-            val score = (els(3).toDouble - 1.0) / 9.0
-            val picLink = els(6)
-            val picIndex = picLink.split("/").last.toInt
-            
-            val c = new Coord( lat=lat, lon=lon )
-            scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
-        }
-        
-        RoutableGraph( map, scenicMap )
-    }
-    else
-    {
-        RoutableGraph.load( new java.io.File( "./default.bin.rg" ) )
-    }
+    val rg = RoutableGraph.load( new java.io.File( "./default.bin.rg" ) )
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet extends ScalatraServlet with ScalateSupport
+class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
 
@@ -82,15 +56,16 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
         {
             cache.acquireWriteLockOnKey( hash )
             
-            if ( cache.isKeyInCache(hash) )
+            val el = cache.get(hash)
+            if ( el != null )
             {
-                println( "Cached element found" )
-                val el = cache.get(hash)
+                log.info( "Cached element found" )
+                
                 el.getObjectValue.asInstanceOf[T]
             }
             else
             {
-                println( "Cached element not found - running function" )
+                log.info( "Cached element not found - running function" )
                 val result = body
                 
                 cache.put( new Element( hash, result ) )
@@ -107,16 +82,16 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
     private def getRouteXML( lon : Double, lat : Double, distInKm : Double, seed : Int ) = cached[scala.xml.Node]("routeXML", lon, lat, distInKm, seed )
     {
         import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
-        import scalaj.http.Http
+        import scalaj.http.{Http, HttpOptions}
         implicit val formats = DefaultFormats
         
         val rgh = getRGH
         val startCoords = Coord(lon, lat)
         
-        println( "Finding closest node..." )
+        log.info( "Finding closest node..." )
         val closestNode = rgh.rg.getClosest( startCoords )
         
-        println( "Closest: " + closestNode.coord )
+        log.info( "Closest: " + closestNode.coord )
         
         val route = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
         val routeNodes = route.routeNodes
@@ -139,7 +114,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                         }
                         cumDistance += dist
                         
-                        val res = <trkpt lat={rn.coord.lat.toString} lon={rn.coord.lon.toString} distance={cumDistance.toString}/>
+                        val res = <trkpt lat={rn.coord.lat.toString} lon={rn.coord.lon.toString} distance={cumDistance.toString} ele={rn.height.toString}/>
                         lastRN = Some( rn )
                         res
                     }
@@ -154,6 +129,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport
                     val picIndex = pic.picIndex
                     
                     val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
+                        .option(HttpOptions.connTimeout(5000))
+                        .option(HttpOptions.readTimeout(5000))
                     { inputStream => 
                         JsonParser.parse(new java.io.InputStreamReader(inputStream))
                     }
@@ -360,7 +337,9 @@ object JettyLauncher { // this is my entry object as specified in sbt project de
     val server = new Server(port)
     val context = new WebAppContext()
     context setContextPath "/"
-    context.setResourceBase("src/main/webapp")
+    //context.setResourceBase("src/main/webapp")
+    val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
+    context.setResourceBase(resourceBase)
     context.addEventListener(new ScalatraListener)
     context.addServlet(classOf[DefaultServlet], "/")
 

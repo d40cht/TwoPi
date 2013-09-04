@@ -2,78 +2,125 @@ package org.seacourt.osm
 
 import java.io._
 
-//import org.geotools.gce.geotiff.GeoTiffFormat
+
+case class SRTMInMemoryTiles( files : Seq[File] )
+{
+    private val tiles = files.map( f => SRTMInMemoryTile(f) ).toList
     
-
-/*
-    TFW file:
-    Line 1: A: pixel size in the x-direction in map units/pixel
-    Line 2: D: rotation about y-axis
-    Line 3: B: rotation about x-axis
-    Line 4: E: pixel size in the y-direction in map units, almost always negative[3]
-    Line 5: C: x-coordinate of the center of the upper left pixel
-    Line 6: F: y-coordinate of the center of the upper left pixel
-*/
-
-/*
-case class TFW( xPixelSize : Double, xRot : Double, yRot : Double, yPixelSize : Double, xLeft : Double, yTop : Double )
-
-object TFW
-{
-    def readFile( fname : File ) =
+    def elevation( lon : Double, lat : Double ) : Option[Double] =
     {
-        val s = io.Source.fromFile(fname)
-        val fields = s.getLines.map( _.trim ).toArray
-        val res = TFW(
-            fields(0).toDouble,
-            fields(1).toDouble,
-            fields(2).toDouble,
-            fields(3).toDouble,
-            fields(4).toDouble,
-            fields(5).toDouble )
-        s.close
-        
-        res
-    }
-}
-
-class SRTMTile( val file : File, val tfw : TFW )
-{
-    def apply( lon : Double, lat : Double ) =
-    {
-        //val outputFile = new java.io.File( fileName )
-        //val format = new GeoTiffFormat()
-
-        //assert( lon > 
-    }
-}
-
-class SRTM( val directory : File )
-{
-    // Read the tiff using JAI?
-    
-    private val index : Array[(TFW, File)] =
-    {
-        val files = directory.listFiles.filter( _.toString.endsWith( ".tfw" ) )
-        
-        files.map
-        { f =>
-        
-            val tfw = TFW.readFile(f)
-            val data = new File( f.toString.dropRight(4) + ".tif" )
-            assert( data.exists )
+        for ( t <- tiles )
+        {
+            val res = t.elevation( lon, lat )
             
-            (tfw, data)
-        }.toArray
+            res.foreach( el => return Some(el) )
+        }
+        
+        println( "Point outside range: " + lon + ", " + lat )
+        
+        return None
+    }
+}
+
+
+// Mapping tested manually using: http://www.daftlogic.com/sandbox-google-maps-find-altitude.htm
+case class SRTMInMemoryTile( val lonMin : Double, val latMin : Double, val nRows : Int, val nCols : Int, val cellSize : Double, val allData : Array[Short] )
+{
+    assert( allData.size == nRows * nCols )
+    
+    val lonMax = lonMin + ((nCols-1).toDouble * cellSize)
+    val latMax = latMin + ((nRows-1).toDouble * cellSize)
+    
+    println( "Tile bounds : %f, %f, %f, %f".format( lonMin, lonMax, latMin, latMax ) )
+    println( "Data points: " + allData.size.toString )
+    
+    def inRange( lon : Double, lat : Double ) : Boolean = lon >= lonMin && lon <= lonMax && lat >= latMin && lat <= latMax
+    
+    private def get( x : Int, y : Int ) : Option[Double] =
+    {
+        val index = x + (((nRows-1)-y)*nCols)
+        
+        if ( index >= allData.size ) None
+        else
+        {
+            val height = allData(index)
+            if ( height == -9999 ) None
+            else Some(height.toDouble)
+        }
     }
     
-    // Use an LRU cache to keep tiffs in memory. When adding heights to nodes,
-    // sort by lon then lat to keep the cached files hot.
-    def height( c : Coord ) : Double =
+    private def bilinearInterpolation( Q11 : Double, Q21 : Double, Q12 : Double, Q22 : Double, xFrac : Double, yFrac : Double ) =
     {
-        0.0
-    } 
+        assert( xFrac >= 0.0 && xFrac <= 1.0 )
+        assert( yFrac >= 0.0 && yFrac <= 1.0 )
+        
+        Q11 * (1.0 - xFrac) * (1.0 - yFrac) +
+        Q21 * (1.0 - xFrac) * yFrac +
+        Q12 * xFrac * (1.0 - yFrac) +
+        Q22 * xFrac * yFrac
+    }
+    
+    
+    // Interpolated elevation, bilinear from: http://en.wikipedia.org/wiki/Bilinear_interpolation
+    def elevation( lon : Double, lat : Double ) : Option[Double] =
+    {
+        if ( inRange( lon, lat ) )
+        {
+            val x1 = ((lon - lonMin) / cellSize).toInt
+            val y1 = ((lat - latMin) / cellSize).toInt
+            
+            val el11O = get( x1, y1 )
+            val el12O = get( x1, y1 + 1 )
+            val el21O = get( x1 + 1, y1 )
+            val el22O = get( x1 + 1, y1 + 1 )
+            
+            (el11O, el12O, el21O, el22O) match
+            {
+                case (Some(q11), Some(q12), Some(q21), Some(q22)) =>
+                {
+                    val xFrac = (lon - lonMin) - (x1*cellSize)
+                    val yFrac = (lat - latMin) - (y1*cellSize)
+                    
+                    Some( bilinearInterpolation( q11, q21, q12, q22, xFrac, yFrac ) )
+                }
+                
+                case _ => None
+            }
+        }
+        else None
+    }
 }
+
+/*
+    xll and yll and western and southern corner coordinates, x increments eastwards, y increments northwards
+    
+    Row 0: ncols
+    Row 1: nrows
+    Row 2: xllcorner
+    Row 3: yllcorner
+    Row 4: cellsize
+    Row 5: NODATA_value
 */
 
+object SRTMInMemoryTile
+{
+    def apply( f : java.io.File ) =
+    {
+        val lines = io.Source.fromFile( f ).getLines
+        val prefixLines = lines.take(6).toList
+        println( prefixLines )
+        val prefix = prefixLines.map( _.split(" ").last.trim ).toSeq
+        
+        val ncols = prefix(0).toInt
+        val nrows = prefix(1).toInt
+        val cellSize = prefix(4).toDouble
+        val lonMin = prefix(2).toDouble
+        val latMin = prefix(3).toDouble
+        
+        val allData = lines.flatMap( _.split(" ").map( _.trim.toShort ) )
+        new SRTMInMemoryTile( lonMin, latMin, nrows, ncols, cellSize, allData.toArray )
+    }
+}
+  
+    
 

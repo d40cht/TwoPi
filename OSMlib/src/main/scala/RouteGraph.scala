@@ -9,7 +9,7 @@ case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
     assert( score >= 0.0 && score <= 1.0 )
 }
 
-case class RouteNode( val nodeId : Int, val coord : Coord )
+case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 {
     val destinations = mutable.ArrayBuffer[(RouteNode, RouteEdge)]()
     
@@ -19,6 +19,8 @@ case class RouteNode( val nodeId : Int, val coord : Coord )
     }
 }
 
+// TODO: There should really be a height delta on RouteEdge to get the costs right for long routes.
+// but then we'd need to know which way we were going - so instate when doing one-way logic.
 case class RouteEdge( val dist : Double, val cost : Double, val scenicPoints : Array[ScenicPoint] )
 
 
@@ -71,10 +73,16 @@ class RTreeIndex[T]
 
 case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
 
-class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] )
+class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
-    def getClosest( coord : Coord ) : RouteNode =
-    {
+    val treeMap = RTreeIndex[RouteNode]()
+    
+    log.info( "Populating route node tree map for quick indexing.")
+    nodes.foreach( n => treeMap.add( n.coord, n ) )
+    log.info( "... complete." )
+    
+    def getClosest( coord : Coord ) : RouteNode = treeMap.nearest( coord )
+    /*{
         // Horribly inefficient. Use an RTree shortly, or use IndexedMap as a starting point
         var minDist : Option[(Double, RouteNode)] = None
         nodes.foreach
@@ -85,7 +93,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         }
         
         minDist.get._2
-    }
+    }*/
 
     def runDijkstra( startNode : RouteNode, maxDist : Double, random : util.Random ) : mutable.HashMap[Int, RouteAnnotation] =
     {
@@ -153,17 +161,16 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val random = new util.Random( seed )
         val startAnnotation = runDijkstra( startNode, targetDist, random )
         
-        println( "Computing distances from start node" )
+        log.info( "Computing distances from start node" )
 
         val allDestinationsRaw = startAnnotation
-            .filter { case (nid, annot) => annot.dist > targetDist * 0.2 && annot.dist < targetDist * 0.6 }
+            .filter { case (nid, annot) => annot.dist > targetDist * 0.1 && annot.dist < targetDist * 0.6 }
             .toSeq
             .sortBy { case (nid, annot) => annot.cost }
             
         val allDestinations = allDestinationsRaw
             .groupBy { case (n, annot) => quantiseCoord( annot.node.coord ) }
             .map { case (c, allPoints) => allPoints.sortBy( _._2.cost ).head }
-            
             
         // Choose randomly from the top 50% by cost
         val candidateDestinations = allDestinations
@@ -174,11 +181,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         
         val annot1 = candidateDestinations(elementIndex)._2
         
-        println( "Computing distances from second node" )
+        log.info( "Computing distances from second node" )
         val node2Annotation = runDijkstra( annot1.node, targetDist, random )
         
         
-        println( "Computing possible midpoints" )
+        log.info( "Computing possible midpoints" )
         val possibleMidPoints = node2Annotation
             // Add distance annotation from the start node
             .filter { case (nid, annot) => startAnnotation contains nid }
@@ -187,13 +194,12 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             .toSeq
             .sortBy { case (nid, annot1, annot2) => (annot1.cost + annot2.cost) }
             .toSeq
-            
-        
+                
         val trimmedMidPoints = possibleMidPoints
             .take( possibleMidPoints.size )
             
-        val trimmedSample1 = random.shuffle(trimmedMidPoints).take( 200 )
-        val trimmedSample2 = random.shuffle(trimmedMidPoints).take( 200 )
+        val trimmedSample1 = random.shuffle(trimmedMidPoints).take( 100 )
+        val trimmedSample2 = random.shuffle(trimmedMidPoints).take( 400 )
             
         def routeNodes( id1 : Int, id2 : Int ) : Seq[PathElement] =
         {
@@ -221,7 +227,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         }
         
         // Enumerate all pairs of midpoints that sum to roughly the target distance
-        println( "Enumerating mid points (%d*%d)".format( trimmedSample1.size, trimmedSample2.size ) )
+        log.info( "Enumerating mid points (%d*%d)".format( trimmedSample1.size, trimmedSample2.size ) )
         val possibleMidPointPairs = trimmedSample1.flatMap
         { case (nid1, annot11, annot12) =>
         
@@ -234,16 +240,28 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     
                     ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
                 }
-                //.map { case (nid2, annot21, annot22) => (nid1, nid2, annot11.cost + annot12.cost + annot21.cost + annot22.cost) }
                 .map
                 { case (nid2, annot21, annot22) =>
                 
-                    val routeNodeIds = routeNodes( nid1, nid2 ).map( _.ra.node.nodeId )
-                    val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
+                    val routeNodeIds = routeNodes( nid1, nid2 ).map( _.ra.node.nodeId ).toSeq
+                    
+                    val zipped = routeNodeIds.zip( routeNodeIds.reverse )
+                    
+                    val prefixLength = zipped.takeWhile { case (f, b) => f == b }.size
+                    val suffix = routeNodeIds.drop( prefixLength ).toSeq
+                    
+                    val suffixOverlap = suffix.toSet.size.toDouble / suffix.size.toDouble
+                    
+                    val circularityRatio = /*if ( suffixOverlap < 0.90 ) 0.0
+                    else*/
+                    {
+                        suffixOverlap
+                    }
+                    
+                    //val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
                     
                     val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
                     val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
-                    //val relativeDist = annot21.coord.distFrom( annot11.coord ) / targetDist
                     
                     // Upweight routes where nid1 and nid2 are farther apart
                     (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
@@ -254,7 +272,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         .sortBy( x => x._3 )
         .toVector
         
-        println( "Possible mid-point pairs: " + possibleMidPointPairs.size )
+        log.info( "Possible mid-point pairs: " + possibleMidPointPairs.size )
         
         val chosenPairIndex = random.nextInt( possibleMidPointPairs.size / 2 )
 
@@ -262,8 +280,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val (bestId1, bestId2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22) = possibleMidPointPairs(chosenPairIndex)
         
         
-        println( "Route has distance: %.2fkm, cost: %.2f, circularity ratio: %f".format( routeDist / 1000.0, cost / 1000.0, circularityRatio ) )
-        println( annot11.dist, annot12.dist, annot21.dist, annot22.dist )
         
         
         
@@ -273,15 +289,26 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         
         val best1 = startAnnotation(bestId1)
         val best2 = startAnnotation(bestId2)
-        println( startNode.coord.lat + ", " + startNode.coord.lon )
-        println( annot1.node.coord.lat + ", " + annot1.node.coord.lon )
-        println( best1.node.coord.lat + ", " + best1.node.coord.lon )
-        println( best2.node.coord.lat + ", " + best2.node.coord.lon )
+        log.info( startNode.coord.lat + ", " + startNode.coord.lon )
+        log.info( annot1.node.coord.lat + ", " + annot1.node.coord.lon )
+        log.info( best1.node.coord.lat + ", " + best1.node.coord.lon )
+        log.info( best2.node.coord.lat + ", " + best2.node.coord.lon )
         
         val fullRoute = routeNodes( bestId1, bestId2 )
 
-        val nodeList = fullRoute.map( _.ra.node )
-        val edgeList = fullRoute.flatMap( _.re )
+        val nodeList = fullRoute.map( _.ra.node ).toList
+        val edgeList = fullRoute.flatMap( _.re ).toList
+        
+        val heightChanges = nodeList
+            .sliding(2)
+            .map { case List(n1, n2) => n2.height - n1.height }
+            .partition( _ > 0.0 )
+    
+        val ascent = heightChanges._1.sum
+        val descent = heightChanges._2.sum
+        
+        log.info( "Route has distance: %.2fkm, cost: %.2f, circularity ratio: %f".format( routeDist / 1000.0, cost / 1000.0, circularityRatio ) )
+        log.info( "Ascent: %.0fm, descent: %.0fm".format( ascent, descent ) )
         
         val pics = edgeList
             .flatMap( _.scenicPoints )
@@ -294,7 +321,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
 }
 
 
-object RoutableGraph
+object RoutableGraph extends Logging
 {
     import java.io._
     import java.util.zip._
@@ -310,6 +337,7 @@ object RoutableGraph
                 ops.writeInt( n.nodeId )
                 ops.writeDouble( n.coord.lon )
                 ops.writeDouble( n.coord.lat )
+                ops.writeFloat( n.height )
             }
             
             ops.writeInt( rg.scenicPoints.size )
@@ -352,14 +380,15 @@ object RoutableGraph
         {
             val nodeMap = mutable.HashMap[Int, RouteNode]()
             val numNodes = ips.readInt
-            println( "Reading node data for : " + numNodes )
+            log.info( "Reading node data for : " + numNodes )
             (0 until numNodes).foreach
             { _ =>
                 val nodeId = ips.readInt
                 val nodeLon = ips.readDouble
                 val nodeLat = ips.readDouble
+                val height = ips.readFloat
                 
-                val node = new RouteNode( nodeId, new Coord( nodeLon, nodeLat ) )
+                val node = new RouteNode( nodeId, new Coord( nodeLon, nodeLat ), height )
                 
                 nodeMap += (nodeId -> node)
             }
@@ -375,7 +404,7 @@ object RoutableGraph
                 (picIndex -> new ScenicPoint( new Coord( spLon, spLat ), score, picIndex ))
             }.toMap
             
-            println( "Reading edge data for : " + numNodes )
+            log.info( "Reading edge data for : " + numNodes )
             (0 until numNodes).foreach
             { _ =>
                 val sourceId = ips.readInt
@@ -404,6 +433,7 @@ object RoutableGraph
                 }
             }
             
+            log.info( "Read complete. Returning route graph" )
             new RoutableGraph( nodeMap.map( _._2 ).toArray, spMap.map( _._2 ).toArray )
         }
         finally
@@ -412,7 +442,7 @@ object RoutableGraph
         }
     }
     
-    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint] ) =
+    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], heightMap : SRTMInMemoryTiles ) =
     {
         // Find all non-synthetic nodes which belong to more than one way
         val routeNodeIds =
@@ -433,14 +463,14 @@ object RoutableGraph
                 realNodes.foreach( nid => incCount(nid) )
             }
             
-            println( "Num nodes: %d".format( nodeWayMembershipCount.size ) )
+            log.info( "Num nodes: %d".format( nodeWayMembershipCount.size ) )
             
             val junctionNodes = nodeWayMembershipCount
                 .filter { case (nid, count) => count > 1 }
                 .map { case (nid, count) => nid }
                 .toSet
                 
-            println( "Num junction nodes: %d and start/end nodes: %d".format( junctionNodes.size, startEndNodes.size ) )
+            log.info( "Num junction nodes: %d and start/end nodes: %d".format( junctionNodes.size, startEndNodes.size ) )
                 
             (junctionNodes ++ startEndNodes).toSet
         }
@@ -484,9 +514,9 @@ object RoutableGraph
                         else if ( valueString.startsWith( "tertiary" ) ) Some( 1.0 )
                         else if ( valueString.startsWith( "unclassified" ) ) Some( 1.0 )
                         else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
-                        else if ( valueString.startsWith( "bridleway" ) ) Some( 0.9 )
-                        else if ( valueString.startsWith( "footway" ) ) Some( 0.9 )
-                        else if ( valueString.startsWith( "footpath" ) ) Some( 0.9 )
+                        else if ( valueString.startsWith( "bridleway" ) ) Some( 0.7 )
+                        else if ( valueString.startsWith( "footway" ) ) Some( 0.7 )
+                        else if ( valueString.startsWith( "footpath" ) ) Some( 0.7 )
                         else None
                      }
                 }
@@ -505,6 +535,7 @@ object RoutableGraph
                     
                     
                     var dist = 0.0
+                    var absHeightDelta = 0.0
                     var lastNode : Option[Node] = None
                     var lastRouteNode : Option[RouteNode] = None
                     var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
@@ -526,6 +557,15 @@ object RoutableGraph
                         { ln =>
                         
                             dist += ln.coord.distFrom( node.coord )
+                            
+                            val prevHeightO = heightMap.elevation( node.coord.lon, node.coord.lat )
+                            val thisHeightO = heightMap.elevation( ln.coord.lon, ln.coord.lat )
+                            
+                            (prevHeightO, thisHeightO) match
+                            {
+                                case (Some(prevHeight), Some(thisHeight)) => absHeightDelta += prevHeight - thisHeight
+                                case _ =>
+                            }
                         }
                         
                         if ( isRouteNode )
@@ -540,12 +580,23 @@ object RoutableGraph
                                 1.0
                             }
                             
-                            val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord) )
+                            val inclineScore = 1.0 - ((absHeightDelta / dist)*5.0)
+                            
+                            val height = heightMap.elevation( node.coord.lon, node.coord.lat ) match
+                            {
+                                case Some(h) => h
+                                case None =>
+                                {
+                                    println( "No height for coords: " + node.coord.toString )
+                                    -9999.0
+                                }
+                            }
+                            val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord, height.toFloat) )
                             
                             lastRouteNode.foreach
                             { lrn =>
                             
-                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore, scenicPoints.distinct.toArray )
+                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, scenicPoints.distinct.toArray )
                                 rn.addEdge( lrn, edge )
                                 lrn.addEdge( rn, edge )
                                 edgeCount += 1
@@ -554,6 +605,7 @@ object RoutableGraph
                             lastRouteNode = Some(rn)
                             scenicPoints.clear()
                             dist = 0.0
+                            absHeightDelta = 0.0
                         }
                         
                         lastNode = Some(node)
@@ -561,13 +613,13 @@ object RoutableGraph
                 }
             }
             
-            println( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
+            log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
             new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
         }
     }
 }
 
-object GenerateRoute extends App
+object GenerateRoute extends App with Logging
 {    
     override def main( args : Array[String] )
     {
@@ -591,8 +643,12 @@ object GenerateRoute extends App
             scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
         }
         
+        val srtmFiles = new java.io.File( "./data" ).listFiles.filter( _.toString.endsWith(".asc") )
+        println( "Found SRTM files: " + srtmFiles.toList )
+        val heightMap = new SRTMInMemoryTiles( srtmFiles )
+        
         val rgFile = new java.io.File(mapFile + ".rg")
-        val rgi = RoutableGraph( map, scenicMap )
+        val rgi = RoutableGraph( map, scenicMap, heightMap )
         RoutableGraph.save( rgi, rgFile )
         
         val rg = RoutableGraph.load( rgFile )
@@ -607,21 +663,21 @@ object GenerateRoute extends App
                 val distInkm = els(2).toDouble
                 val seed = els(3).toInt
                 
-                println( "Finding closest node..." )
+                log.info( "Finding closest node..." )
                 val closestNode = rg.getClosest( startCoords )
                 
-                println( "Closest: " + closestNode.coord )
+                log.info( "Closest: " + closestNode.coord )
                 
                 val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0, seed ).routeNodes
                 
                 for ( rn <- routeNodes )
                 {
-                    println( "%f, %f".format( rn.coord.lat, rn.coord.lon ) )
+                    log.info( "%f, %f".format( rn.coord.lat, rn.coord.lon ) )
                 }
             }
             catch
             {
-                case e : java.lang.Throwable => println( "Unhandled exception: " + e )
+                case e : java.lang.Throwable => log.info( "Unhandled exception: " + e )
             }
         }
     }

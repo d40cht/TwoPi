@@ -30,7 +30,8 @@ object Toplevel extends Build
             "org.openstreetmap.osmosis" % "osmosis-pbf" % "0.43-RELEASE",
             "com.vividsolutions" % "jts" % "1.13",
             "net.sourceforge.jsi" % "jsi" % "1.0.0",
-            "org.scalaz" % "scalaz-core_2.10" % "7.0.3"
+            "org.scalaz" % "scalaz-core_2.10" % "7.0.3",
+            "org.scalatest" %% "scalatest" % "1.9.1" % "test"
         )
     )
     
@@ -71,7 +72,21 @@ object Toplevel extends Build
                 case "osmosis-plugins.conf" => MergeStrategy.first
                 case "about.html" => MergeStrategy.first
                 case x  => old(x)
-            } }
+            } },
+            resourceGenerators in Compile <+= (resourceManaged, baseDirectory) map
+            { (managedBase, base) =>
+            
+                // Copy the resources into managedBase where package+assembly tasks can find them
+                val webappBase = base / "src" / "main" / "webapp"
+                for {
+                    (from, to) <- webappBase ** "**" x rebase(webappBase, managedBase / "main" / "webapp")
+                }
+                yield
+                {
+                    Sync.copy(from, to)
+                    to
+                }
+          }
         )
     )
     .dependsOn( OSMlib )
