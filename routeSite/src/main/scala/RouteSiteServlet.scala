@@ -153,7 +153,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         </gpx>
     }
     
-    def template( pageName : String, onBodyLoad : Option[String] = None )( sideBar : scala.xml.Elem )( pageBody : scala.xml.Elem ) =
+    def template( pageName : String, onBodyLoad : Option[String] = None )( sideBarLeft : scala.xml.Elem )( pageBody : scala.xml.Elem )( sideBarRight : scala.xml.Elem ) =
     {
         <html>
             <head>
@@ -161,7 +161,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
                 
                 <link href="css/bootstrap.min.css" rel="stylesheet" media="screen"/>
-                <link href="css/bootstrap-responsive.css" rel="stylesheet"/>
+                <link href="css/bootstrap-responsive-min.css" rel="stylesheet"/>
                 
                 <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
                 <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
@@ -171,11 +171,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                 <style>
                   body {{
                     padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+                    padding-left: 10px;
+                    padding-right: 10px;
                   }}
                 </style>
                 
             </head>
-            <body onLoad={onBodyLoad.map( s => scala.xml.Text(s) )}>
+            <body onLoad={onBodyLoad.map( s => scala.xml.Text(s) )} style="height:90%">
 
                 <div class="navbar navbar-inverse navbar-fixed-top">
                   <div class="navbar-inner">
@@ -197,17 +199,23 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                   </div>
                 </div>
 
-                <div class="container-fluid">
+                <div class="row-fluid">
 
-                    <div class="span2">
+                    <div class="span2" style="height:100%; overflow-y: scroll; overflow-x: hidden">
                     {
-                        sideBar
+                        sideBarLeft
                     }
                     </div>
                     
-                    <div class="span10">
+                    <div class="span8" style="height:100%; overflow: auto">
                     {
                         pageBody
+                    }
+                    </div>
+                    
+                    <div class="span2">
+                    {
+                        sideBarRight
                     }
                     </div>
 
@@ -229,20 +237,11 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                 <a href="/displayroute">Navigate to navigate.</a>
             </div>
         }
-    }
-  
-    get("/hello-scalate")
-    {
-        template("Thank-you!")
         {
             <h3>Sidebar</h3>
         }
-        {
-            <div>
-                <h1>Why, thank-you.</h1>
-            </div>
-        }
     }
+  
     
     private def imgUrl( index : Long, hash : String ) : String =
     {
@@ -296,16 +295,34 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         {
             <div>
                 <!-- define a DIV into which the map will appear. Make it take up the whole window -->
-                <div style="width:100%; height:80%" id="map"></div>
-                <div style="text-align:center">
-                    <form action="/displayroute" method="get">
-                        Longitude: <input name="lon" id="lon" type="text" value={lon.toString}></input>
-                        Latitude: <input name="lat" id="lat" type="text" value={lat.toString}></input>
-                        Distance (km): <input name="distance" type="text" value={distInKm.toString}></input>
-                        Seed: <input name="seed" type="text" value={(seed+1).toString}></input>
-                        <input type="submit" value="Generate route"/>
-                    </form>
-                </div>
+                <!--<div style="width:100%; height:100%" id="map"></div>-->
+                <div id="map"></div>
+            </div>
+        }
+        {
+            <div style="text-align:center">
+                <form action="/displayroute" method="get">
+                    <table>
+                        <tr>
+                            <td>Longitude:</td>
+                            <td><input name="lon" id="lon" type="text" value={lon.toString}></input></td>
+                        </tr>
+                        <tr>
+                            <td>Latitude:</td>
+                            <td><input name="lat" id="lat" type="text" value={lat.toString}></input></td>
+                        </tr>
+                        <tr>
+                            <td>Distance (km):</td>
+                            <td><input name="distance" type="text" value={distInKm.toString}></input></td>
+                        </tr>
+                        <tr>
+                            <td>Seed:</td>
+                            <td><input name="seed" type="text" value={(seed+1).toString}></input></td>
+                        </tr>
+                    </table>
+                    <input type="submit" value="Generate route"/>
+                    
+                </form>
             </div>
         }
     }

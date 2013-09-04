@@ -75,13 +75,13 @@ case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] 
 
 class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
-    val treeMap = RTreeIndex[RouteNode]()
+    val treeMap = new RTreeIndex[RouteNode]()
     
     log.info( "Populating route node tree map for quick indexing.")
     nodes.foreach( n => treeMap.add( n.coord, n ) )
     log.info( "... complete." )
     
-    def getClosest( coord : Coord ) : RouteNode = treeMap.nearest( coord )
+    def getClosest( coord : Coord ) : RouteNode = treeMap.nearest( coord ).get
     /*{
         // Horribly inefficient. Use an RTree shortly, or use IndexedMap as a starting point
         var minDist : Option[(Double, RouteNode)] = None
