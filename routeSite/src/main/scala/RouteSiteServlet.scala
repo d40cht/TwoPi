@@ -295,8 +295,12 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         {
             <div>
                 <!-- define a DIV into which the map will appear. Make it take up the whole window -->
-                <!--<div style="width:100%; height:100%" id="map"></div>-->
+                <!--<div style="width:100%; height:80%" id="map"></div>-->
                 <div id="map"></div>
+                
+                <!-- Add elevation chart at bottom from highcharts, e.g. http://www.highcharts.com/demo/line-ajax -->
+                <div style="width:100%; height:20%" id="elevation"></div>
+                
             </div>
         }
         {
