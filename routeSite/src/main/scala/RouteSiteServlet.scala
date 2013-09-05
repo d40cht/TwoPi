@@ -155,73 +155,74 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
     
     def template( pageName : String, onBodyLoad : Option[String] = None )( sideBarLeft : scala.xml.Elem )( pageBody : scala.xml.Elem )( sideBarRight : scala.xml.Elem ) =
     {
-        <html>
-            <head>
-                <title>{pageName}</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-                
-                <link href="css/bootstrap.min.css" rel="stylesheet" media="screen"/>
-                <link href="css/bootstrap-responsive-min.css" rel="stylesheet"/>
-                
-                <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
-                <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
-                <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-                <script src="/js/osmmap.js"></script>
-
-                <style>
-                  body {{
-                    padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
-                    padding-left: 10px;
-                    padding-right: 10px;
-                  }}
-                </style>
-                
-            </head>
-            <body onLoad={onBodyLoad.map( s => scala.xml.Text(s) )} style="height:90%">
-
-                <div class="navbar navbar-inverse navbar-fixed-top">
-                  <div class="navbar-inner">
-                    <div class="container">
-                      <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                      </button>
-                      <a class="brand" href="/">Routility</a>
-                      <div class="nav-collapse collapse">
-                        <ul class="nav">
-                          <li class="active"><a href="/">Home</a></li>
-                          <li><a href="/about">About</a></li>
-                          <li><a href="/contact">Contact</a></li>
-                        </ul>
-                      </div><!--/.nav-collapse -->
-                    </div>
-                  </div>
-                </div>
-
-                <div class="row-fluid">
-
-                    <div class="span2" style="height:100%; overflow-y: scroll; overflow-x: hidden">
-                    {
-                        sideBarLeft
-                    }
-                    </div>
+        contentType = "text/html"
+        val page = 
+            <html>
+                <head>
+                    <title>{pageName}</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
                     
-                    <div class="span8" style="height:100%; overflow: auto">
-                    {
-                        pageBody
-                    }
-                    </div>
+                    <link href="css/bootstrap.min.css" rel="stylesheet" media="screen"/>
+                    <link href="css/bootstrap-responsive.min.css" rel="stylesheet"/>
                     
-                    <div class="span2">
-                    {
-                        sideBarRight
-                    }
+                    <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+                    <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
+                    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+                    <script src="/js/osmmap.js"></script>
+
+                    <style>
+                      body {{
+                        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+                        padding-left: 10px;
+                        padding-right: 10px;
+                      }}
+                    </style>
+                    
+                </head>
+                <body onLoad={onBodyLoad.map( s => scala.xml.Text(s) )} style="height:90%">
+
+                    <div class="navbar navbar-fixed-top">
+                      <div class="navbar-inner">
+                        <div class="row-fluid"><div class="span12" style="padding-left: 10px">
+                          <a class="brand" href="/">Routility</a>
+                          <div class="nav-collapse collapse">
+                            <ul class="nav">
+                              <li class="active"><a href="/"><strong>Home</strong></a></li>
+                              <li><a href="/displayroute">Plan Route</a></li>
+                            </ul>
+                          </div><!--/.nav-collapse -->
+                        </div></div>
+                      </div>
                     </div>
 
-                </div>
-              </body>
-        </html>
+                    <div class="row-fluid">
+
+                        <div class="span2">
+                        {
+                            sideBarLeft
+                        }
+                        </div>
+                        
+                        <div class="span8" style="height:90%; overflow: hidden">
+                        {
+                            pageBody
+                        }
+                        </div>
+                        
+                        <div class="span2" style="height:90%; overflow-y: auto; overflow-x: hidden">
+                        {
+                            sideBarRight
+                        }
+                        </div>
+
+                    </div>
+                  </body>
+            </html>
+            
+        //"<!DOCTYPE html>\n" + res.toString
+        val pp = new scala.xml.PrettyPrinter( 100, 2 )
+        val res = pp.format( page )
+        res
     }
 
     get("/")
@@ -249,14 +250,16 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         val ab = (index % 1000000) / 10000
         val cd = (index % 10000) / 100
         
-        if ( yz == 0 )
+        val fullPath = if ( yz == 0 )
         {
-            "http:///s0.geograph.org.uk/photos/%02d/%02d/%06d_%s.jpg".format( ab, cd, index, hash )
+            "/photos/%02d/%02d/%06d_%s".format( ab, cd, index, hash )
         }
         else
         {
-            "http:///s0.geograph.org.uk/geophotos/%02d/%02d/%02d/%06d_%s.jpg".format( yz, ab, cd, index, hash )
+            "/geophotos/%02d/%02d/%02d/%06d_%s".format( yz, ab, cd, index, hash )
         }
+        
+        "http://s%d.geograph.org.uk%s_213x160.jpg".format( index % 4, fullPath )
     }
     
     
@@ -271,25 +274,37 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         
         val xmlData = getRouteXML( lon, lat, distInKm, seed )
         
-        template( "Display route", onBodyLoad=Some(onLoad) )
+        template( "Plan a trip", onBodyLoad=Some(onLoad) )
         {
             <div>
-                {
-                    val pics = xmlData \\ "pic"
-                    pics.map
-                    { p =>
-
-                        val fullLink = (p \ "@link").text
-                        val imageUrl = (p \ "@img").text
-                        val title = (p \ "@title").text
-                        val credits = "Copyright %s and licensed for reuse under the Creative Commons Licence.".format( (p \ "@author").text )
+                <h3>Actions</h3>
+                <form action="/displayroute" method="get">
+                    <fieldset>
+                        <label for="lon">Longitude</label>
+                        <input class="input-medium" name="lon" id="lon" type="text" value={lon.toString}></input>
                         
-                        <a href={fullLink}><img src={imageUrl} alt={credits} title={credits}/></a>
+                        <label for="lat">Latitude</label>
+                        <input class="input-medium" name="lat" id="lat" type="text" value={lat.toString}></input>
+                        
+                        <label for="distance">Distance (km)</label>
+                        <input class="input-medium" name="distance" type="text" value={distInKm.toString}></input>
+                        
+                        <label for="seed">Seed</label>
+                        <input class="input-medium" name="seed" type="text" value={(seed+1).toString}></input>
+                        
+                        <label for="routeType">Route type</label>
+                        <select id="routeType">
+                            <option>Walking, flat</option>
+                            <option>Walking, hilly</option>
+                            <option>Cycling, flat</option>
+                            <option>Cycling, hilly</option>
+                        </select>
+                        
                         <br/>
-                        <div>{title}</div>
-                        <br/>
-                    }
-                }
+                        
+                        <button type="submit" class="btn btn-primary">Generate route</button>
+                    </fieldset>
+                </form>
             </div>
         }
         {
@@ -304,36 +319,29 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
             </div>
         }
         {
-            <div style="text-align:center">
-                <form action="/displayroute" method="get">
-                    <table>
-                        <tr>
-                            <td>Longitude:</td>
-                            <td><input name="lon" id="lon" type="text" value={lon.toString}></input></td>
-                        </tr>
-                        <tr>
-                            <td>Latitude:</td>
-                            <td><input name="lat" id="lat" type="text" value={lat.toString}></input></td>
-                        </tr>
-                        <tr>
-                            <td>Distance (km):</td>
-                            <td><input name="distance" type="text" value={distInKm.toString}></input></td>
-                        </tr>
-                        <tr>
-                            <td>Seed:</td>
-                            <td><input name="seed" type="text" value={(seed+1).toString}></input></td>
-                        </tr>
-                    </table>
-                    <input type="submit" value="Generate route"/>
-                    
-                </form>
+            <div>
+                <h3>Route</h3>
+                <div>
+                    {
+                        val pics = xmlData \\ "pic"
+                        pics.map
+                        { p =>
+
+                            val fullLink = (p \ "@link").text
+                            val imageUrl = (p \ "@img").text
+                            val title = (p \ "@title").text
+                            val credits = "Copyright %s and licensed for reuse under the Creative Commons Licence.".format( (p \ "@author").text )
+                            
+                            <a href={fullLink}><img src={imageUrl} alt={credits} title={credits}/></a>
+                            <br/>
+                            <div>{title}</div>
+                            <br/>
+                        }
+                    }
+                </div>
             </div>
         }
     }
-    
-    
-    // Render to: http://www.darrinward.com/lat-long/
-    // e.g. http://localhost:8080/route?data=-1.3611464,51.7094267,50.0,3
     
     // Embed route data in page in <script id="foo" type="text/xmldata"> tag?
     get("/route")
