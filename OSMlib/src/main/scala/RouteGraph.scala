@@ -21,10 +21,12 @@ case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 
 // TODO: There should really be a height delta on RouteEdge to get the costs right for long routes.
 // but then we'd need to know which way we were going - so instate when doing one-way logic.
-case class RouteEdge( val dist : Double, val cost : Double, val scenicPoints : Array[ScenicPoint] )
+case class RouteEdge( val dist : Double, val cost : Double, val nameId : Int, val scenicPoints : Array[ScenicPoint] )
 
 
-case class PathElement( ra : RouteAnnotation, re : Option[RouteEdge] )
+case class EdgeAndBearing( val edge : RouteEdge, val bearing : Float )
+
+case class PathElement( ra : RouteAnnotation, re : Option[EdgeAndBearing] )
 
 case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : Double )
 {
@@ -73,7 +75,7 @@ class RTreeIndex[T]
 
 case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
 
-class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
+class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
     val treeMap = new RTreeIndex[RouteNode]()
     
@@ -82,18 +84,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     log.info( "... complete." )
     
     def getClosest( coord : Coord ) : RouteNode = treeMap.nearest( coord ).get
-    /*{
-        // Horribly inefficient. Use an RTree shortly, or use IndexedMap as a starting point
-        var minDist : Option[(Double, RouteNode)] = None
-        nodes.foreach
-        { rn => 
-            val d = rn.coord.distFrom( coord )
-            
-            if ( minDist.isEmpty || d < minDist.get._1 ) minDist = Some( (d, rn) )
-        }
-        
-        minDist.get._2
-    }*/
 
     def runDijkstra( startNode : RouteNode, maxDist : Double, random : util.Random ) : mutable.HashMap[Int, RouteAnnotation] =
     {
@@ -138,7 +128,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         
                         nodeAnnot.cost = thisCost
                         nodeAnnot.dist = minEl.dist + edge.dist
-                        nodeAnnot.parent = Some( PathElement(minEl, Some(edge)) )
+                        
+                        val bearing = minEl.node.coord.bearing( node.coord ).toFloat
+                        nodeAnnot.parent = Some( PathElement(minEl, Some(EdgeAndBearing(edge, bearing))) )
                         
                         q += nodeAnnot
                     }
@@ -149,9 +141,19 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         annotations
     }
     
+    // Normalise to -180, +180
+    private def normaliseDegrees( angle : Double ) : Double =
+    {
+        var angleIt = angle
+        while ( angleIt < -180 ) angleIt = angleIt + 360.0
+        while ( angleIt > 180 ) angleIt = angleIt - 360.0
+        
+        angleIt
+    }
+
     def quantiseCoord( c : Coord ) =
     {
-        def q( v : Double ) = ((v * 50.0).toInt).toDouble / 50.0
+        def q( v : Double ) = ((v * 200.0).toInt).toDouble / 200.0
         
         new Coord( lon = q(c.lon), lat = q(c.lat) )
     }
@@ -201,29 +203,41 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val trimmedSample1 = random.shuffle(trimmedMidPoints).take( 100 )
         val trimmedSample2 = random.shuffle(trimmedMidPoints).take( 400 )
             
-        def routeNodes( id1 : Int, id2 : Int ) : Seq[PathElement] =
+        def routePath( id1 : Int, id2 : Int ) : Seq[PathElement] =
         {
-            def traceBack( endNode : RouteAnnotation ) : Seq[PathElement] =
+            def traceBack( endNode : RouteAnnotation, reverse : Boolean ) : Seq[PathElement] =
             {
-                val routeAnnotations = mutable.ArrayBuffer[PathElement]()
+                //val routeAnnotations = mutable.ArrayBuffer[PathElement]()
+                
+                val nodesRaw = mutable.ArrayBuffer[RouteAnnotation]()
+                val edgesBearingsRaw = mutable.ArrayBuffer[EdgeAndBearing]()
                 
                 var iterNode : Option[PathElement] = Some( PathElement(endNode, None) )
-                
                 do
                 {
-                    val PathElement(ra, re) = iterNode.get
-                    routeAnnotations.append( PathElement(ra, re) )
+                    val PathElement(ra, edgeAndBearing) = iterNode.get
+                    edgeAndBearing.foreach( eb => edgesBearingsRaw.append( eb ) )
+                    nodesRaw.append( ra )
                     iterNode = ra.parent
                 }
                 while ( iterNode != None )
                 
-                routeAnnotations
+                val nodes = if (reverse) nodesRaw.reverse else nodesRaw
+                val edgesBearings = if (reverse)
+                {
+                    edgesBearingsRaw.reverse.map( eb => EdgeAndBearing( eb.edge, normaliseDegrees( eb.bearing - 180.0 ).toFloat ) )
+                }
+                else edgesBearingsRaw
+                
+                
+                assert( nodes.size == edgesBearings.size+1 )
+                nodes.zip( None +: edgesBearings.map( e => Some(e) ) ).map { case (n, e) => PathElement( n, e ) }
             }
             
-            traceBack( startAnnotation(id1) ).reverse ++
-            traceBack( node2Annotation(id1) ) ++
-            traceBack( node2Annotation(id2) ).reverse ++
-            traceBack( startAnnotation(id2) )
+            traceBack( startAnnotation(id1), reverse=true ) ++
+            traceBack( node2Annotation(id1), reverse=false ) ++
+            traceBack( node2Annotation(id2), reverse=true ) ++
+            traceBack( startAnnotation(id2), reverse=false )
         }
         
         // Enumerate all pairs of midpoints that sum to roughly the target distance
@@ -243,7 +257,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 .map
                 { case (nid2, annot21, annot22) =>
                 
-                    val routeNodeIds = routeNodes( nid1, nid2 ).map( _.ra.node.nodeId ).toSeq
+                    val routeNodeIds = routePath( nid1, nid2 ).map( _.ra.node.nodeId ).toSeq
                     
                     val zipped = routeNodeIds.zip( routeNodeIds.reverse )
                     
@@ -294,10 +308,102 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         log.info( best1.node.coord.lat + ", " + best1.node.coord.lon )
         log.info( best2.node.coord.lat + ", " + best2.node.coord.lon )
         
-        val fullRoute = routeNodes( bestId1, bestId2 )
-
+        val fullRoute = routePath( bestId1, bestId2 )
+        
         val nodeList = fullRoute.map( _.ra.node ).toList
         val edgeList = fullRoute.flatMap( _.re ).toList
+        
+        val topPics = edgeList
+            .flatMap( _.edge.scenicPoints )
+            .distinct
+            .sortBy( -_.score )
+            .take(10)
+            .toSet
+
+        val scenicPointEdgePairsByDist : Seq[(ScenicPoint, RouteEdge, Double)] = fullRoute
+            .map
+            { case PathElement(raNode, edgeBearing) =>
+                
+                edgeBearing.map
+                { eb =>
+                    eb.edge
+                        .scenicPoints
+                        .filter( sp => topPics.contains(sp) )
+                        .map
+                        { sp =>
+                            (sp, eb.edge, sp.coord.distFrom( raNode.node.coord ) )
+                        }
+                }
+            }
+            .flatten.flatten
+            
+        val topPicsByEdge = scenicPointEdgePairsByDist
+            .groupBy( _._1 )
+            .map
+            { case (sp, options) =>
+            
+                val topOption = options.sortBy( _._3 ).head
+                (sp, topOption._2)
+            }
+            .toSet
+        
+        
+        var lastEdgeName = ""
+        var dist = 0.0
+        
+        
+        case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
+        
+        var lastEdge : Option[EdgeAndBearing] = None
+        
+        val truncatedRoute = mutable.ArrayBuffer[RouteDirections]()
+        val recentPics = mutable.Set[ScenicPoint]()
+        
+        fullRoute.zipWithIndex.map
+        { case (pathEl, i) =>
+        
+            val destAnnotNode = pathEl.ra
+            val inboundEdge = pathEl.re
+            
+            
+            inboundEdge match
+            {
+                case None       => ("Start", Seq())
+                case Some(eb)    =>
+                {
+                    val e = eb.edge
+
+                    dist += e.dist / 1000.0
+                    recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
+                    
+                    val (bearingDelta, lastNameId) = lastEdge match
+                    {
+                        case Some(leb)  =>
+                        {
+                            val le = leb.edge
+                            (normaliseDegrees( eb.bearing - leb.bearing ).toFloat, le.nameId)
+                        }
+                        case None       => (0.0f, "")
+                    }
+                            
+                    if ( lastNameId != e.nameId )
+                    {
+                        truncatedRoute.append( new RouteDirections( recentPics.toList, strings(e.nameId), e.dist / 1000.0, dist, destAnnotNode.node.height, bearingDelta ) )
+                        recentPics.clear()
+                    }
+                }
+            }
+            lastEdge = inboundEdge
+        }
+        
+            
+        
+        
+        for ( rd <- truncatedRoute )
+        {
+            println( "[% 5.2fkm] % 3.2fkm, % 3.0fm elevation: %s, bearing: % 4d [%d]".format( rd.cumulativeDistance, rd.dist, rd.elevation, rd.edgeName, rd.bearing.toInt, rd.inboundPics.size ) )
+        }
+
         
         val heightChanges = nodeList
             .sliding(2)
@@ -310,13 +416,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         log.info( "Route has distance: %.2fkm, cost: %.2f, circularity ratio: %f".format( routeDist / 1000.0, cost / 1000.0, circularityRatio ) )
         log.info( "Ascent: %.0fm, descent: %.0fm".format( ascent, descent ) )
         
-        val pics = edgeList
-            .flatMap( _.scenicPoints )
-            .distinct
-            .sortBy( -_.score )
-            .take(10)
         
-        new RouteResult( nodeList, pics )
+        
+        new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).toSeq )
     }
 }
 
@@ -331,6 +433,12 @@ object RoutableGraph extends Logging
         val ops = new DataOutputStream( new GZIPOutputStream( new BufferedOutputStream( new FileOutputStream( output ) ) ) )
         try
         {
+            ops.writeInt( rg.strings.size )
+            for ( str <- rg.strings )
+            {
+                ops.writeUTF( str )
+            }
+        
             ops.writeInt( rg.nodes.size )
             for ( n <- rg.nodes )
             {
@@ -358,6 +466,7 @@ object RoutableGraph extends Logging
                     ops.writeInt( destNode.nodeId )
                     ops.writeDouble( edge.dist )
                     ops.writeDouble( edge.cost )
+                    ops.writeInt( edge.nameId )
                     ops.writeInt( edge.scenicPoints.size )
                     for ( sp <- edge.scenicPoints )
                     {
@@ -378,6 +487,11 @@ object RoutableGraph extends Logging
         
         try
         {
+            val numStrings = ips.readInt
+            log.info( "Reading strings: " + numStrings )
+            val strings = (0 until numStrings).map { _ => ips.readUTF() }
+            
+            
             val nodeMap = mutable.HashMap[Int, RouteNode]()
             val numNodes = ips.readInt
             log.info( "Reading node data for : " + numNodes )
@@ -415,6 +529,7 @@ object RoutableGraph extends Logging
                     val destId = ips.readInt
                     val edgeDist = ips.readDouble
                     val edgeCost = ips.readDouble
+                    val nameId = ips.readInt
                     
                     val numScenicPoints = ips.readInt
                     val sps = (0 until numScenicPoints).map
@@ -424,7 +539,7 @@ object RoutableGraph extends Logging
                         spMap(spIndex)
                     }
                     
-                    val edge = new RouteEdge( edgeDist, edgeCost, sps.to[Array] )
+                    val edge = new RouteEdge( edgeDist, edgeCost, nameId, sps.to[Array] )
                     
                     val sourceNode = nodeMap( sourceId )
                     val destNode = nodeMap( destId )                    
@@ -434,7 +549,7 @@ object RoutableGraph extends Logging
             }
             
             log.info( "Read complete. Returning route graph" )
-            new RoutableGraph( nodeMap.map( _._2 ).toArray, spMap.map( _._2 ).toArray )
+            new RoutableGraph( strings.toArray, nodeMap.map( _._2 ).toArray, spMap.map( _._2 ).toArray )
         }
         finally
         {
@@ -478,6 +593,9 @@ object RoutableGraph extends Logging
         // Build the route graph
         var allSPs = mutable.HashSet[ScenicPoint]()
         
+        var nextStringId = 0
+        val stringMap = mutable.HashMap[String, Int]()
+        
         {
             val routeNodeMap = mutable.Map[Int, RouteNode]()
             
@@ -490,12 +608,32 @@ object RoutableGraph extends Logging
                     .map { _._2 }
                     .headOption
                     
+                val junctionAnnotation = w.tags
+                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
+                    .filter { _._1 == "junction" }
+                    .map { _._2 }
+                    .headOption
+                    
+                val bridgeAnnotation = w.tags
+                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
+                    .filter { _._1 == "bridge" }
+                    .map { _._2 }
+                    .headOption
+                    
                 val nameAnnotation = w.tags
+                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
+                    .filter { _._1 == "name" }
+                    .map { _._2 }
+                    .headOption
+                    
+                val refAnnotation = w.tags
                     .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
                     .filter { _._1 == "ref" }
                     .map { _._2 }
                     .headOption
-                
+                    
+                // Other important things:
+                // ford: yes - In the case of Duxford Ford, this is not fordable.
                 var costMultiplierOption = highwayAnnotation match
                 {
                      case None => None
@@ -524,8 +662,21 @@ object RoutableGraph extends Logging
                 costMultiplierOption.foreach
                 { costMultiplierPre =>
                 
+                    val name = if ( !nameAnnotation.isEmpty ) nameAnnotation.get
+                    else if ( !refAnnotation.isEmpty ) refAnnotation.get
+                    else if ( !junctionAnnotation.isEmpty ) junctionAnnotation.get
+                    else if ( !bridgeAnnotation.isEmpty ) "bridge"
+                    else "Unnamed " + highwayAnnotation.get
+                    
+                    val nameId = stringMap.getOrElseUpdate( name,
+                    {
+                        val nextId = nextStringId
+                        nextStringId +=1
+                        nextId
+                    } )
+                
                     var costMultiplier = costMultiplierPre
-                    nameAnnotation.foreach
+                    refAnnotation.foreach
                     { n =>
                         if (n.matches("A[0-9]+"))
                         {
@@ -596,7 +747,7 @@ object RoutableGraph extends Logging
                             lastRouteNode.foreach
                             { lrn =>
                             
-                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, scenicPoints.distinct.toArray )
+                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, nameId, scenicPoints.distinct.toArray )
                                 rn.addEdge( lrn, edge )
                                 lrn.addEdge( rn, edge )
                                 edgeCount += 1
@@ -614,7 +765,15 @@ object RoutableGraph extends Logging
             }
             
             log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
-            new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
+            
+            val stringArray = stringMap
+                .map( _.swap )
+                .toSeq
+                .sortBy( _._1 )
+                .map( _._2 )
+                .toArray
+            
+            new RoutableGraph( stringArray, routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
         }
     }
 }

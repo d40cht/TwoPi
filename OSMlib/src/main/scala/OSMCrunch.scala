@@ -74,9 +74,14 @@ case class TagStringRegistry( val keyMap : StringMap, val valMap : StringMap )
     def apply( key : String, value : String ) = new Tag( keyMap(key), valMap(value) )
 }
 
+object Coord
+{
+    val earthRadius = 6371.0 // KM
+}
 
 case class Coord( val lon : Double, val lat : Double )
 {
+    
     def this() = this(0.0, 0.0)
     
     def interpolate( other : Coord, frac : Double ) =
@@ -89,21 +94,38 @@ case class Coord( val lon : Double, val lat : Double )
     // Returns metres
     def distFrom( other : Coord ) : Double = 
     {
-        val (lat1, lng1) = (lon, lat)
-        val (lat2, lng2) = (other.lon, other.lat)
+        val (lat1, lng1) = (lat, lon)
+        val (lat2, lng2) = (other.lat, other.lon)
         
-        val earthRadius = 3958.75
         val dLat = Math.toRadians(lat2-lat1)
         val dLng = Math.toRadians(lng2-lng1)
         val a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                   Math.sin(dLng/2) * Math.sin(dLng/2)
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLng/2) * Math.sin(dLng/2)
         val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-        val dist = earthRadius * c
+        val dist = Coord.earthRadius * c
 
-        val meterConversion = 1609.0
-
-        dist * meterConversion
+        dist * 1000.0
+    }
+    
+    // Bearing is in degrees, +/- 180.0
+    def bearing( other : Coord ) : Double =
+    {
+        val (lat1, lng1) = (lat, lon)
+        val (lat2, lng2) = (other.lat, other.lon)
+        
+        val dLat = Math.toRadians(lat2-lat1)
+        val dLng = Math.toRadians(lng2-lng1)
+        
+        val y = Math.sin(dLng) * Math.cos(Math.toRadians(lat2))
+        val x = Math.cos(Math.toRadians(lat1)) * Math.sin(Math.toRadians(lat2)) -
+                Math.sin(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.cos(dLng)
+                
+        val bearing = Math.toDegrees( Math.atan2(y, x) )
+        
+        assert( bearing >= -180.0 && bearing <= 180.0 )
+        
+        bearing
     }
 }
 

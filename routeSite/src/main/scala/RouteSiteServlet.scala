@@ -79,6 +79,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         }
     }
     
+    val letters = List("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z")
+    
     private def getRouteXML( lon : Double, lat : Double, distInKm : Double, seed : Int ) = cached[scala.xml.Node]("routeXML", lon, lat, distInKm, seed )
     {
         import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
@@ -123,31 +125,40 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
             </trk>
             <pics>
             {
-                pics.map
-                { pic =>
+                pics.zip(letters).map
+                { case (pic, letter) =>
 
                     val picIndex = pic.picIndex
                     
-                    val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
-                        .option(HttpOptions.connTimeout(5000))
-                        .option(HttpOptions.readTimeout(5000))
-                    { inputStream => 
-                        JsonParser.parse(new java.io.InputStreamReader(inputStream))
+                    try
+                    {
+                        val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
+                            .option(HttpOptions.connTimeout(500))
+                            .option(HttpOptions.readTimeout(500))
+                        { inputStream => 
+                            JsonParser.parse(new java.io.InputStreamReader(inputStream))
+                        }
+                        
+                        val imgMatches = (resJSON \\ "matches")
+                        val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head.value
+        
+                        val title = (imgMetaData \\ "title").extract[String]
+                        val authorName = (imgMetaData \\ "realname").extract[String]
+                        val hash = (imgMetaData \\ "hash").extract[String]
+                        
+                        val imageUrl = imgUrl( picIndex, hash )
+                        
+                        val link = "http://www.geograph.org.uk/photo/" + pic.picIndex
+                        val letterLink = "/img/mapMarkers/paleblue_Marker%s.png".format( letter)
+                        
+                        Some( <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={link} title={title} author={authorName} icon={letterLink}/> )
                     }
-                    
-                    val imgMatches = (resJSON \\ "matches")
-                    val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head.value
-    
-                    val title = (imgMetaData \\ "title").extract[String]
-                    val authorName = (imgMetaData \\ "realname").extract[String]
-                    val hash = (imgMetaData \\ "hash").extract[String]
-                    
-                    val imageUrl = imgUrl( picIndex, hash )
-                    
-                    val link = "http://www.geograph.org.uk/photo/" + pic.picIndex
-                    
-                    <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={link} title={title} author={authorName}/>
+                    catch
+                    {
+                        case _ : Throwable => None
+                    }
                 }
+                .flatten
             }
             </pics>
         </gpx>
@@ -197,7 +208,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
 
                     <div class="row-fluid">
 
-                        <div class="span2">
+                        <div class="span2" style="height:90%">
                         {
                             sideBarLeft
                         }
@@ -219,9 +230,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                   </body>
             </html>
             
-        //"<!DOCTYPE html>\n" + res.toString
         val pp = new scala.xml.PrettyPrinter( 100, 2 )
         val res = pp.format( page )
+        //"<!DOCTYPE html>\n" + res
         res
     }
 
@@ -324,12 +335,12 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                 <div>
                     {
                         val pics = xmlData \\ "pic"
-                        pics.map
-                        { p =>
+                        pics.zip(letters)map
+                        { case (p, l) =>
 
                             val fullLink = (p \ "@link").text
                             val imageUrl = (p \ "@img").text
-                            val title = (p \ "@title").text
+                            val title = l + ": " + (p \ "@title").text
                             val credits = "Copyright %s and licensed for reuse under the Creative Commons Licence.".format( (p \ "@author").text )
                             
                             <a href={fullLink}><img src={imageUrl} alt={credits} title={credits}/></a>
