@@ -59,13 +59,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
             val el = cache.get(hash)
             if ( el != null )
             {
-                log.info( "Cached element found" )
+                log.info( "Cached element found for: " + hash )
                 
                 el.getObjectValue.asInstanceOf[T]
             }
             else
             {
-                log.info( "Cached element not found - running function" )
+                log.info( "Cached element not found running function for: " + hash )
                 val result = body
                 
                 cache.put( new Element( hash, result ) )
@@ -124,7 +124,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                 </trkseg>
             </trk>
             <pics>
-            {
+            {   
                 pics.zip(letters).map
                 { case (pic, letter) =>
 

@@ -166,7 +166,7 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         log.info( "Computing distances from start node" )
 
         val allDestinationsRaw = startAnnotation
-            .filter { case (nid, annot) => annot.dist > targetDist * 0.1 && annot.dist < targetDist * 0.6 }
+            .filter { case (nid, annot) => annot.dist > targetDist * 0.1 && annot.dist < targetDist * 0.3 }
             .toSeq
             .sortBy { case (nid, annot) => annot.cost }
             
@@ -192,7 +192,25 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             // Add distance annotation from the start node
             .filter { case (nid, annot) => startAnnotation contains nid }
             .map { case (nid, annot) => (nid, startAnnotation(nid), annot ) }
-            .filter { case (nid, annot1, annot2) => (annot1.dist + annot2.dist) < 0.8 * targetDist }
+            .filter
+            { case (nid, annot1, annot2) =>
+                
+                // Must be within threshold distance as a feasible midpoint
+                val withinDistance = (annot1.dist + annot2.dist) < 0.8 * targetDist
+                
+                // Must not share the same parent in both graphs, otherwise the path in
+                // will be the same as the path out
+                val retraceFootsteps =
+                {
+                    (annot1.parent, annot2.parent) match
+                    {
+                        case (Some(p1), Some(p2))   => p1.ra.node == p2.ra.node
+                        case _                      => false
+                    }
+                }
+                
+                withinDistance && !retraceFootsteps
+            }
             .toSeq
             .sortBy { case (nid, annot1, annot2) => (annot1.cost + annot2.cost) }
             .toSeq
@@ -200,8 +218,29 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         val trimmedMidPoints = possibleMidPoints
             .take( possibleMidPoints.size )
             
-        val trimmedSample1 = random.shuffle(trimmedMidPoints).take( 100 )
-        val trimmedSample2 = random.shuffle(trimmedMidPoints).take( 400 )
+        val midPointGenerator = (0 until 1000).map
+        { i =>
+        
+            val startPoint = trimmedMidPoints( random.nextInt( trimmedMidPoints.size ) )
+            
+            (0 until 1000).map
+            { j =>
+                val endPoint = trimmedMidPoints( random.nextInt( trimmedMidPoints.size ) )
+                
+                (startPoint, endPoint)
+            }
+            .filter
+            { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
+            
+                val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
+                
+                ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
+            }
+            .take( 50 )
+        }
+        .take( 50 )
+        .flatten
+        .toSeq
             
         def routePath( id1 : Int, id2 : Int ) : Seq[PathElement] =
         {
@@ -240,46 +279,32 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             traceBack( startAnnotation(id2), reverse=false )
         }
         
-        // Enumerate all pairs of midpoints that sum to roughly the target distance
-        log.info( "Enumerating mid points (%d*%d)".format( trimmedSample1.size, trimmedSample2.size ) )
-        val possibleMidPointPairs = trimmedSample1.flatMap
-        { case (nid1, annot11, annot12) =>
+        log.info( "Enumerating %d mid points".format( midPointGenerator.size ) )
+        val possibleMidPointPairs = midPointGenerator.map
+        { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
         
-            trimmedSample2
-                .filter
-                {
-                    case (nid2, annot21, annot22) =>
+            val routeNodeIds = routePath( nid1, nid2 ).map( _.ra.node.nodeId ).toSeq
                     
-                    val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
-                    
-                    ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
-                }
-                .map
-                { case (nid2, annot21, annot22) =>
-                
-                    val routeNodeIds = routePath( nid1, nid2 ).map( _.ra.node.nodeId ).toSeq
-                    
-                    val zipped = routeNodeIds.zip( routeNodeIds.reverse )
-                    
-                    val prefixLength = zipped.takeWhile { case (f, b) => f == b }.size
-                    val suffix = routeNodeIds.drop( prefixLength ).toSeq
-                    
-                    val suffixOverlap = suffix.toSet.size.toDouble / suffix.size.toDouble
-                    
-                    val circularityRatio = /*if ( suffixOverlap < 0.90 ) 0.0
-                    else*/
-                    {
-                        suffixOverlap
-                    }
-                    
-                    //val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
-                    
-                    val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
-                    val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
-                    
-                    // Upweight routes where nid1 and nid2 are farther apart
-                    (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
-                }
+            val zipped = routeNodeIds.zip( routeNodeIds.reverse )
+            
+            val prefixLength = zipped.takeWhile { case (f, b) => f == b }.size
+            val suffix = routeNodeIds.drop( prefixLength ).toSeq
+            
+            val suffixOverlap = suffix.toSet.size.toDouble / suffix.size.toDouble
+            
+            val circularityRatio = /*if ( suffixOverlap < 0.90 ) 0.0
+            else*/
+            {
+                suffixOverlap
+            }
+            
+            //val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
+            
+            val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
+            val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
+            
+            // Upweight routes where nid1 and nid2 are farther apart
+            (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
         }
         .filter { _._4 > 0.8 }
         //.sortBy( x => x._3 / x._4 )
@@ -418,7 +443,7 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         
         
         
-        new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).toSeq )
+        new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq )
     }
 }
 
