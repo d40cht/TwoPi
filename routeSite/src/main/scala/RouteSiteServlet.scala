@@ -185,6 +185,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                     <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
                     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
                     <script src="/js/osmmap.js"></script>
+                    
 
                     <style>
                       body {{
@@ -205,8 +206,28 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                             <ul class="nav">
                               <li class="active"><a href="/"><strong>Home</strong></a></li>
                               <li><a href="/displayroute">Plan Route</a></li>
+                              <li><a href="/login">Login</a></li>
                             </ul>
                           </div><!--/.nav-collapse -->
+                          
+                            
+                            <div style="display: inline">
+                                {
+                                    val clientState = "1234"
+                                    val redirectURI="http://www.two-pi.co.uk/googleoauth2callback"
+                                    val googleClientId = "725550604793.apps.googleusercontent.com"
+                                    val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?scope=%s&state=%s&response_type=token&client_id=%s&redirect_uri=%s".format(
+                                        "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+                                        clientState,
+                                        googleClientId,
+                                        redirectURI )
+                                        
+                                    <a class="btn" href={googleOpenIdLink}>
+                                        <img src="/img/G.png" alt="log in with Google" style="height: 1.2em"/>
+                                    </a>
+                                }
+                            </div>
+                          
                         </div></div>
                       </div>
                     </div>
@@ -241,6 +262,15 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         res
     }
 
+
+    // So what do we do with this information?
+    // http://www.jaredarmstrong.name/2011/08/scalatra-an-example-authentication-app/ and 
+    // http://www.jaredarmstrong.name/2011/08/scalatra-form-authentication-with-remember-me/
+    get("/googleoauth2callback")
+    {
+        // Google etc incoming.
+    }
+
     get("/")
     {
         template("Routility")
@@ -258,6 +288,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
             <h3>Sidebar</h3>
         }
     }
+    
   
     
     private def imgUrl( index : Long, hash : String ) : String =
@@ -335,9 +366,19 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
             </div>
         }
         {
+            val gpxUrl = "/routegpx?lon=%f&lat=%f&distance=%f&seed=%d".format( lon, lat, distInKm, seed )
+            val fullRouteUrl = "/route?lon=%f&lat=%f&distance=%f&seed=%d".format( lon, lat, distInKm, seed )
+            
             <div>
                 <h3>Route</h3>
                 <div>
+                    <div class="btn-group text-center">
+                        <a href={gpxUrl} class="btn">GPX</a>
+                        <a href={fullRouteUrl} class="btn">Full route</a>
+                    </div>
+                    
+                    <hr/>
+                    
                     {
                         val pics = xmlData \\ "pic"
                         pics.zip(letters)map
@@ -372,6 +413,27 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         val seed = params("seed").toInt
         
         getRouteXML( lon, lat, distInKm, seed )
+    }
+    
+    get("/routegpx")
+    {
+        contentType="text/xml"
+        
+        val rgh = getRGH
+        
+        val lon = params("lon").toDouble
+        val lat = params("lat").toDouble
+        val distInKm = params("distance").toDouble
+        val seed = params("seed").toInt
+        
+        val routeXML = getRouteXML( lon, lat, distInKm, seed )
+        
+        // Extract only the trk bit (the rest isn't valid gpx)
+        <gpx>
+        {
+            routeXML \ "trk"
+        }
+        </gpx>
     }
 }
 

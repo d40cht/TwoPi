@@ -681,21 +681,20 @@ object RoutableGraph extends Logging
                      case Some( valueString ) =>
                      {
                         if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
-                        else if ( valueString.startsWith( "bridleway" ) ) Some( 1.0 )
-                        else if ( valueString.startsWith( "track" ) ) Some( 1.0 )
-                        else if ( valueString.startsWith( "residential" ) ) Some( 1.5 )
                         else if ( valueString.startsWith( "trunk" ) ) Some( 1.8 )
-                        // Not yet classified, so be conservative
-                        else if ( valueString.startsWith( "primary" ) ) Some( 1.2 )
+                        else if ( valueString.startsWith( "primary" ) ) Some( 1.6 )
                         //else if ( valueString.startsWith( "service" ) ) 1.1
-                        else if ( valueString.startsWith( "road" ) ) Some( 1.0 )
-                        else if ( valueString.startsWith( "secondary" ) ) Some( 1.0 )
-                        else if ( valueString.startsWith( "tertiary" ) ) Some( 1.0 )
-                        else if ( valueString.startsWith( "unclassified" ) ) Some( 1.0 )
+                        // Not yet classified, so be conservative
+                        else if ( valueString.startsWith( "road" ) ) Some( 1.4 )
+                        else if ( valueString.startsWith( "secondary" ) ) Some( 1.4 )
+                        else if ( valueString.startsWith( "tertiary" ) ) Some( 1.3 )
+                        else if ( valueString.startsWith( "unclassified" ) ) Some( 1.3 )
                         else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
-                        else if ( valueString.startsWith( "bridleway" ) ) Some( 0.7 )
-                        else if ( valueString.startsWith( "footway" ) ) Some( 0.7 )
-                        else if ( valueString.startsWith( "footpath" ) ) Some( 0.7 )
+                        else if ( valueString.startsWith( "residential" ) ) Some( 1.1 )
+                        else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
+                        else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
+                        else if ( valueString.startsWith( "footway" ) ) Some( 0.6 )
+                        else if ( valueString.startsWith( "footpath" ) ) Some( 0.6 )
                         else None
                      }
                 }
