@@ -18,6 +18,9 @@ import org.scalatra.servlet.ScalatraListener
 // > container:start
 // > ~ ;copy-resources;aux-compile
 
+
+
+
 class RouteGraphHolder
 {
     val rg = RoutableGraph.load( new java.io.File( "./default.bin.rg" ) )
@@ -27,6 +30,8 @@ class RouteGraphHolder
 class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
+    
+    Logging.configureDefaultLogging()
 
     private var rghOption : Option[RouteGraphHolder] = None
     

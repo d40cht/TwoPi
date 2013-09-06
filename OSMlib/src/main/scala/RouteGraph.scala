@@ -217,19 +217,25 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
                 
         val trimmedMidPoints = possibleMidPoints
             .take( possibleMidPoints.size )
+            .toIndexedSeq
             
-        val midPointGenerator = (0 until 1000).map
+        type MidPoint = (Int, RouteAnnotation, RouteAnnotation)
+        type MidPointPair = (MidPoint, MidPoint)
+            
+        val midPointGenerator : Iterator[MidPointPair] = (0 until 1000).iterator.map
         { i =>
         
             val startPoint = trimmedMidPoints( random.nextInt( trimmedMidPoints.size ) )
             
-            (0 until 1000).map
+            val combinations : Iterator[MidPointPair] = (0 until 1000).iterator.map
             { j =>
                 val endPoint = trimmedMidPoints( random.nextInt( trimmedMidPoints.size ) )
                 
                 (startPoint, endPoint)
             }
-            .filter
+            
+            
+            combinations.filter
             { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
             
                 val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
@@ -238,11 +244,9 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             }
             .take( 50 )
         }
-        .take( 50 )
         .flatten
-        .toSeq
             
-        def routePath( id1 : Int, id2 : Int ) : Seq[PathElement] =
+        def routePath( id1 : Int, id2 : Int, pruneDistalOverlap : Boolean ) : Seq[PathElement] =
         {
             def traceBack( endNode : RouteAnnotation, reverse : Boolean ) : Seq[PathElement] =
             {
@@ -273,17 +277,29 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
                 nodes.zip( None +: edgesBearings.map( e => Some(e) ) ).map { case (n, e) => PathElement( n, e ) }
             }
             
-            traceBack( startAnnotation(id1), reverse=true ) ++
-            traceBack( node2Annotation(id1), reverse=false ) ++
-            traceBack( node2Annotation(id2), reverse=true ) ++
-            traceBack( startAnnotation(id2), reverse=false )
+            val seg1 = traceBack( startAnnotation(id1), reverse=true )
+            val seg2 = traceBack( node2Annotation(id1), reverse=false )
+            val seg3 = traceBack( node2Annotation(id2), reverse=true )
+            val seg4 = traceBack( startAnnotation(id2), reverse=false )
+            
+            val distalOverlap = if ( pruneDistalOverlap )
+            {
+                seg3.zip(seg2.reverse)
+                    .takeWhile { case ( pe1, pe2 ) => pe1.ra.node.nodeId == pe2.ra.node.nodeId }
+                    .size - 1
+            }
+            else 0
+            
+            seg1 ++ seg2.dropRight(distalOverlap) ++ seg3.drop(distalOverlap) ++ seg4
+            
         }
         
-        log.info( "Enumerating %d mid points".format( midPointGenerator.size ) )
+        log.info( "Evaluating mid-point pairs" )
+        var midPointCount = 0
         val possibleMidPointPairs = midPointGenerator.map
         { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
         
-            val routeNodeIds = routePath( nid1, nid2 ).map( _.ra.node.nodeId ).toSeq
+            val routeNodeIds = routePath( nid1, nid2, false ).map( _.ra.node.nodeId ).toSeq
                     
             val zipped = routeNodeIds.zip( routeNodeIds.reverse )
             
@@ -292,24 +308,24 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             
             val suffixOverlap = suffix.toSet.size.toDouble / suffix.size.toDouble
             
-            val circularityRatio = /*if ( suffixOverlap < 0.90 ) 0.0
-            else*/
-            {
-                suffixOverlap
-            }
-            
-            //val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
+            val circularityRatio = suffixOverlap
             
             val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
-            val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist;
+            val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
+            
+            midPointCount += 1
             
             // Upweight routes where nid1 and nid2 are farther apart
             (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
         }
-        .filter { _._4 > 0.8 }
+        .filter { _._4 > 0.90 }
+        .take( 50 )
+        .toVector
         //.sortBy( x => x._3 / x._4 )
         .sortBy( x => x._3 )
         .toVector
+        
+        log.info( "Evaluated: " + midPointCount )
         
         log.info( "Possible mid-point pairs: " + possibleMidPointPairs.size )
         
@@ -333,7 +349,7 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         log.info( best1.node.coord.lat + ", " + best1.node.coord.lon )
         log.info( best2.node.coord.lat + ", " + best2.node.coord.lon )
         
-        val fullRoute = routePath( bestId1, bestId2 )
+        val fullRoute = routePath( bestId1, bestId2, true )
         
         val nodeList = fullRoute.map( _.ra.node ).toList
         val edgeList = fullRoute.flatMap( _.re ).toList
