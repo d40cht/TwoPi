@@ -86,7 +86,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
     
     val letters = List("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z")
     
-    private def getRouteXML( lon : Double, lat : Double, distInKm : Double, seed : Int ) = cached[scala.xml.Node]("routeXML", lon, lat, distInKm, seed )
+    private def getRouteXML( lon : Double, lat : Double, distInKm : Double ) = //cached[scala.xml.Node]("routeXML", lon, lat, distInKm )
     {
         import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
         import scalaj.http.{Http, HttpOptions}
@@ -100,7 +100,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         
         log.info( "Closest: " + closestNode.coord )
         
-        val route = rgh.rg.buildRoute( closestNode, distInKm * 1000.0, seed )
+        val route = rgh.rg.buildRoute( closestNode, distInKm * 1000.0 )
         val routeNodes = route.routeNodes
         val pics = route.picList
         
@@ -184,6 +184,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                     <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
                     <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
                     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+                    <script src="http://code.highcharts.com/highcharts.js"></script>
                     <script src="/js/osmmap.js"></script>
                     
 
@@ -201,7 +202,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                     <div class="navbar navbar-fixed-top">
                       <div class="navbar-inner">
                         <div class="row-fluid"><div class="span12" style="padding-left: 10px">
-                          <a class="brand" href="/">Routility</a>
+                          <a class="brand" href="/">TwoPI.co.uk</a>
                           <div class="nav-collapse collapse">
                             <ul class="nav">
                               <li class="active"><a href="/"><strong>Home</strong></a></li>
@@ -234,19 +235,19 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
 
                     <div class="row-fluid">
 
-                        <div class="span2" style="height:90%">
+                        <div class="span2" style="height:95%">
                         {
                             sideBarLeft
                         }
                         </div>
                         
-                        <div class="span8" style="height:90%; overflow: hidden">
+                        <div class="span8" style="height:95%; overflow: hidden">
                         {
                             pageBody
                         }
                         </div>
                         
-                        <div class="span2" style="height:90%; overflow-y: auto; overflow-x: hidden">
+                        <div class="span2" style="height:95%; overflow-y: auto; overflow-x: hidden">
                         {
                             sideBarRight
                         }
@@ -273,7 +274,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
 
     get("/")
     {
-        template("Routility")
+        template("TwoPI.co.uk")
         {
             <h3>Sidebar</h3>
         }
@@ -309,23 +310,48 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         "http://s%d.geograph.org.uk%s_213x160.jpg".format( index % 4, fullPath )
     }
     
+    def routeFilePath( routeId : String ) = new java.io.File("routes/route_%s.xml".format(routeId)).getAbsoluteFile
     
-    get("/displayroute")
+    post("/makeroute")
     {
         val lon = params.getOrElse("lon","-1.361461").toDouble
         val lat = params.getOrElse("lat", "51.709").toDouble
         val distInKm = params.getOrElse("distance", "30.0").toDouble
-        val seed = params.getOrElse("seed", "1").toInt
         
-        val onLoad = "init( %f, %f, 12, '/route?lon=%f&lat=%f&distance=%f&seed=%d' );".format( lon, lat, lon, lat, distInKm, seed )
+        val routeXml = getRouteXML( lon, lat, distInKm )
+        val uuid = java.util.UUID.randomUUID.toString
         
-        val xmlData = getRouteXML( lon, lat, distInKm, seed )
+        scala.xml.XML.save( routeFilePath( uuid ).toString, routeXml )
+        
+        redirect( "/displayroute?routeId=%s".format(uuid) )
+    }
+    
+    
+    // Embed route data in page in <script id="foo" type="text/xmldata"> tag?
+    get("/route/:routeId")
+    {
+        contentType="text/xml"
+        
+        val routeId = params("routeId")
+        scala.xml.XML.loadFile( routeFilePath( routeId ) )
+    }
+    
+    get("/displayroute")
+    {
+        val routeId = params.getOrElse("routeId", "default")
+        val xmlData = scala.xml.XML.loadFile( routeFilePath( routeId ) )
+        val (lon, lat) = (xmlData \\ "trkpt").map( el => ((el \ "@lon").text.toDouble, (el \ "@lat").text.toDouble) ).head
+        val distInKm = 30.0
+        
+        val onLoad = "init( %f, %f, 12, '/route/%s' );".format( lon, lat, routeId )
+        
+        val distHeightSeries : Seq[(Double, Double)] = (xmlData \\ "trkpt").map( el => ((el \ "@distance").text.toDouble / 1000.0, (el \ "@ele").text.toDouble) )
         
         template( "Plan a trip", onBodyLoad=Some(onLoad) )
         {
             <div>
                 <h3>Actions</h3>
-                <form action="/displayroute" method="get">
+                <form action="/makeroute" method="post">
                     <fieldset>
                         <label for="lon">Longitude</label>
                         <input class="input-medium" name="lon" id="lon" type="text" value={lon.toString}></input>
@@ -335,9 +361,6 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                         
                         <label for="distance">Distance (km)</label>
                         <input class="input-medium" name="distance" type="text" value={distInKm.toString}></input>
-                        
-                        <label for="seed">Seed</label>
-                        <input class="input-medium" name="seed" type="text" value={(seed+1).toString}></input>
                         
                         <label for="routeType">Route type</label>
                         <select id="routeType">
@@ -357,21 +380,49 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         {
             <div>
                 <!-- define a DIV into which the map will appear. Make it take up the whole window -->
-                <!--<div style="width:100%; height:80%" id="map"></div>-->
-                <div id="map"></div>
+                <div style="height:80%" id="map"></div>
                 
                 <!-- Add elevation chart at bottom from highcharts, e.g. http://www.highcharts.com/demo/line-ajax -->
-                <div style="width:100%; height:20%" id="elevation"></div>
+                <div style="height:20%" id="elevation">
+                </div>
+                <script>
+                {
+                    val minValue = distHeightSeries.map( _._2 ).min
+                    val seriesString = "[" + distHeightSeries.map( x => "[%f, %f]".format( x._1, x._2 ) ).mkString( ", " ) + "]"
+                    xml.Unparsed("""
+                        $(function() {
+                            $('#elevation').highcharts({
+                                chart : { type : 'line' },
+                                title : { text : 'Elevation profile' },
+                                xAxis : { title : { text : 'Distance' } },
+                                yAxis : { title : { text : '(m)' }, min : %f },
+                                series : [{ showInLegend: false, name : 'elevation', type : 'area', data : %s }],
+                                plotOptions : { series : { marker : { enabled : false } } }
+                            });
+                        });
+                    """.format(minValue, seriesString))
+                }
+                </script>
                 
             </div>
         }
         {
-            val gpxUrl = "/routegpx?lon=%f&lat=%f&distance=%f&seed=%d".format( lon, lat, distInKm, seed )
-            val fullRouteUrl = "/route?lon=%f&lat=%f&distance=%f&seed=%d".format( lon, lat, distInKm, seed )
+            val gpxUrl = "/routegpx/%s".format( routeId )
+            val fullRouteUrl = "/route/%s".format( routeId )
+            
+            val distance = distHeightSeries.last._1
+            val heightGain = distHeightSeries.map( _._2 ).sliding(2).map { case Seq(a, b) => b - a }.filter( _ > 0.0 ).sum
             
             <div>
                 <h3>Route</h3>
                 <div>
+                    
+                    <strong>Distance:</strong> { "%.2f km".format(distance) }
+                    <br/>
+                    <strong>Ascent:</strong> { "%d m".format(heightGain.toInt) }
+                    
+                    <br/><br/>
+
                     <div class="btn-group text-center">
                         <a href={gpxUrl} class="btn">GPX</a>
                         <a href={fullRouteUrl} class="btn">Full route</a>
@@ -400,33 +451,14 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         }
     }
     
-    // Embed route data in page in <script id="foo" type="text/xmldata"> tag?
-    get("/route")
-    {
-        contentType="text/xml"
-        
-        val rgh = getRGH
-        
-        val lon = params("lon").toDouble
-        val lat = params("lat").toDouble
-        val distInKm = params("distance").toDouble
-        val seed = params("seed").toInt
-        
-        getRouteXML( lon, lat, distInKm, seed )
-    }
     
-    get("/routegpx")
+    
+    get("/routegpx/:routeId")
     {
         contentType="text/xml"
         
-        val rgh = getRGH
-        
-        val lon = params("lon").toDouble
-        val lat = params("lat").toDouble
-        val distInKm = params("distance").toDouble
-        val seed = params("seed").toInt
-        
-        val routeXML = getRouteXML( lon, lat, distInKm, seed )
+        val routeId = params("routeId")
+        val routeXML = scala.xml.XML.loadFile( routeFilePath( routeId ) )
         
         // Extract only the trk bit (the rest isn't valid gpx)
         <gpx>

@@ -158,9 +158,9 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         new Coord( lon = q(c.lon), lat = q(c.lat) )
     }
     
-    def buildRoute( startNode : RouteNode, targetDist : Double, seed : Int ) : RouteResult =
+    def buildRoute( startNode : RouteNode, targetDist : Double) : RouteResult =
     {
-        val random = new util.Random( seed )
+        val random = util.Random
         val startAnnotation = runDijkstra( startNode, targetDist, random )
         
         log.info( "Computing distances from start node" )
@@ -867,7 +867,7 @@ object GenerateRoute extends App with Logging
                 
                 log.info( "Closest: " + closestNode.coord )
                 
-                val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0, seed ).routeNodes
+                val routeNodes = rg.buildRoute( closestNode, distInkm * 1000.0 ).routeNodes
                 
                 for ( rn <- routeNodes )
                 {
