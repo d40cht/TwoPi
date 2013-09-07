@@ -162,7 +162,7 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         new Coord( lon = q(c.lon), lat = q(c.lat) )
     }
     
-    
+
     private def routePath( startPointAnnotationMap : AnnotationMap, midPointAnnotationMap : AnnotationMap, id1 : Int, id2 : Int, pruneDistalOverlap : Boolean ) : Seq[PathElement] =
     {
         def traceBack( endNode : RouteAnnotation, reverse : Boolean ) : Seq[PathElement] =
@@ -214,6 +214,9 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
     type MidPoint = (Int, RouteAnnotation, RouteAnnotation)
     type MidPointPair = (MidPoint, MidPoint)
     
+    
+    // *************** The main mechanics of route finding happens here ***************
+    
     private def findRoute( startNode : RouteNode, targetDist : Double) =
     {
         val random = util.Random
@@ -230,9 +233,9 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             .groupBy { case (n, annot) => quantiseCoord( annot.node.coord ) }
             .map { case (c, allPoints) => allPoints.sortBy( _._2.cost ).head }
             
-        // Choose randomly from the top 50% by cost
+        // Choose randomly from the top 25% by cost
         val candidateDestinations = allDestinations
-            .take( allDestinations.size / 2 )
+            .take( allDestinations.size / 4 )
             .toVector
             
         val elementIndex = random.nextInt( candidateDestinations.size )
@@ -241,7 +244,6 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         
         log.info( "Computing distances from second node" )
         val midPointAnnotationMap = runDijkstra( midPoint.node, targetDist, random )
-        
         
         log.info( "Computing possible midpoints" )
         val possibleMidPoints = midPointAnnotationMap
@@ -272,12 +274,13 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             .toSeq
                 
         val trimmedMidPoints = possibleMidPoints
-            .take( possibleMidPoints.size )
+            .take( possibleMidPoints.size /4 )
             .toIndexedSeq
             
-        
+        log.info( "Number of mid-points: " + trimmedMidPoints.size )
             
-        val midPointGenerator : Iterator[MidPointPair] = (0 until 1000).iterator.map
+        log.info( "Generating and evaluating mid-point pairs." )
+        val midPointPairGenerator : Iterator[MidPointPair] = (0 until 1000).iterator.map
         { i =>
         
             val startPoint = trimmedMidPoints( random.nextInt( trimmedMidPoints.size ) )
@@ -301,11 +304,8 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         }
         .flatten
             
-        
-        
-        log.info( "Evaluating mid-point pairs" )
         var midPointCount = 0
-        val possibleMidPointPairs = midPointGenerator.map
+        val possibleMidPointPairs = midPointPairGenerator.map
         { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
         
             val routeNodeIds = routePath( startPointAnnotationMap, midPointAnnotationMap, nid1, nid2, false ).map( _.ra.node.nodeId ).toSeq

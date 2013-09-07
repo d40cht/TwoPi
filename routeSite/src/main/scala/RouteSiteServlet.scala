@@ -6,7 +6,7 @@ import org.scalatra._
 import scalate.ScalateSupport
 
 import org.seacourt.osm.{OSMMap, Coord, Logging}
-import org.seacourt.osm.route.{RoutableGraph, RouteNode, RTreeIndex, ScenicPoint}
+import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RTreeIndex, ScenicPoint}
 
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
@@ -23,7 +23,7 @@ import org.scalatra.servlet.ScalatraListener
 
 class RouteGraphHolder
 {
-    val rg = RoutableGraph.load( new java.io.File( "./default.bin.rg" ) )
+    val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
