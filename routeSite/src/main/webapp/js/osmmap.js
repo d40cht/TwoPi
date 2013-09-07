@@ -3,7 +3,7 @@
 
 
 
-function init( lon, lat, zoom, routeUrl ) {
+function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     map = new OpenLayers.Map ("map", {
         controls:[
             new OpenLayers.Control.Navigation(),
@@ -50,7 +50,7 @@ function init( lon, lat, zoom, routeUrl ) {
     var lgpx = new OpenLayers.Layer.PointTrack("Track", {
         strategies: [new OpenLayers.Strategy.Fixed()],
         protocol: new OpenLayers.Protocol.HTTP({
-            url: routeUrl,
+            url: gpxUrl,
             format: new OpenLayers.Format.GPX()
         }),
         style: {strokeColor: "blue", strokeWidth: 10, strokeOpacity: 0.5},

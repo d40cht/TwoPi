@@ -1,11 +1,14 @@
-<gpx>
-    <trk>
-        <trkseg>
-            <trkpt lat="51.710917" lon="-1.3590954" distance="0.0" ele="0.0"/>
-            <trkpt lat="51.710917" lon="-1.3590954" distance="0.0" ele="0.0"/>
-        </trkseg>
-    </trk>
-    <pics>
-    </pics>
-</gpx>
-    
+
+<route>
+    <metadata>
+        <request>
+            <lat>51.710917</lat>
+            <lon>-1.3590954</lon>
+            <distance>30.0</distance>
+        </request>
+        <summary>
+            <distance>0.0</distance>
+            <ascent>0.0</ascent>
+        </summary>
+    </metadata>
+</route>

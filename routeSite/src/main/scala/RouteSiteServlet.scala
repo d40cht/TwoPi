@@ -27,7 +27,7 @@ class RouteGraphHolder
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
+class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
     
@@ -100,73 +100,105 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         
         log.info( "Closest: " + closestNode.coord )
         
-        val route = rgh.rg.buildRoute( closestNode, distInKm * 1000.0 )
-        val routeNodes = route.routeNodes
-        val pics = route.picList
+        rgh.rg.buildRoute( closestNode, distInKm * 1000.0 ).map
+        { route =>
         
-        var lastRN : Option[RouteNode] = None
-        var cumDistance = 0.0
-        <gpx>
-            <trk>
-                <name>Example route</name>
-                <trkseg>
-                {
-                    routeNodes.map
-                    { rn =>
-                    
-                        val dist = lastRN match
-                        {
-                            case Some( lrn ) => lrn.coord.distFrom( rn.coord )
-                            case None => 0.0
-                        }
-                        cumDistance += dist
-                        
-                        val res = <trkpt lat={rn.coord.lat.toString} lon={rn.coord.lon.toString} distance={cumDistance.toString} ele={rn.height.toString}/>
-                        lastRN = Some( rn )
-                        res
-                    }
-                }
-                </trkseg>
-            </trk>
-            <pics>
-            {   
-                pics.zip(letters).map
-                { case (pic, letter) =>
+            val routeNodes = route.routeNodes
+            val pics = route.picList
+            
+            var lastRN : Option[RouteNode] = None
+            
+            // TODO: Distance calculations here are inaccurate - need to use the edge distance,
+            // not the node-to-node distance. Return the correct data from buildRoute!
+            val distance = routeNodes
+                .sliding(2)
+                .map { case Seq( rn1, rn2 ) => rn2.coord.distFrom( rn1.coord ) }
+                .sum / 1000.0
 
-                    val picIndex = pic.picIndex
-                    
-                    try
-                    {
-                        val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
-                            .option(HttpOptions.connTimeout(500))
-                            .option(HttpOptions.readTimeout(500))
-                        { inputStream => 
-                            JsonParser.parse(new java.io.InputStreamReader(inputStream))
+            val ascent = routeNodes
+                .sliding(2)
+                .map { case Seq( rn1, rn2 ) => rn2.height - rn1.height }
+                .filter( _ > 0.0 )
+                .sum
+            
+            var cumDistance = 0.0
+            <route>
+                <metadata>
+                    <request>
+                        <lon>{lon}</lon>
+                        <lat>{lat}</lat>
+                        <distance>{distInKm}</distance>
+                    </request>
+                    <summary>
+                        <distance>{distance}</distance>
+                        <ascent>{ascent}</ascent>
+                    </summary>
+                </metadata>
+                
+                <pics>
+                {   
+                    pics.zip(letters).map
+                    { case (pic, letter) =>
+
+                        val picIndex = pic.picIndex
+                        
+                        try
+                        {
+                            val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
+                                .option(HttpOptions.connTimeout(500))
+                                .option(HttpOptions.readTimeout(500))
+                            { inputStream => 
+                                JsonParser.parse(new java.io.InputStreamReader(inputStream))
+                            }
+                            
+                            val imgMatches = (resJSON \\ "matches")
+                            val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head.value
+            
+                            val title = (imgMetaData \\ "title").extract[String]
+                            val authorName = (imgMetaData \\ "realname").extract[String]
+                            val hash = (imgMetaData \\ "hash").extract[String]
+                            
+                            val imageUrl = imgUrl( picIndex, hash )
+                            
+                            val link = "http://www.geograph.org.uk/photo/" + pic.picIndex
+                            val letterLink = "/img/mapMarkers/paleblue_Marker%s.png".format( letter)
+                            
+                            Some( <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={link} title={title} author={authorName} icon={letterLink}/> )
                         }
-                        
-                        val imgMatches = (resJSON \\ "matches")
-                        val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head.value
-        
-                        val title = (imgMetaData \\ "title").extract[String]
-                        val authorName = (imgMetaData \\ "realname").extract[String]
-                        val hash = (imgMetaData \\ "hash").extract[String]
-                        
-                        val imageUrl = imgUrl( picIndex, hash )
-                        
-                        val link = "http://www.geograph.org.uk/photo/" + pic.picIndex
-                        val letterLink = "/img/mapMarkers/paleblue_Marker%s.png".format( letter)
-                        
-                        Some( <pic lon={pic.coord.lon.toString} lat={pic.coord.lat.toString} img={imageUrl} link={link} title={title} author={authorName} icon={letterLink}/> )
+                        catch
+                        {
+                            case _ : Throwable => None
+                        }
                     }
-                    catch
-                    {
-                        case _ : Throwable => None
-                    }
+                    .flatten
                 }
-                .flatten
-            }
-            </pics>
-        </gpx>
+                </pics>
+                
+                <gpx>    
+                    <trk>
+                        <name>Example route</name>
+                        <trkseg>
+                        {
+                            routeNodes.map
+                            { rn =>
+                            
+                                val dist = lastRN match
+                                {
+                                    case Some( lrn ) => lrn.coord.distFrom( rn.coord )
+                                    case None => 0.0
+                                }
+                                cumDistance += dist
+                                
+                                val res = <trkpt lat={rn.coord.lat.toString} lon={rn.coord.lon.toString} distance={cumDistance.toString} ele={rn.height.toString}/>
+                                lastRN = Some( rn )
+                                res
+                            }
+                        }
+                        </trkseg>
+                    </trk>
+                </gpx>
+            </route>
+        }
     }
     
     def template( pageName : String, onBodyLoad : Option[String] = None )( sideBarLeft : scala.xml.Elem )( pageBody : scala.xml.Elem )( sideBarRight : scala.xml.Elem ) =
@@ -232,6 +264,21 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                         </div></div>
                       </div>
                     </div>
+                    
+                    {
+                        flash.get("error") match
+                        {
+                            case Some(message) =>
+                                <div class="row-fluid">
+                                    <div class="span12">
+                                        <div style="background-color: red; color:white">
+                                            <p class="text-center"><strong>Error: {message}</strong></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            case None => <div/>
+                        }
+                    }
 
                     <div class="row-fluid">
 
@@ -312,18 +359,33 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
     
     def routeFilePath( routeId : String ) = new java.io.File("routes/route_%s.xml".format(routeId)).getAbsoluteFile
     
+    def messageDigest( s : String ) = java.security.MessageDigest
+        .getInstance("MD5")
+        .digest(s.getBytes)
+        .map("%02X".format(_))
+        .mkString
+    
     post("/makeroute")
     {
         val lon = params.getOrElse("lon","-1.361461").toDouble
         val lat = params.getOrElse("lat", "51.709").toDouble
         val distInKm = params.getOrElse("distance", "30.0").toDouble
         
-        val routeXml = getRouteXML( lon, lat, distInKm )
-        val uuid = java.util.UUID.randomUUID.toString
-        
-        scala.xml.XML.save( routeFilePath( uuid ).toString, routeXml )
-        
-        redirect( "/displayroute?routeId=%s".format(uuid) )
+        getRouteXML( lon, lat, distInKm ) match
+        {
+            case Some( routeXml ) =>
+            {
+                val hash = messageDigest( routeXml.toString )
+                scala.xml.XML.save( routeFilePath( hash ).toString, routeXml )
+                redirect( "/displayroute?routeId=%s".format(hash) )
+            }
+            case None =>
+            {
+                flash("error") = "Could not find a route to your specification. Please try modifying length or start point."
+                
+                redirect( "/displayroute" )
+            }
+        }
     }
     
     
@@ -340,10 +402,19 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
     {
         val routeId = params.getOrElse("routeId", "default")
         val xmlData = scala.xml.XML.loadFile( routeFilePath( routeId ) )
-        val (lon, lat) = (xmlData \\ "trkpt").map( el => ((el \ "@lon").text.toDouble, (el \ "@lat").text.toDouble) ).head
-        val distInKm = 30.0
         
-        val onLoad = "init( %f, %f, 12, '/route/%s' );".format( lon, lat, routeId )
+        val routeMetadata = xmlData \ "metadata"
+        val routeRequest = routeMetadata \ "request"
+        
+        val lon = (routeRequest \ "lon").text.toDouble
+        val lat = (routeRequest \ "lat").text.toDouble
+        val requestDistInKm = (routeRequest \ "distance").text.toDouble
+        
+        val routeSummary = routeMetadata \ "summary"
+        val distance = (routeSummary \ "distance").text.toDouble
+        val ascent = (routeSummary \ "ascent").text.toDouble
+        
+        val onLoad = "init( %f, %f, 12, '/route/%s', '/routegpx/%s' );".format( lon, lat, routeId, routeId )
         
         val distHeightSeries : Seq[(Double, Double)] = (xmlData \\ "trkpt").map( el => ((el \ "@distance").text.toDouble / 1000.0, (el \ "@ele").text.toDouble) )
         
@@ -360,14 +431,14 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                         <input class="input-medium" name="lat" id="lat" type="text" value={lat.toString}></input>
                         
                         <label for="distance">Distance (km)</label>
-                        <input class="input-medium" name="distance" type="text" value={distInKm.toString}></input>
+                        <input class="input-medium" name="distance" type="text" value={requestDistInKm.toString}></input>
                         
                         <label for="routeType">Route type</label>
                         <select id="routeType">
-                            <option>Walking, flat</option>
-                            <option>Walking, hilly</option>
+                            <option>Walking</option>
+                            <!--<option>Walking, hilly</option>
                             <option>Cycling, flat</option>
-                            <option>Cycling, hilly</option>
+                            <option>Cycling, hilly</option>-->
                         </select>
                         
                         <br/>
@@ -387,7 +458,6 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                 </div>
                 <script>
                 {
-                    val minValue = distHeightSeries.map( _._2 ).min
                     val seriesString = "[" + distHeightSeries.map( x => "[%f, %f]".format( x._1, x._2 ) ).mkString( ", " ) + "]"
                     xml.Unparsed("""
                         $(function() {
@@ -395,12 +465,12 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
                                 chart : { type : 'line' },
                                 title : { text : 'Elevation profile' },
                                 xAxis : { title : { text : 'Distance' } },
-                                yAxis : { title : { text : '(m)' }, min : %f },
+                                yAxis : { title : { text : '(m)' } },
                                 series : [{ showInLegend: false, name : 'elevation', type : 'area', data : %s }],
                                 plotOptions : { series : { marker : { enabled : false } } }
                             });
                         });
-                    """.format(minValue, seriesString))
+                    """.format(seriesString))
                 }
                 </script>
                 
@@ -410,16 +480,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
             val gpxUrl = "/routegpx/%s".format( routeId )
             val fullRouteUrl = "/route/%s".format( routeId )
             
-            val distance = distHeightSeries.last._1
-            val heightGain = distHeightSeries.map( _._2 ).sliding(2).map { case Seq(a, b) => b - a }.filter( _ > 0.0 ).sum
-            
             <div>
                 <h3>Route</h3>
                 <div>
                     
                     <strong>Distance:</strong> { "%.2f km".format(distance) }
                     <br/>
-                    <strong>Ascent:</strong> { "%d m".format(heightGain.toInt) }
+                    <strong>Ascent:</strong> { "%d m".format(ascent.toInt) }
                     
                     <br/><br/>
 
@@ -461,11 +528,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with Logging
         val routeXML = scala.xml.XML.loadFile( routeFilePath( routeId ) )
         
         // Extract only the trk bit (the rest isn't valid gpx)
-        <gpx>
-        {
-            routeXML \ "trk"
-        }
-        </gpx>
+        routeXML \ "gpx"
     }
 }
 

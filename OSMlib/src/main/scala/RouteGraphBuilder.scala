@@ -221,9 +221,9 @@ object RoutableGraphBuilder extends Logging
                      case None => None
                      case Some( valueString ) =>
                      {
-                        if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
-                        else if ( valueString.startsWith( "trunk" ) ) Some( 1.8 )
-                        else if ( valueString.startsWith( "primary" ) ) Some( 1.6 )
+                        //if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
+                        if ( valueString.startsWith( "trunk" ) ) Some( 20.0 )
+                        else if ( valueString.startsWith( "primary" ) ) Some( 10.0 )
                         //else if ( valueString.startsWith( "service" ) ) 1.1
                         // Not yet classified, so be conservative
                         else if ( valueString.startsWith( "road" ) ) Some( 1.4 )
