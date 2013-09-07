@@ -359,7 +359,7 @@ object RoutableGraphBuilder extends Logging
     }
 }
 
-object GenerateRouteGraoh extends App with Logging
+object GenerateRouteGraph extends App with Logging
 {    
     override def main( args : Array[String] )
     {
