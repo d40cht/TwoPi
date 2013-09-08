@@ -259,6 +259,9 @@ class HighwayNodes extends SimpleSink
     }
 }
 
+
+
+
 class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
 {
     import scala.collection.JavaConversions._
@@ -276,6 +279,38 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     val nodes = mutable.ArrayBuffer[Node]()
     
     
+    val nodesOfInterest = Map[String, String => Boolean](
+        "amenity"   -> (v => Set("pub", "cafe", "drinking_water"/*, "fast_food", "food_court", "ice_cream", "fuel", "atm", "telephone", "toilets"*/) contains v),
+        "historic"  -> (v => true),
+        "tourism"   -> (v => Set("attraction", "artwork", "viewpoint", "wilderness_hut") contains v),
+        "natural"   -> (v => Set("cave_entrance", "peak", "wetland", "bay", "beach", "spring", "scree", "volcano") contains v),
+        "place"     -> (v => Set("village", "town", "hamlet", "isolated_dwelling", "farm", "locality") contains v)
+    ) 
+
+    private def isNodeOfInterest( n : v0_6.Node ) : Boolean =
+    {
+        val isNOI = n.getTags()
+            .exists
+            { t =>
+                
+                nodesOfInterest.get( t.getKey() ) match
+                {
+                    case Some(fn) if fn( t.getValue() ) => true
+                    case _                              => false
+                }
+            }
+            
+        /*if ( isNOI )
+        {
+            n.getTags()
+                .filter( t => t.getKey() == "name" )
+                .headOption
+                .foreach { n => println( "NOI: " + n ) }
+        }*/
+            
+        isNOI
+    }
+    
     def process(entityContainer : EntityContainer)
     {
         val entity = entityContainer.getEntity()
@@ -287,7 +322,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                 val c = new Coord( n.getLongitude(), n.getLatitude() )
                 val nId = n.getId()
                 
-                if ( wayNodeSet contains nId )
+                if ( (wayNodeSet contains nId) || isNodeOfInterest(n) )
                 {
                     ukNodes += 1
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )

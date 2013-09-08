@@ -4,6 +4,31 @@ import org.seacourt.osm._
 
 import scala.collection.{mutable, immutable}
 
+
+// Icons for POIs: http://www.sjjb.co.uk/mapicons/contactsheet#tourist
+
+// Load these from disk, or use the type system as below?
+trait POIType
+{
+    def name : String
+    def icon : java.io.File
+}
+
+case class POI(
+    // From OSM
+    val coord : Coord,
+    // From OSM
+    val name : String,
+    // Change to some kind of enum. From OSM largely?
+    val poiType : POIType,
+    // From dbpedia dumps, cross-link on name and coords via: geo_coordinates_en.nt.bz2
+    val description : Option[String],
+    // From images_en.nt.bz2
+    val imageUrl : Option[String],
+    // From dbpedia link
+    val url : Option[String]
+)
+
 case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
 {
     assert( score >= 0.0 && score <= 1.0 )

@@ -316,7 +316,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     // http://www.jaredarmstrong.name/2011/08/scalatra-form-authentication-with-remember-me/
     get("/googleoauth2callback")
     {
-        // Google etc incoming.
+        // Google etc incoming, reply of form:
+        //http://www.two-pi.co.uk/googleoauth2callback#state=1234&access_token=ya29.AHES6ZQDbSARS6qaTmJJ_G7FQXBgSEwP8TJWc0OwDxvgl7V7ZRQrKQ&token_type=Bearer&expires_in=3600
+        log.info( "Callback from google" )
     }
 
     get("/")

@@ -139,8 +139,11 @@ object RoutableGraphBuilder extends Logging
         }
     }
     
+    
     def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], heightMap : SRTMInMemoryTiles ) =
     {
+        
+        
         // Find all non-synthetic nodes which belong to more than one way
         val routeNodeIds =
         {
