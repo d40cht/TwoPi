@@ -18,7 +18,6 @@ import com.twitter.logging.config._
 
 import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryo.io.{ Input, Output }
-
 import com.twitter.chill._
 
 /* TODO:
