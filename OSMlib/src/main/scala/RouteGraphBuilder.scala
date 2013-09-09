@@ -109,8 +109,6 @@ object RoutableGraphBuilder extends Logging
     
     def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], heightMap : SRTMInMemoryTiles ) =
     {
-        
-        
         // Find all nodes which belong to more than one way
         val routeNodeIds =
         {
@@ -268,6 +266,7 @@ object RoutableGraphBuilder extends Logging
                             lastRouteNode.foreach
                             { lrn =>
                             
+                                // If oneway=yes/true/1. forward oneway. If oneway=-1/reverse, backward oneway
                                 val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, name, scenicPoints.distinct.toArray, nodes.toArray )
                                 rn.addEdge( lrn, edge )
                                 lrn.addEdge( rn, edge )
