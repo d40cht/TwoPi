@@ -5,6 +5,10 @@ import org.seacourt.osm._
 import scala.collection.{mutable, immutable}
 
 
+// Changes to algo:
+
+// Stay at height when going between peaks?  I like this one, though it would make more sense to go along the ridge over Haystacks rather than drop down to the path in Ennerdale: http://two-pi.co.uk/displayroute?routeId=748652F12DD88699517C2D7390A18CDC
+
 // Icons for POIs: http://www.sjjb.co.uk/mapicons/contactsheet#tourist
 
 // Load these from disk, or use the type system as below?
@@ -58,6 +62,11 @@ case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : 
     var parent : Option[PathElement]    = None
 }
 
+case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
+
+case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
+
+
 class RTreeIndex[T]
 {
     import com.infomatiq.jsi.{Rectangle, Point}
@@ -98,9 +107,6 @@ class RTreeIndex[T]
     def nearest( c : Coord ) : Option[T] = nearest(c, 1).headOption
 }
 
-case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
-
-case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
 
 class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {

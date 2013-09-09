@@ -73,44 +73,12 @@ object Logging
     }
 }
 
-case class Tag( val keyId : Int, val valueId : Int )
+case class Tag( val key : String, val value : String )
 {
-    def this() = this(-1, -1)
+    def this() = this("uninitialised", "uninitialised")
 }
 
 
-
-class StringMap
-{
-    private var nextId = 0
-    private val stringMap = mutable.Map[String, Int]()
-    private val stringArray = mutable.ArrayBuffer[String]()
-    
-    def apply( s : String ) : Int =
-    {
-        stringMap.get(s) match
-        {
-            case Some(id)   => id
-            case _          =>
-            {
-                val sId = nextId
-                val cs = new String(s)
-                stringArray.append( cs )
-                stringMap.put( cs, sId )
-                nextId += 1
-                sId
-            }
-        }
-    }
-    
-    def apply( id : Int ) = stringArray(id)
-}
-
-case class TagStringRegistry( val keyMap : StringMap, val valMap : StringMap )
-{   
-    def this() = this( new StringMap(), new StringMap() )
-    def apply( key : String, value : String ) = new Tag( keyMap(key), valMap(value) )
-}
 
 object Coord
 {
@@ -178,9 +146,9 @@ case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
     def this() = this( Array(), Array() )
 }
 
-case class OSMMap( val nodes : Array[Node], val ways : Array[Way], val tagRegistry : TagStringRegistry )
+case class OSMMap( val nodes : Array[Node], val ways : Array[Way] )
 {
-    def this() = this( Array(), Array(), null )
+    def this() = this( Array(), Array() )
 }
 
 object OSMMap extends Logging
@@ -272,13 +240,12 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     var ukWays = 0
     var ukWayNodes = 0
     
-    val tsr = new TagStringRegistry()
-    
     val nodesById = mutable.Map[Long, Int]()
     val ways = mutable.ArrayBuffer[Way]()
     val nodes = mutable.ArrayBuffer[Node]()
     
     
+    // Note that some ways can have such settings - e.g. amenity cafe for a delineated building.
     val nodesOfInterest = Map[String, String => Boolean](
         "amenity"   -> (v => Set("pub", "cafe", "drinking_water"/*, "fast_food", "food_court", "ice_cream", "fuel", "atm", "telephone", "toilets"*/) contains v),
         "historic"  -> (v => true),
@@ -300,14 +267,6 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                 }
             }
             
-        /*if ( isNOI )
-        {
-            n.getTags()
-                .filter( t => t.getKey() == "name" )
-                .headOption
-                .foreach { n => println( "NOI: " + n ) }
-        }*/
-            
         isNOI
     }
     
@@ -327,7 +286,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     ukNodes += 1
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
-                    val nodeTags = n.getTags().map { t => tsr( t.getKey(), t.getValue() ) }.toArray
+                    val nodeTags = n.getTags().map { t => Tag(t.getKey(), t.getValue()) }.toArray
                     
                     nodes.append( Node( c, nodeTags/*, false*/ ) )
                     nodesById.put( nId, nodes.size-1 )
@@ -348,7 +307,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     ukWays += 1
                     ukWayNodes += nodeIds.length
                     if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays.toDouble / 1000000.0 + "M" + ", " + ukWayNodes.toDouble / 1000000.0 + "M" )
-                    val way = Way( wayNodes, wayTags.toArray.map( t => tsr(t._1, t._2) ) )
+                    val way = Way( wayNodes, wayTags.toArray.map( t => Tag(t._1, t._2) ) )
                     ways.append(way)
                     
                     wayNodes.foreach( wnid => wayNodeSet.add(wnid) )
@@ -363,7 +322,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     
     def getData() =
     {
-        new OSMMap( nodes.toArray, ways.toArray, tsr )
+        new OSMMap( nodes.toArray, ways.toArray )
     }
 }
 
@@ -474,12 +433,6 @@ class MapWithIndex( val map : OSMMap )
             
         nis.flatMap( ni => nodeToWayMap(ni).distinct.map( wi => (map.nodes(ni), map.ways(wi)) ) )
     }
-    
-    implicit class RichTag( val tag : Tag )
-    {
-        def key = map.tagRegistry.keyMap( tag.keyId )
-        def value = map.tagRegistry.valMap( tag.valueId )
-    }
 }
 
 
@@ -540,7 +493,7 @@ object RecalculateAddPoints extends App with Logging
         
         
 
-        new OSMMap( newNodes.toArray, newWays.toArray, inputMap.tagRegistry )
+        new OSMMap( newNodes.toArray, newWays.toArray )
     }
     
     override def main( args : Array[String] )

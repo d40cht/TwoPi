@@ -187,35 +187,13 @@ object RoutableGraphBuilder extends Logging
             var edgeCount = 0
             for ( w <- osmMap.ways )
             {
-                val highwayAnnotation = w.tags
-                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
-                    .filter { _._1 == "highway" }
-                    .map { _._2 }
-                    .headOption
-                    
-                val junctionAnnotation = w.tags
-                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
-                    .filter { _._1 == "junction" }
-                    .map { _._2 }
-                    .headOption
-                    
-                val bridgeAnnotation = w.tags
-                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
-                    .filter { _._1 == "bridge" }
-                    .map { _._2 }
-                    .headOption
-                    
-                val nameAnnotation = w.tags
-                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
-                    .filter { _._1 == "name" }
-                    .map { _._2 }
-                    .headOption
-                    
-                val refAnnotation = w.tags
-                    .map { t => (osmMap.tagRegistry.keyMap( t.keyId ), osmMap.tagRegistry.valMap( t.valueId )) }
-                    .filter { _._1 == "ref" }
-                    .map { _._2 }
-                    .headOption
+                val tagMap = w.tags.map( t => (t.key, t.value) ).toMap
+                
+                val highwayAnnotation = tagMap.get("highway")
+                val junctionAnnotation = tagMap.get("junction")
+                val bridgeAnnotation = tagMap.get("bridge")
+                val nameAnnotation = tagMap.get("name")
+                val refAnnotation = tagMap.get("ref")
                     
                 // Other important things:
                 // ford: yes - In the case of Duxford Ford, this is not fordable.

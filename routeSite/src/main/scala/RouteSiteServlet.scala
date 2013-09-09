@@ -312,6 +312,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
 
 
     // So what do we do with this information?
+    // Auth flow example: oauthssodemo.appspot.com/step/1
+    
     // http://www.jaredarmstrong.name/2011/08/scalatra-an-example-authentication-app/ and 
     // http://www.jaredarmstrong.name/2011/08/scalatra-form-authentication-with-remember-me/
     get("/googleoauth2callback")
