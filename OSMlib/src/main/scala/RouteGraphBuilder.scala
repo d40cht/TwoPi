@@ -4,139 +4,106 @@ import org.seacourt.osm._
 
 import scala.collection.{mutable, immutable}
 
+import com.esotericsoftware.kryo.{Kryo, Serializer}
+import com.esotericsoftware.kryo.io.{ Input, Output }
+import com.twitter.chill._
 
 object RoutableGraphBuilder extends Logging
 {
     import java.io._
     import java.util.zip._
     
-    def save( rg : RoutableGraph, output : File )
+    
+    // Serializes the route nodes without serializing the destination edges
+    // in order to prevent Kryo stack-overflow on deep graphs.
+    class RouteNodeSerializer extends Serializer[RouteNode]
     {
-        val ops = new DataOutputStream( new GZIPOutputStream( new BufferedOutputStream( new FileOutputStream( output ) ) ) )
-        try
+        def write( kryo : Kryo, output : Output, rg : RouteNode ) =
         {
-            ops.writeInt( rg.strings.size )
-            for ( str <- rg.strings )
-            {
-                ops.writeUTF( str )
-            }
+            kryo.writeObject( output, rg.nodeId )
+            kryo.writeObject( output, rg.coord )
+            kryo.writeObject( output, rg.height )
+        }
         
-            ops.writeInt( rg.nodes.size )
-            for ( n <- rg.nodes )
-            {
-                ops.writeInt( n.nodeId )
-                ops.writeDouble( n.coord.lon )
-                ops.writeDouble( n.coord.lat )
-                ops.writeFloat( n.height )
-            }
-            
-            ops.writeInt( rg.scenicPoints.size )
-            for ( sp <- rg.scenicPoints )
-            {
-                ops.writeDouble( sp.coord.lon )
-                ops.writeDouble( sp.coord.lat )
-                ops.writeDouble( sp.score )
-                ops.writeInt( sp.picIndex )
-            }
+        def read( kryo : Kryo, input : Input, ct : java.lang.Class[RouteNode] ) : RouteNode =
+        {
+            new RouteNode(
+                kryo.readObject( input, classOf[Int] ),
+                kryo.readObject( input, classOf[Coord] ),
+                kryo.readObject( input, classOf[Float] ) )
+        }
+    }
+
+    class RoutableGraphSerializer extends Serializer[RoutableGraph]
+    {   
+        def write( kryo : Kryo, output : Output, rg : RoutableGraph ) =
+        {
+            kryo.writeObject( output, rg.nodes )
+            kryo.writeObject( output, rg.scenicPoints )
             
             for ( n <- rg.nodes )
             {
-                ops.writeInt( n.nodeId )
-                ops.writeInt( n.destinations.size )
-                for ( (destNode, edge) <- n.destinations )
-                {
-                    ops.writeInt( destNode.nodeId )
-                    ops.writeDouble( edge.dist )
-                    ops.writeDouble( edge.cost )
-                    ops.writeInt( edge.nameId )
-                    ops.writeInt( edge.scenicPoints.size )
-                    for ( sp <- edge.scenicPoints )
-                    {
-                        ops.writeInt( sp.picIndex )
-                    }
-                }
+                val sinkNodeIds = n.destinations.map( _.node.nodeId ).toArray
+                val edges = n.destinations.map( _.edge ).toArray
+                
+                kryo.writeObject( output, sinkNodeIds )
+                kryo.writeObject( output, edges )
             }
         }
-        finally
+        
+        def read( kryo : Kryo, input : Input, ct : java.lang.Class[RoutableGraph] ) : RoutableGraph =
         {
-            ops.close
+            val nodes = kryo.readObject( input, classOf[Array[RouteNode]] )
+            val scenicPoints = kryo.readObject( input, classOf[Array[ScenicPoint]] )
+            
+            val nodeByIdMap = nodes.map( n => (n.nodeId, n) ).toMap
+            for ( n <- nodes )
+            {
+                val sinkNodeIds = kryo.readObject( input, classOf[Array[Int]] )
+                val edges = kryo.readObject( input, classOf[Array[RouteEdge]] )
+                
+                for ( (snid, edge) <- sinkNodeIds.zip(edges) )
+                {
+                    n.addEdge( nodeByIdMap(snid), edge )
+                }
+            }
+            
+            new RoutableGraph( nodes, scenicPoints )
         }
     }
     
-    def load( input : File ) =
+    private def rgKryo() =
     {
-        val ips = new DataInputStream( new GZIPInputStream( new BufferedInputStream( new FileInputStream( input ) ) ) )
+        val kryo = new Kryo()
         
-        try
-        {
-            val numStrings = ips.readInt
-            log.info( "Reading strings: " + numStrings )
-            val strings = (0 until numStrings).map { _ => ips.readUTF() }
-            
-            
-            val nodeMap = mutable.HashMap[Int, RouteNode]()
-            val numNodes = ips.readInt
-            log.info( "Reading node data for : " + numNodes )
-            (0 until numNodes).foreach
-            { _ =>
-                val nodeId = ips.readInt
-                val nodeLon = ips.readDouble
-                val nodeLat = ips.readDouble
-                val height = ips.readFloat
-                
-                val node = new RouteNode( nodeId, new Coord( nodeLon, nodeLat ), height )
-                
-                nodeMap += (nodeId -> node)
-            }
-            
-            val numScenicPoints = ips.readInt
-            val spMap = (0 until numScenicPoints).map
-            { _ =>
-                val spLon = ips.readDouble
-                val spLat = ips.readDouble
-                val score = ips.readDouble
-                val picIndex = ips.readInt
-                
-                (picIndex -> new ScenicPoint( new Coord( spLon, spLat ), score, picIndex ))
-            }.toMap
-            
-            log.info( "Reading edge data for : " + numNodes )
-            (0 until numNodes).foreach
-            { _ =>
-                val sourceId = ips.readInt
-                val numDests = ips.readInt
-                
-                (0 until numDests).foreach
-                { _ =>
-                    val destId = ips.readInt
-                    val edgeDist = ips.readDouble
-                    val edgeCost = ips.readDouble
-                    val nameId = ips.readInt
-                    
-                    val numScenicPoints = ips.readInt
-                    val sps = (0 until numScenicPoints).map
-                    { _ =>
-                    
-                        val spIndex = ips.readInt
-                        spMap(spIndex)
-                    }
-                    
-                    val edge = new RouteEdge( edgeDist, edgeCost, nameId, sps.to[Array] )
-                    
-                    val sourceNode = nodeMap( sourceId )
-                    val destNode = nodeMap( destId )                    
-                    
-                    sourceNode.addEdge( destNode, edge )
-                }
-            }
-            
-            log.info( "Read complete. Returning route graph" )
-            new RoutableGraph( strings.toArray, nodeMap.map( _._2 ).toArray, spMap.map( _._2 ).toArray )
-        }
-        finally
-        {
-            ips.close
-        }
+        kryo.register( classOf[RouteNode], new RouteNodeSerializer() )
+        kryo.register( classOf[RoutableGraph], new RoutableGraphSerializer() )
+        
+        kryo
+    }
+    
+    def save( rg : RoutableGraph, outputFile : File )
+    {
+        log.info( "Serialising route graph to: " + outputFile )
+        
+        val kryo = rgKryo()
+        val output = new Output( new GZIPOutputStream( new FileOutputStream( outputFile ) ) )
+        kryo.writeObject(output, rg)
+        output.close
+        
+        log.info( "Complete." )
+    }
+    
+    def load( inputFile : File ) : RoutableGraph =
+    {
+        log.info( "Reading route graph from disk." )
+        val kryo = rgKryo()
+        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( inputFile ) ) )
+        val map = kryo.readObject( input, classOf[RoutableGraph] )
+        
+        log.info( "Complete." )
+        
+        map
     }
     
     
@@ -144,7 +111,7 @@ object RoutableGraphBuilder extends Logging
     {
         
         
-        // Find all non-synthetic nodes which belong to more than one way
+        // Find all nodes which belong to more than one way
         val routeNodeIds =
         {
             var startEndNodes = mutable.ArrayBuffer[Int]()
@@ -157,10 +124,10 @@ object RoutableGraphBuilder extends Logging
             
             for ( w <- osmMap.ways )
             {
-                val realNodes = w.nodeIds.filter( nid => !osmMap.nodes(nid).synthetic ).toVector
-                startEndNodes.append( realNodes.head )
-                startEndNodes.append( realNodes.last )
-                realNodes.foreach( nid => incCount(nid) )
+                val nodes = w.nodeIds
+                startEndNodes.append( nodes.head )
+                startEndNodes.append( nodes.last )
+                nodes.foreach( nid => incCount(nid) )
             }
             
             log.info( "Num nodes: %d".format( nodeWayMembershipCount.size ) )
@@ -177,9 +144,6 @@ object RoutableGraphBuilder extends Logging
         
         // Build the route graph
         var allSPs = mutable.HashSet[ScenicPoint]()
-        
-        var nextStringId = 0
-        val stringMap = mutable.HashMap[String, Int]()
         
         {
             val routeNodeMap = mutable.Map[Int, RouteNode]()
@@ -230,13 +194,6 @@ object RoutableGraphBuilder extends Logging
                     else if ( !bridgeAnnotation.isEmpty ) "bridge"
                     else "Unnamed " + highwayAnnotation.get
                     
-                    val nameId = stringMap.getOrElseUpdate( name,
-                    {
-                        val nextId = nextStringId
-                        nextStringId +=1
-                        nextId
-                    } )
-                
                     var costMultiplier = costMultiplierPre
                     refAnnotation.foreach
                     { n =>
@@ -251,6 +208,7 @@ object RoutableGraphBuilder extends Logging
                     var absHeightDelta = 0.0
                     var lastNode : Option[Node] = None
                     var lastRouteNode : Option[RouteNode] = None
+                    var nodes = mutable.ArrayBuffer[Node]()
                     var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
                     for ( nid <- w.nodeIds )
                     {
@@ -258,6 +216,7 @@ object RoutableGraphBuilder extends Logging
                         val node = osmMap.nodes(nid)
                         
                         val nearestScenicPoint = scenicMap.nearest(node.coord).get
+                        nodes.append( node )
                         
                         if ( nearestScenicPoint.coord.distFrom(node.coord) < 200.0 )
                         {
@@ -309,7 +268,7 @@ object RoutableGraphBuilder extends Logging
                             lastRouteNode.foreach
                             { lrn =>
                             
-                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, nameId, scenicPoints.distinct.toArray )
+                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, name, scenicPoints.distinct.toArray, nodes.toArray )
                                 rn.addEdge( lrn, edge )
                                 lrn.addEdge( rn, edge )
                                 edgeCount += 1
@@ -317,6 +276,7 @@ object RoutableGraphBuilder extends Logging
                             
                             lastRouteNode = Some(rn)
                             scenicPoints.clear()
+                            nodes.clear()
                             dist = 0.0
                             absHeightDelta = 0.0
                         }
@@ -328,14 +288,7 @@ object RoutableGraphBuilder extends Logging
             
             log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
             
-            val stringArray = stringMap
-                .map( _.swap )
-                .toSeq
-                .sortBy( _._1 )
-                .map( _._2 )
-                .toArray
-            
-            new RoutableGraph( stringArray, routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
+            new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
         }
     }
 }

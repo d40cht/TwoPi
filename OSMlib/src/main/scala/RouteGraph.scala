@@ -5,6 +5,9 @@ import org.seacourt.osm._
 import scala.collection.{mutable, immutable}
 
 
+
+
+
 // Changes to algo:
 
 // Stay at height when going between peaks?  I like this one, though it would make more sense to go along the ridge over Haystacks rather than drop down to the path in Ennerdale: http://two-pi.co.uk/displayroute?routeId=748652F12DD88699517C2D7390A18CDC
@@ -35,23 +38,33 @@ case class POI(
 
 case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
 {
+    def this() = this( new Coord(), 0.0, 0 )
     assert( score >= 0.0 && score <= 1.0 )
+}
+
+case class EdgeDest( val node : RouteNode, val edge : RouteEdge )
+{
+    def this() = this( null, null )
 }
 
 case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 {
-    val destinations = mutable.ArrayBuffer[(RouteNode, RouteEdge)]()
+    val destinations = mutable.ArrayBuffer[EdgeDest]()
     
     def addEdge( dest : RouteNode, edge : RouteEdge ) =
     {
-        destinations.append( (dest, edge) )
+        destinations.append( EdgeDest(dest, edge) )
     }
 }
 
+
+
 // TODO: There should really be a height delta on RouteEdge to get the costs right for long routes.
 // but then we'd need to know which way we were going - so instate when doing one-way logic.
-case class RouteEdge( val dist : Double, val cost : Double, val nameId : Int, val scenicPoints : Array[ScenicPoint] )
-
+case class RouteEdge( val dist : Double, val cost : Double, val name : String, val scenicPoints : Array[ScenicPoint], val nodes : Array[Node] )
+{
+    def this() = this(0.0, 0.0, null, Array(), Array() )
+}
 
 case class EdgeAndBearing( val edge : RouteEdge, val bearing : Float )
 
@@ -107,8 +120,7 @@ class RTreeIndex[T]
     def nearest( c : Coord ) : Option[T] = nearest(c, 1).headOption
 }
 
-
-class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
+class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
     val treeMap = new RTreeIndex[RouteNode]()
     
@@ -146,7 +158,7 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
             //println( minEl.node.nodeId )
             
             minEl.node.destinations.foreach
-            { case (node, edge) =>
+            { case EdgeDest(node, edge) =>
                 
                 if ( !visited.contains(node.nodeId) )
                 {
@@ -482,19 +494,19 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
                         dist += e.dist / 1000.0
                         recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
                         
-                        val (bearingDelta, lastNameId) = lastEdge match
+                        val (bearingDelta, lastName) = lastEdge match
                         {
                             case Some(leb)  =>
                             {
                                 val le = leb.edge
-                                (normaliseDegrees( eb.bearing - leb.bearing ).toFloat, le.nameId)
+                                (normaliseDegrees( eb.bearing - leb.bearing ).toFloat, le.name)
                             }
                             case None       => (0.0f, "")
                         }
                                 
-                        if ( lastNameId != e.nameId )
+                        if ( lastName != e.name )
                         {
-                            truncatedRoute.append( new RouteDirections( recentPics.toList, strings(e.nameId), e.dist / 1000.0, dist, destAnnotNode.node.height, bearingDelta ) )
+                            truncatedRoute.append( new RouteDirections( recentPics.toList, e.name, e.dist / 1000.0, dist, destAnnotNode.node.height, bearingDelta ) )
                             recentPics.clear()
                         }
                     }
@@ -512,5 +524,8 @@ class RoutableGraph( val strings : Array[String], val nodes : Array[RouteNode], 
         }
     }
 }
+
+
+
 
 

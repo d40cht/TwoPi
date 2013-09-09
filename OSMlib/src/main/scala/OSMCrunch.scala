@@ -136,8 +136,7 @@ case class Coord( val lon : Double, val lat : Double )
 
 case class Node( val coord : Coord, val tags : Array[Tag] )
 {
-    def synthetic = false
-    def this() = this( null, Array()/*, false*/ )
+    def this() = this( null, Array() )
 }
 
 case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
