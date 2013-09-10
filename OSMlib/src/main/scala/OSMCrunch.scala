@@ -137,6 +137,8 @@ case class Coord( val lon : Double, val lat : Double )
 case class Node( val coord : Coord, val tags : Array[Tag] )
 {
     def this() = this( null, Array() )
+    
+    def tagMap = tags.map( t => (t.key, t.value) ).toMap
 }
 
 case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )

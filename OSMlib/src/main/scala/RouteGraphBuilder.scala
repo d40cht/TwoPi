@@ -292,6 +292,119 @@ object RoutableGraphBuilder extends Logging
     }
 }
 
+object WikipediaMatchup extends App with Logging
+{
+    case class WikiLocated( name : String, coord : Coord )
+    
+    private def getWikiLocations( fileName : java.io.File ) : Seq[WikiLocated] =
+    {
+        val lats = mutable.HashMap[String, Double]()
+        val lons = mutable.HashMap[String, Double]()
+        io.Source.fromFile( fileName ).getLines.foreach
+        { l =>
+        
+            val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
+            if ( els.size == 3 )
+            {
+                val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
+                
+                val idName = els(1)
+                
+                idName match
+                {
+                    case "http://www.w3.org/2003/01/geo/wgs84_pos#lat" => lats += (name -> els(2).toDouble)
+                    case "http://www.w3.org/2003/01/geo/wgs84_pos#long" => lons += (name -> els(2).toDouble)
+                    case _ =>
+                } 
+            }
+        }
+        
+        lats.map
+        { case (name, lat) =>
+         
+            new WikiLocated( name, Coord(lons(name), lat) )
+        }
+        .toSeq
+    }
+    
+    override def main( args : Array[String] )
+    {
+        val dbpediaCoordFile = new java.io.File( args(0) )
+        val osmMapFile = new java.io.File( args(1) )
+        
+        log.info( "Parsing dbpedia location file" )
+        val coords = getWikiLocations( dbpediaCoordFile )
+        
+        log.info( "Building r-tree index" )
+        val treeMap = new RTreeIndex[WikiLocated]()
+        coords.foreach { case wl => treeMap.add( wl.coord, wl ) }
+        
+        log.info( "Loading OSM map" )
+        val map = OSMMap.load( osmMapFile )
+        
+        case class WikiAssociation( node : Node, geoDist : Double, wordSimilarity : Double )
+        {
+        }
+        
+        val wikiAssoc = mutable.HashMap[WikiLocated, WikiAssociation]()
+        
+        for ( n <- map.nodes )
+        {
+            val tags = n.tags.map( t => (t.key, t.value) ).toMap
+            
+            //if ( !tags.contains("amenity") && !tags.contains("place") )
+            {
+                import com.rockymadden.stringmetric.similarity._
+                
+                tags.get("name") match
+                {
+                    case Some( name ) =>
+                    {
+                        def cleanWord( s : String ) = s
+                            .toLowerCase
+                            .replace("_"," ")
+                            .replace("the", "")
+                            .replace("and", "")
+                            .replace("  ", " ")
+                            
+                        val nearest = treeMap
+                            .nearest( n.coord, 10 )
+                            .map( wl => (wl, wl.coord.distFrom( n.coord ), JaroWinklerMetric.compare(cleanWord(name), cleanWord(wl.name)).get ) )
+                                .filter( _._2 < 200.0 )
+                                .filter( _._3 >= 0.8 )
+                    
+                        if ( !nearest.isEmpty )
+                        {
+                            val (candidate, cdist, csim) = nearest.head
+                            
+                            if ( !wikiAssoc.contains( candidate ) )
+                            {
+                                wikiAssoc += (candidate -> WikiAssociation( n, cdist, csim ) )
+                            }
+                            else
+                            {
+                                val existing = wikiAssoc( candidate )
+                                if ( csim > existing.wordSimilarity && cdist <= existing.geoDist )
+                                {
+                                    wikiAssoc(candidate) = WikiAssociation( n, cdist, csim )
+                                }
+                            }
+                        }
+                    }
+                    case _ =>
+                }
+            }
+        }
+        
+        println( "Wikipedia -> node associations count: " + wikiAssoc.size )
+        
+        for ( assoc <- wikiAssoc.take(200) )
+        {
+            println( assoc._1 + " -> " + assoc._2.node.tagMap("name") )
+        }
+    }
+}
+
 object GenerateRouteGraph extends App with Logging
 {    
     override def main( args : Array[String] )
