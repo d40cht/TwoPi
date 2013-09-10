@@ -298,9 +298,16 @@ object WikipediaMatchup extends App with Logging
     
     private def getWikiLocations( fileName : java.io.File ) : Seq[WikiLocated] =
     {
+        import java.io._
+        import org.apache.commons.compress.compressors.bzip2._
+        
         val lats = mutable.HashMap[String, Double]()
         val lons = mutable.HashMap[String, Double]()
-        io.Source.fromFile( fileName ).getLines.foreach
+        val ioSource = new BZip2CompressorInputStream( 
+            new BufferedInputStream(
+            new FileInputStream( fileName ) ) )
+            
+        io.Source.fromInputStream( ioSource ).getLines.foreach
         { l =>
         
             val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
@@ -327,10 +334,43 @@ object WikipediaMatchup extends App with Logging
         .toSeq
     }
     
+    private def getWikiImages( fileName : java.io.File ) : Map[String, String] =
+    {
+        import java.io._
+        import org.apache.commons.compress.compressors.bzip2._
+        
+        val ioSource = new BZip2CompressorInputStream( 
+            new BufferedInputStream(
+            new FileInputStream( fileName ) ) )
+            
+        val mapping = io.Source.fromInputStream( ioSource ).getLines.flatMap
+        { l =>
+        
+            //<http://dbpedia.org/resource/Albedo> <http://dbpedia.org/ontology/thumbnail> <http://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Albedo-e_hg.svg/200px-Albedo-e_hg.svg.png>
+            val els = l.split(" ").map( _.trim.drop(1).dropRight(1) )
+            
+            els(1) match
+            {
+                case "http://dbpedia.org/ontology/thumbnail" =>
+                {
+                    val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
+                    val url = els(2)
+                    
+                    Some( name -> url )
+                }
+                case _ => None
+            }
+            
+        }
+        
+        mapping.toMap
+    }
+    
     override def main( args : Array[String] )
     {
         val dbpediaCoordFile = new java.io.File( args(0) )
-        val osmMapFile = new java.io.File( args(1) )
+        val dbpediaImageFile = new java.io.File( args(1) )
+        val osmMapFile = new java.io.File( args(2) )
         
         log.info( "Parsing dbpedia location file" )
         val coords = getWikiLocations( dbpediaCoordFile )
@@ -338,6 +378,8 @@ object WikipediaMatchup extends App with Logging
         log.info( "Building r-tree index" )
         val treeMap = new RTreeIndex[WikiLocated]()
         coords.foreach { case wl => treeMap.add( wl.coord, wl ) }
+        
+        val imageMap = getWikiImages( dbpediaImageFile )
         
         log.info( "Loading OSM map" )
         val map = OSMMap.load( osmMapFile )
@@ -396,7 +438,9 @@ object WikipediaMatchup extends App with Logging
             }
         }
         
-        println( "Wikipedia -> node associations count: " + wikiAssoc.size )
+        val res = (imageMap.map(_._1).toSet) intersect (wikiAssoc.map(_._1.name).toSet)
+        
+        println( "Wikipedia -> node associations count: " + wikiAssoc.size + " - " + res.size )
         
         for ( assoc <- wikiAssoc.take(200) )
         {

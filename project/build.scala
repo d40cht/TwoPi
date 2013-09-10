@@ -33,7 +33,8 @@ object Toplevel extends Build
             "org.scalaz" % "scalaz-core_2.10" % "7.0.3",
             "org.scalatest" %% "scalatest" % "1.9.1" % "test",
             "org.apache.commons" % "commons-lang3" % "3.1",
-            "com.rockymadden.stringmetric" % "stringmetric-core" % "0.25.3"
+            "com.rockymadden.stringmetric" % "stringmetric-core" % "0.25.3",
+            "org.apache.commons" % "commons-compress" % "1.5"
         )
     )
     
