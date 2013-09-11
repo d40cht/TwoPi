@@ -112,6 +112,12 @@ object POITypes
         def name = "Place"
         def icon = new File("place.png")
     }
+    
+    object Natural extends POIType
+    {
+        def name = "Natural"
+        def icon = new File("natural.png")
+    }
 }
 
 
@@ -247,39 +253,40 @@ object POIBuilder extends Logging
     
     private def POITypeFromOSMTags( tags : Map[String, String] ) : POIType =
     {
-        tags("amenity") match
+        tags.get("amenity") match
         {
-            case "pub"                  => return POITypes.Pub
-            case "cafe"                 => return POITypes.Cafe
-            case "parking"              => return POITypes.Parking
-            case _                      =>
+            case Some("pub")                => return POITypes.Pub
+            case Some("cafe")               => return POITypes.Cafe
+            case Some("parking")            => return POITypes.Parking
+            case _                          =>
         }
         
-        tags("historic") match
+        tags.get("historic") match
         {
-            case "archaeological_site"  => return POITypes.Archaeological
-            case "memorial"             => return POITypes.Memorial
-            case "monument"             => return POITypes.Monument
-            case "ruins"                => return POITypes.Ruins
-            case _                      => return POITypes.Historic
+            case Some("archaeological_site")    => return POITypes.Archaeological
+            case Some("memorial")               => return POITypes.Memorial
+            case Some("monument")               => return POITypes.Monument
+            case Some("ruins")                  => return POITypes.Ruins
+            case _                              => return POITypes.Historic
         }
         
-        tags("tourism") match
+        tags.get("tourism") match
         {
-            case "museum"               => return POITypes.Museum
-            case "viewpoint"            => return POITypes.Viewpoint
-            case _                      =>
+            case Some("museum")             => return POITypes.Museum
+            case Some("viewpoint")          => return POITypes.Viewpoint
+            case _                          =>
         }
         
-        tags("natural") match
+        tags.get("natural") match
         {
-            case "peak"                 => return POITypes.Peak
-            case "cave_entrance"        => return POITypes.Cave
+            case Some("peak")               => return POITypes.Peak
+            case Some("cave_entrance")      => return POITypes.Cave
+            case _                          => return POITypes.Natural
         }
         
-        tags("place") match
+        tags.get("place") match
         {
-            case _                      => return POITypes.Place
+            case _                          => return POITypes.Place
         }
         
         return POITypes.Unclassified
