@@ -146,9 +146,9 @@ case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
     def this() = this( Array(), Array() )
 }
 
-case class OSMMap( val nodes : Array[Node], val ways : Array[Way] )
+case class OSMMap( val nodes : Array[Node], val ways : Array[Way], val poiNodes : Array[Node] )
 {
-    def this() = this( Array(), Array() )
+    def this() = this( Array(), Array(), Array() )
 }
 
 object OSMMap extends Logging
@@ -244,6 +244,8 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     val ways = mutable.ArrayBuffer[Way]()
     val nodes = mutable.ArrayBuffer[Node]()
     
+    val poiNodes = mutable.ArrayBuffer[Node]()
+    
     
     // Note that some ways can have such settings - e.g. amenity cafe for a delineated building.
     val nodesOfInterest = Map[String, String => Boolean](
@@ -281,15 +283,23 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                 val c = new Coord( n.getLongitude(), n.getLatitude() )
                 val nId = n.getId()
                 
-                if ( (wayNodeSet contains nId) || isNodeOfInterest(n) )
+                val isPOINode = isNodeOfInterest(n)
+                if ( (wayNodeSet contains nId) || isPOINode )
                 {
                     ukNodes += 1
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
                     val nodeTags = n.getTags().map { t => Tag(t.getKey(), t.getValue()) }.toArray
                     
-                    nodes.append( Node( c, nodeTags/*, false*/ ) )
-                    nodesById.put( nId, nodes.size-1 )
+                    if ( isPOINode )
+                    {
+                        poiNodes.append( Node( c, nodeTags ) )
+                    }
+                    else
+                    {
+                        nodesById.put( nId, nodes.size-1 )
+                        nodes.append( Node( c, nodeTags ) )
+                    }
                 }
             }
             
@@ -322,7 +332,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     
     def getData() =
     {
-        new OSMMap( nodes.toArray, ways.toArray )
+        new OSMMap( nodes.toArray, ways.toArray, poiNodes.toArray )
     }
 }
 
@@ -493,7 +503,7 @@ object RecalculateAddPoints extends App with Logging
         
         
 
-        new OSMMap( newNodes.toArray, newWays.toArray )
+        new OSMMap( newNodes.toArray, newWays.toArray, inputMap.poiNodes )
     }
     
     override def main( args : Array[String] )

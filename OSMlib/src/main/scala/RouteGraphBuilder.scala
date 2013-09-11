@@ -1,6 +1,7 @@
 package org.seacourt.osm.route
 
 import org.seacourt.osm._
+import org.seacourt.osm.poi.POIBuilder
 
 import scala.collection.{mutable, immutable}
 
@@ -13,6 +14,8 @@ object RoutableGraphBuilder extends Logging
     import java.io._
     import java.util.zip._
     
+    
+    val maxDistForLocale = 200.0 // metres
     
     // Serializes the route nodes without serializing the destination edges
     // in order to prevent Kryo stack-overflow on deep graphs.
@@ -107,7 +110,7 @@ object RoutableGraphBuilder extends Logging
     }
     
     
-    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], heightMap : SRTMInMemoryTiles ) =
+    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], heightMap : SRTMInMemoryTiles, poiMap : RTreeIndex[POI] ) =
     {
         // Find all nodes which belong to more than one way
         val routeNodeIds =
@@ -146,7 +149,7 @@ object RoutableGraphBuilder extends Logging
         {
             val routeNodeMap = mutable.Map[Int, RouteNode]()
             
-            var edgeCount = 0
+            var nextEdgeId = 0
             for ( w <- osmMap.ways )
             {
                 val tagMap = w.tags.map( t => (t.key, t.value) ).toMap
@@ -208,6 +211,7 @@ object RoutableGraphBuilder extends Logging
                     var lastRouteNode : Option[RouteNode] = None
                     var nodes = mutable.ArrayBuffer[Node]()
                     var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
+                    var pois = Map[POI, Float]()
                     for ( nid <- w.nodeIds )
                     {
                         val isRouteNode = routeNodeIds contains nid
@@ -216,10 +220,20 @@ object RoutableGraphBuilder extends Logging
                         val nearestScenicPoint = scenicMap.nearest(node.coord).get
                         nodes.append( node )
                         
-                        if ( nearestScenicPoint.coord.distFrom(node.coord) < 200.0 )
+                        if ( nearestScenicPoint.coord.distFrom(node.coord) < maxDistForLocale )
                         {
                             scenicPoints.append( nearestScenicPoint )
                             allSPs.add( nearestScenicPoint )
+                        }
+                        
+                        val nearestPOI = poiMap.nearest(node.coord).get
+                        val poiDist = nearestPOI.coord.distFrom(node.coord).toFloat
+                        if ( poiDist < maxDistForLocale )
+                        {
+                            if ( !pois.contains( nearestPOI ) || pois(nearestPOI) > poiDist )
+                            {
+                                pois += (nearestPOI -> poiDist)
+                            }
                         }
                         
                         // Update cumulative way distance
@@ -263,19 +277,29 @@ object RoutableGraphBuilder extends Logging
                             }
                             val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord, height.toFloat) )
                             
+                            
+                            
                             lastRouteNode.foreach
                             { lrn =>
                             
                                 // If oneway=yes/true/1. forward oneway. If oneway=-1/reverse, backward oneway
-                                val edge = new RouteEdge( dist, dist * costMultiplier * scenicScore * inclineScore, name, scenicPoints.distinct.toArray, nodes.toArray )
+                                val edge = new RouteEdge(
+                                    nextEdgeId,
+                                    dist,
+                                    dist * costMultiplier * scenicScore * inclineScore,
+                                    name,
+                                    scenicPoints.distinct.toArray,
+                                    pois.map(_.swap).toArray, nodes.toArray )
+                                    
                                 rn.addEdge( lrn, edge )
                                 lrn.addEdge( rn, edge )
-                                edgeCount += 1
+                                nextEdgeId += 1
                             }
                             
                             lastRouteNode = Some(rn)
                             scenicPoints.clear()
                             nodes.clear()
+                            pois = Map()
                             dist = 0.0
                             absHeightDelta = 0.0
                         }
@@ -285,169 +309,14 @@ object RoutableGraphBuilder extends Logging
                 }
             }
             
-            log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, edgeCount ) )
+            log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, nextEdgeId ) )
             
             new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
         }
     }
 }
 
-object WikipediaMatchup extends App with Logging
-{
-    case class WikiLocated( name : String, coord : Coord )
-    
-    private def getWikiLocations( fileName : java.io.File ) : Seq[WikiLocated] =
-    {
-        import java.io._
-        import org.apache.commons.compress.compressors.bzip2._
-        
-        val lats = mutable.HashMap[String, Double]()
-        val lons = mutable.HashMap[String, Double]()
-        val ioSource = new BZip2CompressorInputStream( 
-            new BufferedInputStream(
-            new FileInputStream( fileName ) ) )
-            
-        io.Source.fromInputStream( ioSource ).getLines.foreach
-        { l =>
-        
-            val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
-            if ( els.size == 3 )
-            {
-                val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
-                
-                val idName = els(1)
-                
-                idName match
-                {
-                    case "http://www.w3.org/2003/01/geo/wgs84_pos#lat" => lats += (name -> els(2).toDouble)
-                    case "http://www.w3.org/2003/01/geo/wgs84_pos#long" => lons += (name -> els(2).toDouble)
-                    case _ =>
-                } 
-            }
-        }
-        
-        lats.map
-        { case (name, lat) =>
-         
-            new WikiLocated( name, Coord(lons(name), lat) )
-        }
-        .toSeq
-    }
-    
-    private def getWikiImages( fileName : java.io.File ) : Map[String, String] =
-    {
-        import java.io._
-        import org.apache.commons.compress.compressors.bzip2._
-        
-        val ioSource = new BZip2CompressorInputStream( 
-            new BufferedInputStream(
-            new FileInputStream( fileName ) ) )
-            
-        val mapping = io.Source.fromInputStream( ioSource ).getLines.flatMap
-        { l =>
-        
-            //<http://dbpedia.org/resource/Albedo> <http://dbpedia.org/ontology/thumbnail> <http://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Albedo-e_hg.svg/200px-Albedo-e_hg.svg.png>
-            val els = l.split(" ").map( _.trim.drop(1).dropRight(1) )
-            
-            els(1) match
-            {
-                case "http://dbpedia.org/ontology/thumbnail" =>
-                {
-                    val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
-                    val url = els(2)
-                    
-                    Some( name -> url )
-                }
-                case _ => None
-            }
-            
-        }
-        
-        mapping.toMap
-    }
-    
-    override def main( args : Array[String] )
-    {
-        val dbpediaCoordFile = new java.io.File( args(0) )
-        val dbpediaImageFile = new java.io.File( args(1) )
-        val osmMapFile = new java.io.File( args(2) )
-        
-        log.info( "Parsing dbpedia location file" )
-        val coords = getWikiLocations( dbpediaCoordFile )
-        
-        log.info( "Building r-tree index" )
-        val treeMap = new RTreeIndex[WikiLocated]()
-        coords.foreach { case wl => treeMap.add( wl.coord, wl ) }
-        
-        val imageMap = getWikiImages( dbpediaImageFile )
-        
-        log.info( "Loading OSM map" )
-        val map = OSMMap.load( osmMapFile )
-        
-        case class WikiAssociation( node : Node, geoDist : Double, wordSimilarity : Double )
-        {
-        }
-        
-        val wikiAssoc = mutable.HashMap[WikiLocated, WikiAssociation]()
-        
-        for ( n <- map.nodes )
-        {
-            val tags = n.tags.map( t => (t.key, t.value) ).toMap
-            
-            //if ( !tags.contains("amenity") && !tags.contains("place") )
-            {
-                import com.rockymadden.stringmetric.similarity._
-                
-                tags.get("name") match
-                {
-                    case Some( name ) =>
-                    {
-                        def cleanWord( s : String ) = s
-                            .toLowerCase
-                            .replace("_"," ")
-                            .replace("the", "")
-                            .replace("and", "")
-                            .replace("  ", " ")
-                            
-                        val nearest = treeMap
-                            .nearest( n.coord, 10 )
-                            .map( wl => (wl, wl.coord.distFrom( n.coord ), JaroWinklerMetric.compare(cleanWord(name), cleanWord(wl.name)).get ) )
-                                .filter( _._2 < 200.0 )
-                                .filter( _._3 >= 0.8 )
-                    
-                        if ( !nearest.isEmpty )
-                        {
-                            val (candidate, cdist, csim) = nearest.head
-                            
-                            if ( !wikiAssoc.contains( candidate ) )
-                            {
-                                wikiAssoc += (candidate -> WikiAssociation( n, cdist, csim ) )
-                            }
-                            else
-                            {
-                                val existing = wikiAssoc( candidate )
-                                if ( csim > existing.wordSimilarity && cdist <= existing.geoDist )
-                                {
-                                    wikiAssoc(candidate) = WikiAssociation( n, cdist, csim )
-                                }
-                            }
-                        }
-                    }
-                    case _ =>
-                }
-            }
-        }
-        
-        val res = (imageMap.map(_._1).toSet) intersect (wikiAssoc.map(_._1.name).toSet)
-        
-        println( "Wikipedia -> node associations count: " + wikiAssoc.size + " - " + res.size )
-        
-        for ( assoc <- wikiAssoc.take(200) )
-        {
-            println( assoc._1 + " -> " + assoc._2.node.tagMap("name") )
-        }
-    }
-}
+
 
 object GenerateRouteGraph extends App with Logging
 {    
@@ -473,12 +342,16 @@ object GenerateRouteGraph extends App with Logging
         }
         
         val srtmFiles = new java.io.File( "./data" ).listFiles.filter( _.toString.endsWith(".asc") )
-        println( "Found SRTM files: " + srtmFiles.toList )
+        log.info( "Found SRTM files: " + srtmFiles.toList )
         val heightMap = new SRTMInMemoryTiles( srtmFiles )
+        
+        log.info( "Building wikipedia cross-linked POIs" )
+        val poiMap = new RTreeIndex[POI]()
+        POIBuilder.build(map).foreach { poi => poiMap.add( poi.coord, poi ) }
         
         val rgFile = new java.io.File(mapFile + ".rg")
         log.info( "Building RoutableGraph" )
-        val rgi = RoutableGraphBuilder( map, scenicMap, heightMap )
+        val rgi = RoutableGraphBuilder( map, scenicMap, heightMap, poiMap )
         
         log.info( "Saving graph to: " + rgFile.toString )
         RoutableGraphBuilder.save( rgi, rgFile )
@@ -490,3 +363,4 @@ object GenerateRouteGraph extends App with Logging
         log.info( "Complete..." )
     }
 }
+

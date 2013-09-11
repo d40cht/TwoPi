@@ -14,12 +14,16 @@ import scala.collection.{mutable, immutable}
 
 // Icons for POIs: http://www.sjjb.co.uk/mapicons/contactsheet#tourist
 
+
+case class WikiLocated( name : String, coord : Coord, imageUrl : Option[String], rdfTypes : Set[String] )//, description : Option[String] )
+
 // Load these from disk, or use the type system as below?
 trait POIType
 {
     def name : String
     def icon : java.io.File
 }
+
 
 case class POI(
     // From OSM
@@ -28,13 +32,7 @@ case class POI(
     val name : String,
     // Change to some kind of enum. From OSM largely?
     val poiType : POIType,
-    // From dbpedia dumps, cross-link on name and coords via: geo_coordinates_en.nt.bz2
-    val description : Option[String],
-    // From images_en.nt.bz2
-    val imageUrl : Option[String],
-    // From dbpedia link
-    val url : Option[String]
-)
+    val wikiData : Option[WikiLocated] )
 
 case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
 {
@@ -61,9 +59,16 @@ case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 
 // TODO: There should really be a height delta on RouteEdge to get the costs right for long routes.
 // but then we'd need to know which way we were going - so instate when doing one-way logic.
-case class RouteEdge( val dist : Double, val cost : Double, val name : String, val scenicPoints : Array[ScenicPoint], val nodes : Array[Node] )
+case class RouteEdge(
+    val edgeId : Int,
+    val dist : Double,
+    val cost : Double,
+    val name : String,
+    val scenicPoints : Array[ScenicPoint],
+    val pois : Array[(Float, POI)],
+    val nodes : Array[Node] )
 {
-    def this() = this(0.0, 0.0, null, Array(), Array() )
+    def this() = this( 0, 0.0, 0.0, null, Array(), Array(), Array() )
 }
 
 case class EdgeAndBearing( val edge : RouteEdge, val bearing : Float )
@@ -476,6 +481,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             val truncatedRoute = mutable.ArrayBuffer[RouteDirections]()
             val recentPics = mutable.Set[ScenicPoint]()
+            val recentPOIs = mutable.Set[POI]()
             
             fullRoute.zipWithIndex.map
             { case (pathEl, i) =>
@@ -493,6 +499,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
 
                         dist += e.dist / 1000.0
                         recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
+                        recentPOIs ++= e.pois.map(_._2)
                         
                         val (bearingDelta, lastName) = lastEdge match
                         {
@@ -518,6 +525,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             for ( rd <- truncatedRoute )
             {
                 println( "[% 5.2fkm] % 3.2fkm, % 3.0fm elevation: %s, bearing: % 4d [%d]".format( rd.cumulativeDistance, rd.dist, rd.elevation, rd.edgeName, rd.bearing.toInt, rd.inboundPics.size ) )
+            }
+            
+            for ( poi <- recentPOIs )
+            {
+                println( "POI: " + poi )
             }
             
             new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq )
