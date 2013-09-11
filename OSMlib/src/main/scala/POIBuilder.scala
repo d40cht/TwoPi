@@ -363,14 +363,18 @@ object POIBuilder extends Logging
         val wikiAssocInverted = wikiAssoc.map { case (wl, wa) => (wa.node, wl) }
   
         log.info( "Building POIs" )
-        val pois = map.poiNodes.map
+        val pois = map.poiNodes.flatMap
         { n =>
             
             val tm = n.tagMap
             val poiType = POITypeFromOSMTags( tm )
             val wikiLinked = wikiAssocInverted.get(n)
             
-            new POI( n.coord, tm("name"), poiType, wikiLinked )
+            if ( tm contains "name" )
+            {
+                Some(new POI( n.coord, tm("name"), poiType, wikiLinked ))
+            }
+            else None
         }
         
         pois
