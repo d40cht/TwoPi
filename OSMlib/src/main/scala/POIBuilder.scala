@@ -11,7 +11,7 @@ import org.seacourt.osm.route.{WikiLocated, POIType, POI}
 
 object POITypes
 {
-    val unclassifiedIcon = new File( "power_station_coal.glow.20.png" )
+    val unclassifiedIcon = new File( "img/poiIcons/power_station_coal.glow.20.png" )
     object Unclassified extends POIType
     {
         def name = "Unclassified"
@@ -268,7 +268,8 @@ object POIBuilder extends Logging
             case Some("memorial")               => return POITypes.Memorial
             case Some("monument")               => return POITypes.Monument
             case Some("ruins")                  => return POITypes.Ruins
-            case _                              => return POITypes.Historic
+            case Some(_)                        => return POITypes.Historic
+            case _                              =>
         }
         
         tags.get("tourism") match
@@ -282,12 +283,14 @@ object POIBuilder extends Logging
         {
             case Some("peak")               => return POITypes.Peak
             case Some("cave_entrance")      => return POITypes.Cave
-            case _                          => return POITypes.Natural
+            case Some(_)                    => return POITypes.Natural
+            case _                          =>
         }
         
         tags.get("place") match
         {
-            case _                          => return POITypes.Place
+            case Some(_)                    => return POITypes.Place
+            case _                          =>
         }
         
         return POITypes.Unclassified
