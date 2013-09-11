@@ -21,7 +21,7 @@ case class SRTMInMemoryTiles( files : Seq[File] )
             res.foreach( el => return Some(el) )
         }
         
-        println( "Point outside range: " + lon + ", " + lat )
+        //println( "Point outside range: " + lon + ", " + lat )
         
         return None
     }

@@ -33,6 +33,9 @@ case class POI(
     // Change to some kind of enum. From OSM largely?
     val poiType : POIType,
     val wikiData : Option[WikiLocated] )
+{
+    def this() = this( null, null, null, None )
+}
 
 case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
 {
@@ -61,6 +64,9 @@ case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 // but then we'd need to know which way we were going - so instate when doing one-way logic.
 
 case class NearbyPOI( val dist : Float, val poi : POI )
+{
+    def this() = this(0.0f, null)
+}
 
 case class RouteEdge(
     val edgeId : Int,

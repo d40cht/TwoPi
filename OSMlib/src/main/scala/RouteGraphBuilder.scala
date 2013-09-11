@@ -8,6 +8,8 @@ import scala.collection.{mutable, immutable}
 import com.esotericsoftware.kryo.{Kryo, Serializer}
 import com.esotericsoftware.kryo.io.{ Input, Output }
 import com.twitter.chill._
+ 
+import org.objenesis.strategy.StdInstantiatorStrategy
 
 object RoutableGraphBuilder extends Logging
 {
@@ -81,6 +83,7 @@ object RoutableGraphBuilder extends Logging
         
         kryo.register( classOf[RouteNode], new RouteNodeSerializer() )
         kryo.register( classOf[RoutableGraph], new RoutableGraphSerializer() )
+        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy()) 
         
         kryo
     }
@@ -271,7 +274,7 @@ object RoutableGraphBuilder extends Logging
                                 case Some(h) => h
                                 case None =>
                                 {
-                                    println( "No height for coords: " + node.coord.toString )
+                                    //println( "No height for coords: " + node.coord.toString )
                                     -9999.0
                                 }
                             }
