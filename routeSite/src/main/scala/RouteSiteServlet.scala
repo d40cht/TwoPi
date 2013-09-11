@@ -135,6 +135,17 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                     </summary>
                 </metadata>
                 
+                <pois>
+                {
+                    route.pois.map
+                    { p =>
+                        val linkOption = (p.wikiData.map(wd => xml.Text("http://en.wikipedia.org/wiki/" + wd.name)))
+                        
+                        <poi name={p.name} link={linkOption} lon={p.coord.lon.toString} lat={p.coord.lat.toString} icon={p.poiType.icon.toString}/>
+                    }
+                }
+                </pois>
+                
                 <pics>
                 {   
                     pics.zip(letters).map
@@ -380,7 +391,20 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             case Some( routeXml ) =>
             {
                 val hash = messageDigest( routeXml.toString )
-                scala.xml.XML.save( routeFilePath( hash ).toString, routeXml )
+                if (false)
+                {
+                    // Currently this appears to crash saving XML in ways I do not understand
+                    scala.xml.XML.save( routeFilePath( hash ).toString, routeXml )
+                }
+                else
+                {
+                    val res = routeXml.toString
+                    
+                    val pw = new java.io.PrintWriter( routeFilePath( hash ) )
+                    pw.print( res )
+                    pw.close
+                }
+                
                 redirect( "/displayroute?routeId=%s".format(hash) )
             }
             case None =>

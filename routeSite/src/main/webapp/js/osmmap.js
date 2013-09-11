@@ -58,14 +58,15 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     });
     map.addLayer(lgpx);
     
-    var addPlaceMarker = function( lonLat, imgUrl, url, zindex )
+    var addPlaceMarker = function( lonLat, imgUrl, url, zindex, width, height )
     {
-        var size = new OpenLayers.Size(20, 34);
+        var size = new OpenLayers.Size(width, height);
         var feature = new OpenLayers.Feature.Vector(
             new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ),
             {some:'data'},
             {externalGraphic: imgUrl, graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h, graphicZIndex : zindex});
             
+        
         feature.attributes = { url : url };
             
         layerMarkers.addFeatures([feature]);
@@ -78,18 +79,31 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
         callback: function(request)
         {
             var asXML = request.responseXML;
-            var pic = asXML.getElementsByTagName("pic");
-            for ( var i = 0; i < pic.length; i++ )
+            var pics = asXML.getElementsByTagName("pic");
+            for ( var i = 0; i < pics.length; i++ )
             {
-                var lon = pic[i].getAttribute("lon");
-                var lat = pic[i].getAttribute("lat");
-                var link = pic[i].getAttribute("link");
-                var icon = pic[i].getAttribute("icon");
+                var lon = pics[i].getAttribute("lon");
+                var lat = pics[i].getAttribute("lat");
+                var link = pics[i].getAttribute("link");
+                var icon = pics[i].getAttribute("icon");
                 
                 var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
                 
-                //addPlaceMarker( lonLat, "http://labs.google.com/ridefinder/images/mm_20_green.png", link );
-                addPlaceMarker( lonLat, icon, link, 0 ); 
+                addPlaceMarker( lonLat, icon, link, 0, 20, 34 ); 
+            }
+            
+            var pois = asXML.getElementsByTagName("poi");
+            for ( var i = 0; i < pois.length; i++ )
+            {
+                var lon = pois[i].getAttribute("lon");
+                var lat = pois[i].getAttribute("lat");
+                var link = pois[i].getAttribute("link");
+                var icon = pois[i].getAttribute("icon");
+                
+                var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+                
+                var f = addPlaceMarker( lonLat, icon, link, 0, 28, 28 );
+                f.style.title = pois[i].getAttribute("name");
             }
         }
     });
@@ -99,13 +113,13 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
 
     
     
-    var feature = addPlaceMarker( lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1 );
+    var feature = addPlaceMarker( lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
     
     var clickHandler = function(e)
     {
         var lonLat = map.getLonLatFromPixel(e.xy);
         layerMarkers.removeFeatures([feature]);
-        feature = addPlaceMarker( lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1 );
+        feature = addPlaceMarker( lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
         
         lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
         

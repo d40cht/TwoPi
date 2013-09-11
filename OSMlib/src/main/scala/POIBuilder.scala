@@ -11,112 +11,113 @@ import org.seacourt.osm.route.{WikiLocated, POIType, POI}
 
 object POITypes
 {
+    val unclassifiedIcon = new File( "power_station_coal.glow.20.png" )
     object Unclassified extends POIType
     {
         def name = "Unclassified"
-        def icon = new File( "point_of_interest.png" )
+        def icon = unclassifiedIcon
     }
 
     object Shelter extends POIType
     {
         def name = "Shelter/Bothy"
-        def icon = new File("shelter.png")
+        def icon = new File("img/poiIcons/accommodation_shelter2.glow.20.png")
     }
 
     object SurveyPoint extends POIType
     {
         def name = "Survey/trig point"
-        def icon = new File("survey_point.png")
+        def icon = new File("img/poiIcons/amenity_survey_point.glow.20.png")
     }
 
     object Cafe extends POIType
     {
         def name = "Cafe"
-        def icon = new File("cafe.png")
+        def icon = new File("img/poiIcons/food_cafe.glow.20.pn")
     }
 
     object Pub extends POIType
     {
         def name = "Pub"
-        def icon = new File("pub.png")
+        def icon = new File("img/poiIcons/food_pub.glow.20.png")
     }
 
     object Peak extends POIType
     {
         def name = "Peak"
-        def icon = new File("peak.png")
+        def icon = new File("img/poiIcons/poi_peak2.glow.20.png")
     }
 
     object Cave extends POIType
     {
         def name = "Cave"
-        def icon = new File("cave.png")
+        def icon = new File("img/poiIcons/poi_cave.glow.20.png")
     }
 
     object Archaeological extends POIType
     {
         def name = "Archaeological"
-        def icon = new File("archaeological.png")
+        def icon = new File("img/poiIcons/tourist_archaeological2.glow.20.png")
     }
     
     object Memorial extends POIType
     {
         def name = "Memorial"
-        def icon = new File("memorial.png")
+        def icon = new File("img/poiIcons/tourist_memorial.glow.20.png")
     }
     
     object Ruins extends POIType
     {
         def name = "Ruins"
-        def icon = new File("ruins.png")
+        def icon = unclassifiedIcon
     }
 
     object Monument extends POIType
     {
         def name = "Monument"
-        def icon = new File("monument.png")
+        def icon = new File("img/poiIcons/tourist_monument.glow.20.png")
     }
 
     object Museum extends POIType
     {
         def name = "Museum"
-        def icon = new File("museum.png")
+        def icon = new File("img/poiIcons/tourist_museum.glow.20.png")
     }
     
     object Historic extends POIType
     {
         def name = "Historic"
-        def icon = new File("historic.png")
+        def icon = unclassifiedIcon
     }
 
     object Fuel extends POIType
     {
         def name = "Fuel"
-        def icon = new File("fuel.png")
+        def icon = new File("img/poiIcons/transport_fuel.glow.20.png")
     }
 
     object Parking extends POIType
     {
         def name = "Parking"
-        def icon = new File("parking.png")
+        def icon = new File("img/poiIcons/transport_parking_car.glow.20.png")
     }
     
     object Viewpoint extends POIType
     {
         def name = "Viewpoint"
-        def icon = new File("viewpoint.png")
+        def icon = new File("img/poiIcons/tourist_view_point.glow.20.png")
     }
     
     object Place extends POIType
     {
         def name = "Place"
-        def icon = new File("place.png")
+        def icon = new File("img/poiIcons/poi_place_hamlet.glow.20.png")
     }
     
     object Natural extends POIType
     {
         def name = "Natural"
-        def icon = new File("natural.png")
+        def icon = new File("img/poiIcons/landuse_deciduous.glow.20.png")
     }
 }
 

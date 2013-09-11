@@ -34,18 +34,15 @@ case class POI(
     val poiType : POIType,
     val wikiData : Option[WikiLocated] )
 {
-    def this() = this( null, null, null, None )
 }
 
 case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
 {
-    def this() = this( new Coord(), 0.0, 0 )
     assert( score >= 0.0 && score <= 1.0 )
 }
 
 case class EdgeDest( val node : RouteNode, val edge : RouteEdge )
 {
-    def this() = this( null, null )
 }
 
 case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
@@ -65,7 +62,6 @@ case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 
 case class NearbyPOI( val dist : Float, val poi : POI )
 {
-    def this() = this(0.0f, null)
 }
 
 case class RouteEdge(
@@ -77,7 +73,6 @@ case class RouteEdge(
     val pois : Array[NearbyPOI],
     val nodes : Array[Node] )
 {
-    def this() = this( 0, 0.0, 0.0, null, Array(), Array(), Array() )
 }
 
 case class EdgeAndBearing( val edge : RouteEdge, val bearing : Float )
@@ -89,7 +84,7 @@ case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : 
     var parent : Option[PathElement]    = None
 }
 
-case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint] )
+case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint], pois : Seq[POI] )
 
 case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
 
@@ -541,7 +536,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 println( "POI: " + poi )
             }
             
-            new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq )
+            new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq, recentPOIs.toSeq )
         }
     }
 }
