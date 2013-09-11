@@ -291,12 +291,13 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     
                     val nodeTags = n.getTags().map { t => Tag(t.getKey(), t.getValue()) }.toArray
                     
+                    val theNode = Node( c, nodeTags )
                     if ( isPOINode )
                     {
-                        poiNodes.append( Node( c, nodeTags ) )
+                        poiNodes.append( theNode )
                     }
                     nodesById.put( nId, nodes.size-1 )
-                    nodes.append( Node( c, nodeTags ) )
+                    nodes.append( theNode )
                 }
             }
             

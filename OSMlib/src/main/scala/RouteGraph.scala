@@ -59,13 +59,16 @@ case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
 
 // TODO: There should really be a height delta on RouteEdge to get the costs right for long routes.
 // but then we'd need to know which way we were going - so instate when doing one-way logic.
+
+case class NearbyPOI( val dist : Float, val poi : POI )
+
 case class RouteEdge(
     val edgeId : Int,
     val dist : Double,
     val cost : Double,
     val name : String,
     val scenicPoints : Array[ScenicPoint],
-    val pois : Array[(Float, POI)],
+    val pois : Array[NearbyPOI],
     val nodes : Array[Node] )
 {
     def this() = this( 0, 0.0, 0.0, null, Array(), Array(), Array() )
@@ -499,7 +502,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
 
                         dist += e.dist / 1000.0
                         recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
-                        recentPOIs ++= e.pois.map(_._2)
+                        recentPOIs ++= e.pois.map(_.poi)
                         
                         val (bearingDelta, lastName) = lastEdge match
                         {
