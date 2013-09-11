@@ -289,7 +289,8 @@ object RoutableGraphBuilder extends Logging
                                     dist * costMultiplier * scenicScore * inclineScore,
                                     name,
                                     scenicPoints.distinct.toArray,
-                                    pois.map(_.swap).toArray, nodes.toArray )
+                                    pois.map { case (poi, dist) => NearbyPOI( dist, poi ) }.toArray,
+                                    nodes.toArray )
                                     
                                 rn.addEdge( lrn, edge )
                                 lrn.addEdge( rn, edge )
