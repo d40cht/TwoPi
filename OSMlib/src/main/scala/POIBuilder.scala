@@ -241,7 +241,7 @@ object POIBuilder extends Logging
         coords.map
         { case (name, coord) =>
             
-            WikiLocated( name, coord, imageMap.get( name ), typeMap( name ) )
+            WikiLocated( name, coord, imageMap.get( name ), typeMap.getOrElse( name, Set() ) )
         }
     }
     
