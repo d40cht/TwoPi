@@ -295,11 +295,8 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     {
                         poiNodes.append( Node( c, nodeTags ) )
                     }
-                    else
-                    {
-                        nodesById.put( nId, nodes.size-1 )
-                        nodes.append( Node( c, nodeTags ) )
-                    }
+                    nodesById.put( nId, nodes.size-1 )
+                    nodes.append( Node( c, nodeTags ) )
                 }
             }
             
