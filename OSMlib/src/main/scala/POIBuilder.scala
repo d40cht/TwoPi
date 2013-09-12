@@ -154,11 +154,13 @@ object POIBuilder extends Logging
             new BufferedInputStream(
             new FileInputStream( fileName ) ) )
             
+        var lineCount = 0
         io.Source.fromInputStream( ioSource ).getLines.foreach
         { l =>
         
+            lineCount += 1
             val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
-            if ( els.size == 3 )
+            if ( els.size >= 3 )
             {
                 val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
                 
@@ -172,10 +174,14 @@ object POIBuilder extends Logging
                 } 
             }
         }
+
+
+        println( lineCount )
         
         lats.map
         { case (name, lat) =>
          
+            println( name, lat )
             (name, Coord(lons(name), lat))
         }
         .toSeq
@@ -301,8 +307,8 @@ object POIBuilder extends Logging
     def build( map : OSMMap ) : Seq[POI] =
     {
         // For reasons unknown, mappingbased_properties is more complete than geo_coordinates for geo coordinates
-        val dbpediaCoordFile = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
-        //val dbpediaCoordFile = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
+        //val dbpediaCoordFile = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
+        val dbpediaCoordFile = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
         
         val dbpediaImageFile = new java.io.File( "data/images_en.nt.bz2" )
         val dbpediaTypeFile = new java.io.File( "data/instance_types_en.nt.bz2" )
