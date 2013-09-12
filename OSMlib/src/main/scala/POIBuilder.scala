@@ -152,11 +152,13 @@ object POIBuilder extends Logging
         val lons = mutable.HashMap[String, Double]()
         val ioSource = new BZip2CompressorInputStream( 
             new BufferedInputStream(
-            new FileInputStream( fileName ) ) )
+            new FileInputStream( fileName ) ),
+            true )
             
         io.Source.fromInputStream( ioSource ).getLines.foreach
         { l =>
         
+            //<http://dbpedia.org/resource/Tate_St_Ives> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "50.21472222222222"^^<http://www.w3.org/2001/XMLSchema#float> .
             val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
             if ( els.size == 3 )
             {
@@ -176,6 +178,7 @@ object POIBuilder extends Logging
         lats.map
         { case (name, lat) =>
          
+            
             (name, Coord(lons(name), lat))
         }
         .toSeq
@@ -188,7 +191,8 @@ object POIBuilder extends Logging
         
         val ioSource = new BZip2CompressorInputStream( 
             new BufferedInputStream(
-            new FileInputStream( fileName ) ) )
+            new FileInputStream( fileName ) ),
+            true )
             
         val mapping = io.Source.fromInputStream( ioSource ).getLines.flatMap
         { l =>
@@ -220,7 +224,8 @@ object POIBuilder extends Logging
         
         val ioSource = new BZip2CompressorInputStream( 
             new BufferedInputStream(
-            new FileInputStream( fileName ) ) )
+            new FileInputStream( fileName ) ),
+            true )
             
         var map = immutable.HashMap[String, immutable.HashSet[String]]()
         val mapping = io.Source.fromInputStream( ioSource ).getLines.foreach
@@ -300,7 +305,7 @@ object POIBuilder extends Logging
     
     def build( map : OSMMap ) : Seq[POI] =
     {
-        // For reasons unknown, mappingbased_properties is more complete than geo_coordinates for geo coordinates
+        // For reasons unknown, mappingbased_properties contains geo-referenced articles not in geo_coordinates
         val dbpediaCoordFile = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
         //val dbpediaCoordFile = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
         
