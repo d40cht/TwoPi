@@ -3,6 +3,7 @@ package org.seacourt.osm
 import com.esotericsoftware.kryo.{Kryo, Serializer}
 import com.esotericsoftware.kryo.io.{ Input, Output }
 import com.twitter.chill._
+import org.objenesis.strategy.StdInstantiatorStrategy
 
 import java.io._
 import java.util.zip._
@@ -13,6 +14,7 @@ object Utility extends Logging
 {
     def kryoSave[T]( obj : T, outputFile : File, kryo : Kryo = new Kryo() ) =
     {
+        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy())
         val output = new Output( new GZIPOutputStream( new FileOutputStream( outputFile ) ) )
         kryo.writeObject(output, obj)
         output.close
@@ -20,6 +22,7 @@ object Utility extends Logging
     
     def kryoLoad[T]( inputFile : File, kryo : Kryo = new Kryo() )( implicit tag : ClassTag[T] ) : T =
     {
+        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy())
         val input = new Input( new GZIPInputStream( new java.io.FileInputStream( inputFile ) ) )
         val obj = kryo.readObject( input, tag.runtimeClass ).asInstanceOf[T]
         input.close
