@@ -230,13 +230,16 @@ object RoutableGraphBuilder extends Logging
                             allSPs.add( nearestScenicPoint )
                         }
                         
-                        val nearestPOI = poiMap.nearest(node.coord).get
-                        val poiDist = nearestPOI.coord.distFrom(node.coord).toFloat
-                        if ( poiDist < maxDistForLocale )
+                        val nearestPOIs = poiMap.nearest(node.coord, 10)
+                        for ( nearestPOI <- nearestPOIs )
                         {
-                            if ( !pois.contains( nearestPOI ) || pois(nearestPOI) > poiDist )
+                            val poiDist = nearestPOI.coord.distFrom(node.coord).toFloat
+                            if ( poiDist < maxDistForLocale )
                             {
-                                pois += (nearestPOI -> poiDist)
+                                if ( !pois.contains( nearestPOI ) || pois(nearestPOI) > poiDist )
+                                {
+                                    pois += (nearestPOI -> poiDist)
+                                }
                             }
                         }
                         
