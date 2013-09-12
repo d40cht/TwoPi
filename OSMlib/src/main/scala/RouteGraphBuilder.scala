@@ -106,6 +106,7 @@ object RoutableGraphBuilder extends Logging
         val kryo = rgKryo()
         val input = new Input( new GZIPInputStream( new java.io.FileInputStream( inputFile ) ) )
         val map = kryo.readObject( input, classOf[RoutableGraph] )
+        input.close
         
         log.info( "Complete." )
         

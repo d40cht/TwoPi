@@ -8,6 +8,7 @@ import scala.collection.{mutable, immutable}
 import java.io.{File}
 
 import org.seacourt.osm.route.{WikiLocated, POIType, POI}
+import org.seacourt.osm.Utility.{kryoCache}
 
 object POITypes
 {
@@ -298,13 +299,18 @@ object POIBuilder extends Logging
     
     def build( map : OSMMap ) : Seq[POI] =
     {
+        // For reasons unknown, mappingbased_properties is more complete than geo_coordinates for geo coordinates
         val dbpediaCoordFile = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
+        //val dbpediaCoordFile = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
+        
         val dbpediaImageFile = new java.io.File( "data/images_en.nt.bz2" )
         val dbpediaTypeFile = new java.io.File( "data/instance_types_en.nt.bz2" )
         val dbpediaAbstractFile = new java.io.File( "data/short_abstracts_en.nt.bz2" )
+        val wikiLocatedCacheFile = new File("data/wikilocated.cache")
         
         log.info( "Ingesting dbpedia data" )
-        val wikiLocated = extractLocatedWikiArticles( dbpediaCoordFile, dbpediaImageFile, dbpediaTypeFile )
+        val wikiLocated = kryoCache( wikiLocatedCacheFile, extractLocatedWikiArticles( dbpediaCoordFile, dbpediaImageFile, dbpediaTypeFile ) )
+        log.info( "Number of wikipedia articles with locations: " + wikiLocated.size )
         
         log.info( "Building r-tree index" )
         val treeMap = new RTreeIndex[WikiLocated]()
