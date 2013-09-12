@@ -240,7 +240,7 @@ object POIBuilder extends Logging
     
     // TODO: Pull abstract data from dbpedia too, for short article summaries
     
-    private def extractLocatedWikiArticles( dbpediaCoordFile : File, dbpediaImageFile : File, dbpediaTypeFile : File ) : Seq[WikiLocated] =
+    private def extractLocatedWikiArticles( dbpediaCoordFile : File, dbpediaImageFile : File, dbpediaTypeFile : File ) : Array[WikiLocated] =
     {
         val coords = getWikiLocations( dbpediaCoordFile )
         val imageMap = getWikiImages( dbpediaImageFile )
@@ -251,6 +251,7 @@ object POIBuilder extends Logging
             
             WikiLocated( name, coord, imageMap.get( name ), typeMap.getOrElse( name, Set() ) )
         }
+        .toArray
     }
     
     private def POITypeFromOSMTags( tags : Map[String, String] ) : POIType =
