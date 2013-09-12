@@ -16,17 +16,12 @@ import com.twitter.logging.Logger
 import com.twitter.logging.{Logger, LoggerFactory, FileHandler, ConsoleHandler, Policy}
 import com.twitter.logging.config._
 
-import com.esotericsoftware.kryo.Kryo
-import com.esotericsoftware.kryo.io.{ Input, Output }
-import com.twitter.chill._
 
 /* TODO:
 
-    * Add GeoTIFF reader and annotate all nodes with a height
     * Re-code gpx file to binary (using Kryo streams)
     * Experiment (with particle filters) snapping gpx traces to the map
     * Experiment with auto-classifying gpx files
-    * Experiment with overlaying on a map
 */
 
 trait Logging
@@ -145,31 +140,8 @@ case class OSMMap( val nodes : Array[Node], val ways : Array[Way], val poiNodes 
 
 object OSMMap extends Logging
 {
-    def save( map : OSMMap, fileName : File )
-    {
-        import java.io._
-        import java.util.zip._
-        
-        log.info( "Serialising to: " + fileName )
-        val kryo = new Kryo()
-        
-        val output = new Output( new GZIPOutputStream( new FileOutputStream( fileName ) ) )
-        kryo.writeObject(output, map)
-        output.close
-        
-        log.info( "Complete." )
-    }
-    
-    def load( fileName : File ) : OSMMap =
-    {
-        log.info( "Reading map from disk." )
-        val kryo = new Kryo()
-        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( fileName ) ) )
-        val map = kryo.readObject( input, classOf[OSMMap] )
-        log.info( "Number of ways: " + map.ways.size )
-        
-        map
-    }
+    def save( map : OSMMap, fileName : File ) = Utility.kryoSave( map, fileName )
+    def load( fileName : File ) : OSMMap = Utility.kryoLoad[OSMMap]( fileName )
 }
 
 abstract class SimpleSink extends Sink with Logging
@@ -565,101 +537,17 @@ In metadata.xml, for each track:
 */
 
 
-case class SRTMTile( val ncols : Int, val nrows : Int, val xll : Double, val yll : Double, val cellSize : Double, val data : Array[Short] )
-
-object ProcessSRTMAsciiToBin extends App with Logging
-{
-    override def main( args : Array[String] )
-    {
-        val inputDir = new java.io.File(args(0))
-        val outputDir = new java.io.File(args(1))
-        outputDir.mkdirs
-        
-        val kryo = new Kryo()
-        
-        for ( els <- inputDir.listFiles )
-        {
-            val jt = new ZipInputStream( new BufferedInputStream( new FileInputStream( els ) ) )
-            
-            var te = jt.getNextEntry()
-            while ( te != null )
-            {
-                val fname = te.getName()
-                val size = te.getSize()
-                
-                if ( fname.toString.endsWith(".asc") )
-                {
-                    log.info( te.getName() + " - " + size.toString )
-                    
-                    // Assume no ASCII files are greater than 2Gb
-                    val rbufSize = 8192
-                    val rbuf = new Array[Byte](rbufSize)
-                    val data = new Array[Byte](size.toInt)
-                    var completeSize = 0
-                    var offset = 0
-                    var rsize = jt.read(rbuf)
-                    while ( rsize != -1 )
-                    {
-                        completeSize += rsize
-                        //log.info( "Offset: " + offset + " - " + rsize + " - " + size )
-                        java.lang.System.arraycopy( rbuf, 0, data, offset, rsize )
-                        offset += rsize
-                        rsize = jt.read(rbuf, 0, rbufSize)
-                        
-                    }
-                    val asStr = new String( data,"utf-8" )
-                    
-                    val lines = asStr.split("\n")
-                    // ncols         6000
-                    // nrows         6000
-                    // xllcorner     -80
-                    // yllcorner     20
-                    // cellsize      0.00083333333333333
-                    // NODATA_value  -9999
-                    val header = lines.take(6).toIndexedSeq
-                    val ncols = header(0).trim.split(" ").last.toInt
-                    val nrows = header(1).trim.split(" ").last.toInt
-                    assert( ncols == 6000 )
-                    assert( nrows == 6000 )
-                    val xll = header(2).trim.split(" ").last.toDouble
-                    val yll = header(3).trim.split(" ").last.toDouble
-                    val cellSize = header(4).trim.split(" ").last.toDouble
-                    
-                    val dataArray = new Array[Short](ncols*nrows)
-                    var i = 0
-                    for ( l <- lines.drop(6) )
-                    {
-                        //log.info( i.toString + " - " + l )
-                        for ( el <- l.trim.split(" ") )
-                        {
-                            dataArray(i) = el.trim.toShort
-                            i += 1
-                        }
-                    }
-                    
-                    assert( i == ncols * nrows )
-                    val tile = new SRTMTile( ncols, nrows, xll, yll, cellSize, dataArray )
-                    
-                    val fname = new File( outputDir, "%.2f_%.2f.bin".format( xll, yll ).replace("-", "m") )
-                    val output = new Output( new GZIPOutputStream( new FileOutputStream( fname ) ) )
-                    kryo.writeObject(output, tile)
-                    output.close
-                }
-                
-                te = jt.getNextEntry()
-            }
-            
-            jt.close
-        }
-    }
-}
-
 case class GPXTrackPoint( val lon : Double, val lat : Double, val time : java.util.Date )
 case class GPXTrackSeg( val points : Array[GPXTrackPoint] )
 case class GPXTrack( val fname : String, val name : String, val segs : Array[GPXTrackSeg] )
 
 object ProcessGPXToBin extends App with Logging
 {
+    import com.esotericsoftware.kryo.{Kryo, Serializer}
+    import com.esotericsoftware.kryo.io.{ Input, Output }
+    import com.twitter.chill._
+    import org.objenesis.strategy.StdInstantiatorStrategy
+    
     override def main( args : Array[String] )
     {
         import java.util.zip.{GZIPInputStream}
@@ -682,6 +570,7 @@ object ProcessGPXToBin extends App with Logging
             new GZIPInputStream( new FileInputStream( args(0) ) ) ) )
             
         val kryo = new Kryo()
+        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy())
         val output = new Output( new GZIPOutputStream( new FileOutputStream( args(1) ) ) )
         
         //2011-07-15T10:52:03Z

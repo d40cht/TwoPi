@@ -3,11 +3,6 @@ package org.seacourt.osm
 import java.io._
 import java.util.zip._
 
-import com.esotericsoftware.kryo.Kryo
-import com.esotericsoftware.kryo.io.{ Input, Output }
-import com.twitter.chill._
-
-
 case class SRTMInMemoryTiles( files : Seq[File] )
 {
     private val tiles = files.map( f => SRTMInMemoryTile(f) ).toList
@@ -112,7 +107,7 @@ object SRTMInMemoryTile extends org.seacourt.osm.Logging
     def apply( f : java.io.File ) =
     {
         val cacheFile = new java.io.File( f + ".cache" )
-        if ( !cacheFile.exists )
+        Utility.kryoCache( cacheFile,
         { 
             log.info( "Loading from SRTM ascii files" )
             val lines = io.Source.fromFile( f ).getLines
@@ -129,22 +124,8 @@ object SRTMInMemoryTile extends org.seacourt.osm.Logging
             val allData = lines.flatMap( _.split(" ").map( _.trim.toShort ) )
             val tile = new SRTMInMemoryTile( lonMin, latMin, nrows, ncols, cellSize, allData.toArray )
             
-            log.info( "Caching tile to: " + cacheFile )
-            val kryo = new Kryo()
-            val output = new Output( new GZIPOutputStream( new FileOutputStream( cacheFile ) ) )
-            kryo.writeObject(output, tile)
-            output.close
-            
             tile
-        }
-        else
-        {
-            log.info( "Loading from cache: " + cacheFile )
-            val kryo = new Kryo()
-            val input = new Input( new GZIPInputStream( new java.io.FileInputStream( cacheFile ) ) )
-            
-            kryo.readObject( input, classOf[SRTMInMemoryTile] )
-        }
+        } )
     }
 }
   
