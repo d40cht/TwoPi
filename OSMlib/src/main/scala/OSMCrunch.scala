@@ -74,7 +74,6 @@ object Logging
 
 case class Tag( val key : String, val value : String )
 {
-    def this() = this("uninitialised", "uninitialised")
 }
 
 
@@ -85,10 +84,7 @@ object Coord
 }
 
 case class Coord( val lon : Double, val lat : Double )
-{
-    
-    def this() = this(0.0, 0.0)
-    
+{   
     def interpolate( other : Coord, frac : Double ) =
     {
         assert( frac >= 0.0 && frac <= 1.0, "Frac outside expected range: " + frac )
@@ -136,19 +132,15 @@ case class Coord( val lon : Double, val lat : Double )
 
 case class Node( val coord : Coord, val tags : Array[Tag] )
 {
-    def this() = this( null, Array() )
-    
     def tagMap = tags.map( t => (t.key, t.value) ).toMap
 }
 
 case class Way( val nodeIds : Array[Int], val tags : Array[Tag] )
 {
-    def this() = this( Array(), Array() )
 }
 
 case class OSMMap( val nodes : Array[Node], val ways : Array[Way], val poiNodes : Array[Node] )
 {
-    def this() = this( Array(), Array(), Array() )
 }
 
 object OSMMap extends Logging
@@ -198,7 +190,38 @@ abstract class SimpleSink extends Sink with Logging
     }
 }
 
-class HighwayNodes extends SimpleSink
+object NodePredicates
+{
+    // Note that some ways can have such settings - e.g. amenity cafe for a delineated building.
+    private val nodesOfInterest = Map[String, String => Boolean](
+        "amenity"   -> (v => Set("pub", "cafe", "drinking_water", "parking", "fuel"/*, "fast_food", "food_court", "ice_cream", "fuel", "atm", "telephone", "toilets"*/) contains v),
+        "historic"  -> (v => true),
+        "tourism"   -> (v => Set("attraction", "artwork", "viewpoint", "wilderness_hut") contains v),
+        "natural"   -> (v => Set("cave_entrance", "peak", "wetland", "bay", "beach", "spring", "scree", "volcano") contains v),
+        "place"     -> (v => Set("village", "town", "hamlet", "isolated_dwelling", "farm", "locality") contains v)
+    ) 
+    
+    
+    def isHighway( tags : Map[String, String] ) =  ((tags contains "highway") || (tags contains "junction"))
+
+    def isOfInterest( tags : Map[String, String] ) : Boolean = //n : v0_6.Node ) : Boolean =
+    {
+        val isNOI = tags
+            .exists
+            { case (k, v) =>
+                
+                nodesOfInterest.get( k ) match
+                {
+                    case Some(fn) if fn( v ) => true
+                    case _                              => false
+                }
+            }
+            
+        isNOI
+    }
+}
+
+class RelevantWayNodes extends SimpleSink
 {
     import scala.collection.JavaConversions._
     
@@ -214,8 +237,7 @@ class HighwayNodes extends SimpleSink
             {
                 val wayTags = w.getTags().map { t => ( t.getKey(), t.getValue() ) }.toMap
                 
-                // Tag: highway=* or junction=*
-                if ( ((wayTags contains "highway") || (wayTags contains "junction")) )
+                if ( NodePredicates.isHighway(wayTags) || NodePredicates.isOfInterest(wayTags) )
                 {
                     val nodeIds = w.getWayNodes().map( _.getNodeId() ).toArray
                     nodeIds.foreach( nid => wayNodeSet.add(nid) )
@@ -247,31 +269,6 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     val poiNodes = mutable.ArrayBuffer[Node]()
     
     
-    // Note that some ways can have such settings - e.g. amenity cafe for a delineated building.
-    val nodesOfInterest = Map[String, String => Boolean](
-        "amenity"   -> (v => Set("pub", "cafe", "drinking_water", "parking", "fuel"/*, "fast_food", "food_court", "ice_cream", "fuel", "atm", "telephone", "toilets"*/) contains v),
-        "historic"  -> (v => true),
-        "tourism"   -> (v => Set("attraction", "artwork", "viewpoint", "wilderness_hut") contains v),
-        "natural"   -> (v => Set("cave_entrance", "peak", "wetland", "bay", "beach", "spring", "scree", "volcano") contains v),
-        "place"     -> (v => Set("village", "town", "hamlet", "isolated_dwelling", "farm", "locality") contains v)
-    ) 
-
-    private def isNodeOfInterest( n : v0_6.Node ) : Boolean =
-    {
-        val isNOI = n.getTags()
-            .exists
-            { t =>
-                
-                nodesOfInterest.get( t.getKey() ) match
-                {
-                    case Some(fn) if fn( t.getValue() ) => true
-                    case _                              => false
-                }
-            }
-            
-        isNOI
-    }
-    
     def process(entityContainer : EntityContainer)
     {
         val entity = entityContainer.getEntity()
@@ -283,16 +280,15 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                 val c = new Coord( n.getLongitude(), n.getLatitude() )
                 val nId = n.getId()
                 
-                val isPOINode = isNodeOfInterest(n)
+                val nodeTags = n.getTags().map { t => (t.getKey(), t.getValue()) }.toMap
+                val isPOINode = NodePredicates.isOfInterest(nodeTags)
                 if ( (wayNodeSet contains nId) || isPOINode )
                 {
                     ukNodes += 1
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
-                    val nodeTags = n.getTags().map { t => Tag(t.getKey(), t.getValue()) }.toArray
-                    
                     nodesById.put( nId, nodes.size )
-                    val theNode = Node( c, nodeTags )
+                    val theNode = Node( c, nodeTags.map( v => Tag(v._1, v._2) ).toArray )
                     if ( isPOINode )
                     {
                         poiNodes.append( theNode )
@@ -309,16 +305,29 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                 val wayTags = w.getTags().map { t => ( t.getKey(), t.getValue() ) }.toMap
                 
                 // Tag: highway=* or junction=*
-                if ( haveAllNodes && ((wayTags contains "highway") || (wayTags contains "junction")) )
+                if ( haveAllNodes )
                 {
-                    val wayNodes = nodeIds.map( nid => nodesById(nid) )
-                    ukWays += 1
-                    ukWayNodes += nodeIds.length
-                    if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays.toDouble / 1000000.0 + "M" + ", " + ukWayNodes.toDouble / 1000000.0 + "M" )
-                    val way = Way( wayNodes, wayTags.toArray.map( t => Tag(t._1, t._2) ) )
-                    ways.append(way)
-                    
-                    wayNodes.foreach( wnid => wayNodeSet.add(wnid) )
+                    if ( NodePredicates.isHighway(wayTags) )
+                    {
+                        val wayNodes = nodeIds.map( nid => nodesById(nid) )
+                        ukWays += 1
+                        ukWayNodes += nodeIds.length
+                        if ( (ukWays % 10000) == 0 ) log.info( "Ways: " + ukWays.toDouble / 1000000.0 + "M" + ", " + ukWayNodes.toDouble / 1000000.0 + "M" )
+                        val way = Way( wayNodes, wayTags.toArray.map( t => Tag(t._1, t._2) ) )
+                        ways.append(way)
+                        
+                        wayNodes.foreach( wnid => wayNodeSet.add(wnid) )
+                    }
+                    else if ( NodePredicates.isOfInterest(wayTags) )
+                    {
+                        val wayNodes = nodeIds.map( nid => nodes(nodesById(nid)) )
+                        val sumCoord = wayNodes.map( _.coord )
+                            .foldLeft( Coord(0.0, 0.0) ) { case (acc, c) => Coord( acc.lon + c.lon, acc.lat + c.lat ) }
+                        val meanCoord = Coord( sumCoord.lon / wayNodes.size.toDouble, sumCoord.lat / wayNodes.size.toDouble )
+                        
+                        poiNodes.append( Node( meanCoord, wayTags.toArray.map( t => Tag(t._1, t._2) ) ) )
+
+                    }
                 }
             }
             
@@ -346,7 +355,7 @@ class OSMCrunch( val dataFileName : File ) extends Logging
             val wayNodeSet =
             {
                 val reader = new OsmosisReader( new BufferedInputStream( new FileInputStream( dataFileName ) ) )
-                val hn = new HighwayNodes()
+                val hn = new RelevantWayNodes()
                 reader.setSink( hn )   
                 reader.run()
                 

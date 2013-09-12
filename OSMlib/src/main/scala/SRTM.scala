@@ -31,8 +31,6 @@ case class SRTMInMemoryTiles( files : Seq[File] )
 // Mapping tested manually using: http://www.daftlogic.com/sandbox-google-maps-find-altitude.htm
 case class SRTMInMemoryTile( val lonMin : Double, val latMin : Double, val nRows : Int, val nCols : Int, val cellSize : Double, val allData : Array[Short] )
 {
-    def this() = this(0.0, 0.0, 0, 0, 0, Array() )
-    
     assert( allData.size == nRows * nCols )
     
     val lonMax = lonMin + ((nCols-1).toDouble * cellSize)

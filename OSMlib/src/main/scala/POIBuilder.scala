@@ -271,6 +271,7 @@ object POIBuilder extends Logging
             case Some("pub")                => return POITypes.Pub
             case Some("cafe")               => return POITypes.Cafe
             case Some("parking")            => return POITypes.Parking
+            case Some("fuel")               => return POITypes.Fuel
             case _                          =>
         }
         
