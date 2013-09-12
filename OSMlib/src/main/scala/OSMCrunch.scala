@@ -249,7 +249,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     
     // Note that some ways can have such settings - e.g. amenity cafe for a delineated building.
     val nodesOfInterest = Map[String, String => Boolean](
-        "amenity"   -> (v => Set("pub", "cafe", "drinking_water"/*, "fast_food", "food_court", "ice_cream", "fuel", "atm", "telephone", "toilets"*/) contains v),
+        "amenity"   -> (v => Set("pub", "cafe", "drinking_water", "parking", "fuel"/*, "fast_food", "food_court", "ice_cream", "fuel", "atm", "telephone", "toilets"*/) contains v),
         "historic"  -> (v => true),
         "tourism"   -> (v => Set("attraction", "artwork", "viewpoint", "wilderness_hut") contains v),
         "natural"   -> (v => Set("cave_entrance", "peak", "wetland", "bay", "beach", "spring", "scree", "volcano") contains v),

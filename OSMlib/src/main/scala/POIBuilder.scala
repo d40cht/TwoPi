@@ -11,7 +11,7 @@ import org.seacourt.osm.route.{WikiLocated, POIType, POI}
 
 object POITypes
 {
-    val unclassifiedIcon = new File( "img/poiIcons/power_station_coal.glow.20.png" )
+    val unclassifiedIcon = new File( "img/poiIcons/shopping_estateagent.glow.20.png" )
     object Unclassified extends POIType
     {
         def name = "Unclassified"
@@ -33,7 +33,7 @@ object POITypes
     object Cafe extends POIType
     {
         def name = "Cafe"
-        def icon = new File("img/poiIcons/food_cafe.glow.20.pn")
+        def icon = new File("img/poiIcons/food_cafe.glow.20.png")
     }
 
     object Pub extends POIType
