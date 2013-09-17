@@ -245,7 +245,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                           <div class="nav-collapse collapse">
                             <ul class="nav">
                               <li class="active"><a href="/"><strong>Home</strong></a></li>
-                              <li><a href="/displayroute">Plan Route</a></li>
+                              <li><a href="/">Plan Route</a></li>
                               <li><a href="/login">Login</a></li>
                             </ul>
                           </div><!--/.nav-collapse -->
@@ -330,26 +330,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         log.info( "Callback from google" )
     }
 
-    get("/")
-    {
-        template("TwoPI.co.uk")
-        {
-            <h3>Sidebar</h3>
-        }
-        {
-            <div>
-                <h1>Main page</h1>
-                
-                <a href="/displayroute">Navigate to navigate.</a>
-            </div>
-        }
-        {
-            <h3>Sidebar</h3>
-        }
-    }
-    
-  
-    
+     
     private def imgUrl( index : Long, hash : String ) : String =
     {
         val yz = index / 1000000
@@ -378,9 +359,11 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     
     post("/makeroute")
     {
-        val lon = params.getOrElse("lon","-1.361461").toDouble
-        val lat = params.getOrElse("lat", "51.709").toDouble
-        val distInKm = params.getOrElse("distance", "30.0").toDouble
+        val lon = params("lon").toDouble
+        val lat = params("lat").toDouble
+        val distInKm = params("distance").toDouble
+        
+        println( lon, lat, distInKm )
         
         getRouteXML( lon, lat, distInKm ) match
         {
@@ -401,13 +384,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                     pw.close
                 }
                 
-                redirect( "/displayroute?routeId=%s".format(hash) )
+                redirect( "/?routeId=%s".format(hash) )
             }
             case None =>
             {
                 flash("error") = "Could not find a route to your specification. Please try modifying length or start point."
                 
-                redirect( "/displayroute" )
+                redirect( "/" )
             }
         }
     }
@@ -422,25 +405,38 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         scala.xml.XML.loadFile( routeFilePath( routeId ) )
     }
     
-    get("/displayroute")
+    case class RouteData( routeId : String, lon : Double, lat : Double, requestDist : Double, distance : Double, ascent : Double, distHeightSeries : Seq[(Double, Double)], xmlData : scala.xml.Node )
+    
+    get("/")
     {
-        val routeId = params.getOrElse("routeId", "default")
-        val xmlData = scala.xml.XML.loadFile( routeFilePath( routeId ) )
+        val routeIdOption = params.get("routeId")
         
-        val routeMetadata = xmlData \ "metadata"
-        val routeRequest = routeMetadata \ "request"
+        val routeDataOption = routeIdOption.map
+        { case routeId =>
         
-        val lon = (routeRequest \ "lon").text.toDouble
-        val lat = (routeRequest \ "lat").text.toDouble
-        val requestDistInKm = (routeRequest \ "distance").text.toDouble
+            val xmlData = scala.xml.XML.loadFile( routeFilePath( routeId ) )
+            
+            val routeMetadata = xmlData \ "metadata"
+            val routeRequest = routeMetadata \ "request"
+            
+            val lon = (routeRequest \ "lon").text.toDouble
+            val lat = (routeRequest \ "lat").text.toDouble
+            val requestDistInKm = (routeRequest \ "distance").text.toDouble
+            
+            val routeSummary = routeMetadata \ "summary"
+            val distance = (routeSummary \ "distance").text.toDouble
+            val ascent = (routeSummary \ "ascent").text.toDouble
+            
+            val distHeightSeries : Seq[(Double, Double)] = (xmlData \\ "trkpt").map( el => ((el \ "@distance").text.toDouble / 1000.0, (el \ "@ele").text.toDouble) )
+            
+            RouteData( routeId, lon, lat, requestDistInKm, distance, ascent, distHeightSeries, xmlData )
+        }
         
-        val routeSummary = routeMetadata \ "summary"
-        val distance = (routeSummary \ "distance").text.toDouble
-        val ascent = (routeSummary \ "ascent").text.toDouble
-        
-        val onLoad = "init( %f, %f, 12, '/route/%s', '/routegpx/%s' );".format( lon, lat, routeId, routeId )
-        
-        val distHeightSeries : Seq[(Double, Double)] = (xmlData \\ "trkpt").map( el => ((el \ "@distance").text.toDouble / 1000.0, (el \ "@ele").text.toDouble) )
+        val onLoad = routeDataOption match
+        {
+            case Some(rd)   => "init( %f, %f, 12, '/route/%s', '/routegpx/%s' );".format( rd.lon, rd.lat, rd.routeId, rd.routeId )
+            case None       => "initDefault();"
+        }
         
         template( "Plan a trip", onBodyLoad=Some(onLoad) )
         {
@@ -448,14 +444,11 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                 <h3>Actions</h3>
                 <form action="/makeroute" method="post">
                     <fieldset>
-                        <label for="lon">Longitude</label>
-                        <input class="input-medium" name="lon" id="lon" type="text" value={lon.toString}></input>
-                        
-                        <label for="lat">Latitude</label>
-                        <input class="input-medium" name="lat" id="lat" type="text" value={lat.toString}></input>
+                        <input name="lon" id="lon" type="hidden" value={routeDataOption.map(_.lon.toString).getOrElse("")}></input>
+                        <input name="lat" id="lat" type="hidden" value={routeDataOption.map(_.lat.toString).getOrElse("")}></input>
                         
                         <label for="distance">Distance (km)</label>
-                        <input class="input-medium" name="distance" type="text" value={requestDistInKm.toString}></input>
+                        <input class="input-medium" name="distance" type="text" value={routeDataOption.map(_.requestDist.toString).getOrElse("")}></input>
                         
                         <label for="routeType">Route type</label>
                         <select id="routeType">
@@ -477,11 +470,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                 <!-- define a DIV into which the map will appear. Make it take up the whole window -->
                 <div style="height:80%" id="map"></div>
                 
-                <!-- Add elevation chart at bottom from highcharts, e.g. http://www.highcharts.com/demo/line-ajax -->
+                <!-- Add elevation chart at bottom from highcharts -->
                 <div style="height:20%" id="elevation">
                 </div>
                 <script>
                 {
+                    val distHeightSeries = routeDataOption.map( _.distHeightSeries ).getOrElse( Seq() )
+                    
                     val seriesString = "[" + distHeightSeries.map( x => "[%f, %f]".format( x._1, x._2 ) ).mkString( ", " ) + "]"
                     xml.Unparsed("""
                         $(function() {
@@ -501,43 +496,54 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             </div>
         }
         {
-            val gpxUrl = "/routegpx/%s".format( routeId )
-            val fullRouteUrl = "/route/%s".format( routeId )
+            
             
             <div>
                 <h3>Route</h3>
-                <div>
-                    
-                    <strong>Distance:</strong> { "%.2f km".format(distance) }
-                    <br/>
-                    <strong>Ascent:</strong> { "%d m".format(ascent.toInt) }
-                    
-                    <br/><br/>
-
-                    <div class="btn-group text-center">
-                        <a href={gpxUrl} class="btn">GPX</a>
-                        <a href={fullRouteUrl} class="btn">Full route</a>
-                    </div>
-                    
-                    <hr/>
-                    
+                {
+                    routeDataOption match
                     {
-                        val pics = xmlData \\ "pic"
-                        pics.zip(letters)map
-                        { case (p, l) =>
+                        case Some(rd) =>
+                        {
+                            val gpxUrl = "/routegpx/%s".format( rd.routeId )
+                            val fullRouteUrl = "/route/%s".format( rd.routeId )
+                        
+                            <div>
+                                
+                                <strong>Distance:</strong> { "%.2f km".format(rd.distance) }
+                                <br/>
+                                <strong>Ascent:</strong> { "%d m".format(rd.ascent.toInt) }
+                                
+                                <br/><br/>
 
-                            val fullLink = (p \ "@link").text
-                            val imageUrl = (p \ "@img").text
-                            val title = l + ": " + (p \ "@title").text
-                            val credits = "Copyright %s and licensed for reuse under the Creative Commons Licence.".format( (p \ "@author").text )
-                            
-                            <a href={fullLink}><img src={imageUrl} alt={credits} title={credits}/></a>
-                            <br/>
-                            <div>{title}</div>
-                            <br/>
+                                <div class="btn-group text-center">
+                                    <a href={gpxUrl} class="btn">GPX</a>
+                                    <a href={fullRouteUrl} class="btn">Full route</a>
+                                </div>
+                                
+                                <hr/>
+                                
+                                {
+                                    val pics = rd.xmlData \\ "pic"
+                                    pics.zip(letters)map
+                                    { case (p, l) =>
+
+                                        val fullLink = (p \ "@link").text
+                                        val imageUrl = (p \ "@img").text
+                                        val title = l + ": " + (p \ "@title").text
+                                        val credits = "Copyright %s and licensed for reuse under the Creative Commons Licence.".format( (p \ "@author").text )
+                                        
+                                        <a href={fullLink}><img src={imageUrl} alt={credits} title={credits}/></a>
+                                        <br/>
+                                        <div>{title}</div>
+                                        <br/>
+                                    }
+                                }
+                            </div>
                         }
+                        case None => <div/>
                     }
-                </div>
+                }
             </div>
         }
     }

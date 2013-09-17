@@ -2,6 +2,32 @@
 // but maybe you want to get this from the URL params)
 
 
+function rememberMapPosition( map ) {
+ 
+    var lonLat = map.getCenter().clone();
+    
+    lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
+    var lon = lonLat.lon;
+    var lat = lonLat.lat;
+    var zoom = map.getZoom();
+    
+    var location = { 'lon' : lon, 'lat' : lat, 'zoom' : zoom };
+    localStorage.setItem( 'mapPosition', JSON.stringify( location ) );
+}
+
+
+function initDefault() {
+    var location = localStorage.getItem( 'mapPosition' );
+    if ( location != null )
+    {
+        var res = JSON.parse( location );
+        init( res.lon, res.lat, res.zoom, null, null );
+    }
+    else
+    {
+        init( -5.208, 54.387, 5, null, null );
+    }
+}
 
 function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     map = new OpenLayers.Map ("map", {
@@ -47,16 +73,19 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     selectCtrl.activate();
 
     // Add the Layer with the GPX Track
-    var lgpx = new OpenLayers.Layer.PointTrack("Track", {
-        strategies: [new OpenLayers.Strategy.Fixed()],
-        protocol: new OpenLayers.Protocol.HTTP({
-            url: gpxUrl,
-            format: new OpenLayers.Format.GPX()
-        }),
-        style: {strokeColor: "blue", strokeWidth: 10, strokeOpacity: 0.5},
-        projection: new OpenLayers.Projection("EPSG:4326")
-    });
-    map.addLayer(lgpx);
+    if ( gpxUrl != null )
+    {
+        var lgpx = new OpenLayers.Layer.PointTrack("Track", {
+            strategies: [new OpenLayers.Strategy.Fixed()],
+            protocol: new OpenLayers.Protocol.HTTP({
+                url: gpxUrl,
+                format: new OpenLayers.Format.GPX()
+            }),
+            style: {strokeColor: "blue", strokeWidth: 10, strokeOpacity: 0.5},
+            projection: new OpenLayers.Projection("EPSG:4326")
+        });
+        map.addLayer(lgpx);
+    }
     
     var addPlaceMarker = function( lonLat, imgUrl, url, zindex, width, height )
     {
@@ -74,51 +103,59 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
         return feature;
     }
     
-    var request = OpenLayers.Request.GET({
-        url: routeUrl,
-        callback: function(request)
-        {
-            var asXML = request.responseXML;
-            var pics = asXML.getElementsByTagName("pic");
-            for ( var i = 0; i < pics.length; i++ )
+    if ( routeUrl !=  null )
+    {
+        var request = OpenLayers.Request.GET({
+            url: routeUrl,
+            callback: function(request)
             {
-                var lon = pics[i].getAttribute("lon");
-                var lat = pics[i].getAttribute("lat");
-                var link = pics[i].getAttribute("link");
-                var icon = pics[i].getAttribute("icon");
+                var asXML = request.responseXML;
+                var pics = asXML.getElementsByTagName("pic");
+                for ( var i = 0; i < pics.length; i++ )
+                {
+                    var lon = pics[i].getAttribute("lon");
+                    var lat = pics[i].getAttribute("lat");
+                    var link = pics[i].getAttribute("link");
+                    var icon = pics[i].getAttribute("icon");
+                    
+                    var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+                    
+                    addPlaceMarker( lonLat, icon, link, 0, 20, 34 ); 
+                }
                 
-                var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-                
-                addPlaceMarker( lonLat, icon, link, 0, 20, 34 ); 
+                var pois = asXML.getElementsByTagName("poi");
+                for ( var i = 0; i < pois.length; i++ )
+                {
+                    var lon = pois[i].getAttribute("lon");
+                    var lat = pois[i].getAttribute("lat");
+                    var link = pois[i].getAttribute("link");
+                    var icon = pois[i].getAttribute("icon");
+                    
+                    var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+                    
+                    var f = addPlaceMarker( lonLat, icon, link, 0, 28, 28 );
+                    f.style.title = pois[i].getAttribute("name");
+                }
             }
-            
-            var pois = asXML.getElementsByTagName("poi");
-            for ( var i = 0; i < pois.length; i++ )
-            {
-                var lon = pois[i].getAttribute("lon");
-                var lat = pois[i].getAttribute("lat");
-                var link = pois[i].getAttribute("link");
-                var icon = pois[i].getAttribute("icon");
-                
-                var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-                
-                var f = addPlaceMarker( lonLat, icon, link, 0, 28, 28 );
-                f.style.title = pois[i].getAttribute("name");
-            }
-        }
-    });
+        });
+    }
 
     var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
     map.setCenter(lonLat, zoom);
+    
+    map.events.register("moveend", map, function()
+    {
+        rememberMapPosition( map );
+    } );
 
     
     
-    var feature = addPlaceMarker( lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
+    var feature = null;
     
     var clickHandler = function(e)
     {
         var lonLat = map.getLonLatFromPixel(e.xy);
-        layerMarkers.removeFeatures([feature]);
+        if ( feature != null ) layerMarkers.removeFeatures([feature]);
         feature = addPlaceMarker( lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
         
         lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
