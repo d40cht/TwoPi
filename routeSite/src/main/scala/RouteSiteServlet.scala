@@ -35,11 +35,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
 
     private var rghOption : Option[RouteGraphHolder] = None
     
-    private def getRGH =
-    {
-        if ( rghOption.isEmpty ) rghOption = Some( new RouteGraphHolder() )
-        rghOption.get
-    }
+    private lazy val getRGH = new RouteGraphHolder()
     
     CacheManager.getInstance().addCache("memoized")
    
