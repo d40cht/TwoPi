@@ -3,11 +3,6 @@ package org.seacourt.osm
 import java.io._
 import java.util.zip._
 
-import com.esotericsoftware.kryo.Kryo
-import com.esotericsoftware.kryo.io.{ Input, Output }
-import com.twitter.chill._
-
-
 case class SRTMInMemoryTiles( files : Seq[File] )
 {
     private val tiles = files.map( f => SRTMInMemoryTile(f) ).toList
@@ -31,8 +26,6 @@ case class SRTMInMemoryTiles( files : Seq[File] )
 // Mapping tested manually using: http://www.daftlogic.com/sandbox-google-maps-find-altitude.htm
 case class SRTMInMemoryTile( val lonMin : Double, val latMin : Double, val nRows : Int, val nCols : Int, val cellSize : Double, val allData : Array[Short] )
 {
-    def this() = this(0.0, 0.0, 0, 0, 0, Array() )
-    
     assert( allData.size == nRows * nCols )
     
     val lonMax = lonMin + ((nCols-1).toDouble * cellSize)
@@ -114,7 +107,7 @@ object SRTMInMemoryTile extends org.seacourt.osm.Logging
     def apply( f : java.io.File ) =
     {
         val cacheFile = new java.io.File( f + ".cache" )
-        if ( !cacheFile.exists )
+        Utility.kryoCache( cacheFile,
         { 
             log.info( "Loading from SRTM ascii files" )
             val lines = io.Source.fromFile( f ).getLines
@@ -131,22 +124,8 @@ object SRTMInMemoryTile extends org.seacourt.osm.Logging
             val allData = lines.flatMap( _.split(" ").map( _.trim.toShort ) )
             val tile = new SRTMInMemoryTile( lonMin, latMin, nrows, ncols, cellSize, allData.toArray )
             
-            log.info( "Caching tile to: " + cacheFile )
-            val kryo = new Kryo()
-            val output = new Output( new GZIPOutputStream( new FileOutputStream( cacheFile ) ) )
-            kryo.writeObject(output, tile)
-            output.close
-            
             tile
-        }
-        else
-        {
-            log.info( "Loading from cache: " + cacheFile )
-            val kryo = new Kryo()
-            val input = new Input( new GZIPInputStream( new java.io.FileInputStream( cacheFile ) ) )
-            
-            kryo.readObject( input, classOf[SRTMInMemoryTile] )
-        }
+        } )
     }
 }
   

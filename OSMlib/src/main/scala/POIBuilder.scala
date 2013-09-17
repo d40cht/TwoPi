@@ -12,7 +12,7 @@ import org.seacourt.osm.Utility.{kryoCache}
 
 object POITypes
 {
-    val unclassifiedIcon = new File( "img/poiIcons/power_station_coal.glow.20.png" )
+    val unclassifiedIcon = new File( "img/poiIcons/shopping_estateagent.glow.20.png" )
     object Unclassified extends POIType
     {
         def name = "Unclassified"
@@ -34,7 +34,7 @@ object POITypes
     object Cafe extends POIType
     {
         def name = "Cafe"
-        def icon = new File("img/poiIcons/food_cafe.glow.20.pn")
+        def icon = new File("img/poiIcons/food_cafe.glow.20.png")
     }
 
     object Pub extends POIType
@@ -143,42 +143,47 @@ object POIBuilder extends Logging
 {
     
     
-    private def getWikiLocations( fileName : java.io.File ) : Seq[(String, Coord)] =
+    private def getWikiLocations( fileName : Seq[File] ) : Seq[(String, Coord)] =
     {
         import java.io._
         import org.apache.commons.compress.compressors.bzip2._
         
         val lats = mutable.HashMap[String, Double]()
         val lons = mutable.HashMap[String, Double]()
-        val ioSource = new BZip2CompressorInputStream( 
-            new BufferedInputStream(
-            new FileInputStream( fileName ) ),
-            true )
+
+        for ( inFile <- fileName )
+        {
+            val ioSource = new BZip2CompressorInputStream( 
+                new BufferedInputStream(
+                new FileInputStream( inFile ) ),
+                true )
+                
+            io.Source.fromInputStream( ioSource ).getLines.foreach
+            { l =>
             
-        io.Source.fromInputStream( ioSource ).getLines.foreach
-        { l =>
-        
-            //<http://dbpedia.org/resource/Tate_St_Ives> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "50.21472222222222"^^<http://www.w3.org/2001/XMLSchema#float> .
-            val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
-            if ( els.size == 3 )
-            {
-                val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
-                
-                val idName = els(1)
-                
-                idName match
+                //<http://dbpedia.org/resource/Tate_St_Ives> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "50.21472222222222"^^<http://www.w3.org/2001/XMLSchema#float> .
+                val els = l.split('^').head.split(" ").map( _.trim.drop(1).dropRight(1) )
+                if ( els.size >= 3 )
                 {
-                    case "http://www.w3.org/2003/01/geo/wgs84_pos#lat" => lats += (name -> els(2).toDouble)
-                    case "http://www.w3.org/2003/01/geo/wgs84_pos#long" => lons += (name -> els(2).toDouble)
-                    case _ =>
-                } 
+                    val name = (new java.net.URI( els(0) ) ).getPath.split("/").last
+                    
+                    val idName = els(1)
+                    
+                    idName match
+                    {
+                        case "http://www.w3.org/2003/01/geo/wgs84_pos#lat" => lats += (name -> els(2).toDouble)
+                        case "http://www.w3.org/2003/01/geo/wgs84_pos#long" => lons += (name -> els(2).toDouble)
+                        case _ =>
+                    } 
+                }
             }
+            
+            ioSource.close
         }
         
         lats.map
         { case (name, lat) =>
          
-            
             (name, Coord(lons(name), lat))
         }
         .toSeq
@@ -245,9 +250,9 @@ object POIBuilder extends Logging
     
     // TODO: Pull abstract data from dbpedia too, for short article summaries
     
-    private def extractLocatedWikiArticles( dbpediaCoordFile : File, dbpediaImageFile : File, dbpediaTypeFile : File ) : Array[WikiLocated] =
+    private def extractLocatedWikiArticles( dbpediaCoordFiles : Seq[File], dbpediaImageFile : File, dbpediaTypeFile : File ) : Array[WikiLocated] =
     {
-        val coords = getWikiLocations( dbpediaCoordFile )
+        val coords = getWikiLocations( dbpediaCoordFiles )
         val imageMap = getWikiImages( dbpediaImageFile )
         val typeMap = getWikiTypes( dbpediaTypeFile )
         
@@ -266,6 +271,7 @@ object POIBuilder extends Logging
             case Some("pub")                => return POITypes.Pub
             case Some("cafe")               => return POITypes.Cafe
             case Some("parking")            => return POITypes.Parking
+            case Some("fuel")               => return POITypes.Fuel
             case _                          =>
         }
         
@@ -305,9 +311,9 @@ object POIBuilder extends Logging
     
     def build( map : OSMMap ) : Seq[POI] =
     {
-        // For reasons unknown, mappingbased_properties contains geo-referenced articles not in geo_coordinates
-        val dbpediaCoordFile = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
-        //val dbpediaCoordFile = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
+        // For reasons unknown, mappingbased_properties is more complete than geo_coordinates for geo coordinates
+        val dbpediaCoordFile1 = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
+        val dbpediaCoordFile2 = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
         
         val dbpediaImageFile = new java.io.File( "data/images_en.nt.bz2" )
         val dbpediaTypeFile = new java.io.File( "data/instance_types_en.nt.bz2" )
@@ -315,7 +321,7 @@ object POIBuilder extends Logging
         val wikiLocatedCacheFile = new File("data/wikilocated.cache")
         
         log.info( "Ingesting dbpedia data" )
-        val wikiLocated = kryoCache( wikiLocatedCacheFile, extractLocatedWikiArticles( dbpediaCoordFile, dbpediaImageFile, dbpediaTypeFile ) )
+        val wikiLocated = kryoCache( wikiLocatedCacheFile, extractLocatedWikiArticles( Seq(dbpediaCoordFile1, dbpediaCoordFile2), dbpediaImageFile, dbpediaTypeFile ) )
         log.info( "Number of wikipedia articles with locations: " + wikiLocated.size )
         
         log.info( "Building r-tree index" )
