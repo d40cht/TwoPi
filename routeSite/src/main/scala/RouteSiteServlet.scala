@@ -448,7 +448,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                         <input name="lat" id="lat" type="hidden" value={routeDataOption.map(_.lat.toString).getOrElse("")}></input>
                         
                         <label for="distance">Distance (km)</label>
-                        <input class="input-medium" name="distance" type="text" value={routeDataOption.map(_.requestDist.toString).getOrElse("")}></input>
+                        <input class="input-medium" name="distance" type="text" value={routeDataOption.map(_.requestDist.toString).getOrElse("30.0")}></input>
                         
                         <label for="routeType">Route type</label>
                         <select id="routeType">
