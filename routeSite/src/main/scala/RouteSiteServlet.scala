@@ -405,7 +405,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         scala.xml.XML.loadFile( routeFilePath( routeId ) )
     }
     
-    case class RouteData( routeId : String, lon : Double, lat : Double, requestDist : Double, distance : Double, ascent : Double, distHeightSeries : Seq[(Double, Double)], xmlData : scala.xml.Node )
+    case class RouteData( routeId : String, lon : Double, lat : Double, requestDist : Double, distance : Double, ascent : Double, xmlData : scala.xml.Node )
     
     get("/")
     {
@@ -427,9 +427,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             val distance = (routeSummary \ "distance").text.toDouble
             val ascent = (routeSummary \ "ascent").text.toDouble
             
-            val distHeightSeries : Seq[(Double, Double)] = (xmlData \\ "trkpt").map( el => ((el \ "@distance").text.toDouble / 1000.0, (el \ "@ele").text.toDouble) )
             
-            RouteData( routeId, lon, lat, requestDistInKm, distance, ascent, distHeightSeries, xmlData )
+            
+            RouteData( routeId, lon, lat, requestDistInKm, distance, ascent, xmlData )
         }
         
         val onLoad = routeDataOption match
@@ -475,21 +475,24 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                 </div>
                 <script>
                 {
-                    val distHeightSeries = routeDataOption.map( _.distHeightSeries ).getOrElse( Seq() )
+                    val distHeightSeries = routeDataOption.map
+                    { rd =>
+                        (rd.xmlData \\ "trkpt").map
+                        { el =>
+                            val dist = (el \ "@distance").text.toDouble / 1000.0
+                            val ele = (el \ "@ele").text.toDouble
+                            val lon = (el \ "@lon").text.toDouble
+                            val lat = (el \ "@lat").text.toDouble
+                            
+                            (dist, ele, lon, lat)
+                        }
+                    }.getOrElse( Seq() )
                     
-                    val seriesString = "[" + distHeightSeries.map( x => "[%f, %f]".format( x._1, x._2 ) ).mkString( ", " ) + "]"
-                    xml.Unparsed("""
-                        $(function() {
-                            $('#elevation').highcharts({
-                                chart : { type : 'line' },
-                                title : { text : 'Elevation profile' },
-                                xAxis : { title : { text : 'Distance' } },
-                                yAxis : { title : { text : '(m)' } },
-                                series : [{ showInLegend: false, name : 'elevation', type : 'area', data : %s }],
-                                plotOptions : { series : { marker : { enabled : false } } }
-                            });
-                        });
-                    """.format(seriesString))
+                    
+                    val seriesString = "[" + distHeightSeries.map( x => "{ x : %f, y : %f, lon : %f, lat : %f }".format( x._1, x._2, x._3, x._4 ) ).mkString( ", " ) + "]"
+                    
+                    xml.Unparsed( "$(function() { elevationGraph( '#elevation', %s ); } );".format( seriesString ) )
+                    
                 }
                 </script>
                 

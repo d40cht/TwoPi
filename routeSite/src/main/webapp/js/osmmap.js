@@ -15,7 +15,6 @@ function rememberMapPosition( map ) {
     localStorage.setItem( 'mapPosition', JSON.stringify( location ) );
 }
 
-
 function initDefault() {
     var location = localStorage.getItem( 'mapPosition' );
     if ( location != null )
@@ -29,16 +28,47 @@ function initDefault() {
     }
 }
 
+var map = null;
+var layerMarkers = null;
+
+var mapCrossLinkMarker = null;
+var pointStyle = OpenLayers.Util.extend({}, OpenLayers.Feature.Vector.style['default']);
+pointStyle.fillOpacity = 0.9;
+pointStyle.fillColor = "#ffff00";
+pointStyle.strokeColor = "#000000";
+
+var externalSeriesData = null;
+
+
+function moveMapCrossLinkMarker( lonLat )
+{
+    // TODO: Cross-link to highcharts
+    if ( mapCrossLinkMarker != null )
+    {
+        layerMarkers.removeFeatures([mapCrossLinkMarker]);
+    }
+    
+    mapCrossLinkMarker = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ) );
+    mapCrossLinkMarker.style = pointStyle;
+    layerMarkers.addFeatures( [mapCrossLinkMarker] );
+}
+
 function init( lon, lat, zoom, routeUrl, gpxUrl ) {
+
+    var mousePosition = new OpenLayers.Control.MousePosition();
+    
     map = new OpenLayers.Map ("map", {
         controls:[
             new OpenLayers.Control.Navigation(),
             new OpenLayers.Control.PanZoomBar(),
             new OpenLayers.Control.LayerSwitcher(),
-            new OpenLayers.Control.Attribution()],
+            new OpenLayers.Control.Attribution(),
+            mousePosition],
         projection: new OpenLayers.Projection("EPSG:4326"),
         displayProjection: new OpenLayers.Projection("EPSG:4326")
     } );
+    
+    OpenLayers.Events.prototype.includeXY = true;
 
     // Define the map layer
     // Here we use a predefined layer that will be kept up to date with URL changes
@@ -49,6 +79,41 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     map.addLayer(layerCycleMap);
     //layerGoogle = new OpenLayers.Layer.Google("Google Streets");
     //map.addLayer(layerGoogle);
+    
+    
+    
+
+    // Add the Layer with the GPX Track
+    if ( gpxUrl != null )
+    {
+        var lgpx = new OpenLayers.Layer.PointTrack("Track", {
+            strategies: [new OpenLayers.Strategy.Fixed()],
+            protocol: new OpenLayers.Protocol.HTTP({
+                url: gpxUrl,
+                format: new OpenLayers.Format.GPX()
+            }),
+            style: {strokeColor: "blue", strokeWidth: 4, strokeOpacity: 0.5},
+            projection: new OpenLayers.Projection("EPSG:4326"),
+            hover : true
+        });
+        map.addLayer(lgpx);
+        
+        var highlightCtrl = new OpenLayers.Control.SelectFeature( lgpx, {
+            hover: true,
+            highlightOnly: true,               
+            eventListeners: {
+                featurehighlighted: function(e)
+                {
+                    var lonLat = map.getLonLatFromPixel( mousePosition.lastXy );
+                    moveMapCrossLinkMarker( lonLat );
+                }
+            }
+        });
+        
+        map.addControl( highlightCtrl );
+        highlightCtrl.activate();
+    }
+    
     layerMarkers = new OpenLayers.Layer.Vector("Markers", {
         eventListeners:
         {
@@ -63,7 +128,7 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
                 var feature = evt.feature;
             }
         }
-    });
+    } );
     map.addLayer(layerMarkers);
     
     var selectCtrl = new OpenLayers.Control.SelectFeature(layerMarkers,
@@ -71,21 +136,6 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     );
     map.addControl(selectCtrl);
     selectCtrl.activate();
-
-    // Add the Layer with the GPX Track
-    if ( gpxUrl != null )
-    {
-        var lgpx = new OpenLayers.Layer.PointTrack("Track", {
-            strategies: [new OpenLayers.Strategy.Fixed()],
-            protocol: new OpenLayers.Protocol.HTTP({
-                url: gpxUrl,
-                format: new OpenLayers.Format.GPX()
-            }),
-            style: {strokeColor: "blue", strokeWidth: 10, strokeOpacity: 0.5},
-            projection: new OpenLayers.Projection("EPSG:4326")
-        });
-        map.addLayer(lgpx);
-    }
     
     var addPlaceMarker = function( lonLat, imgUrl, url, zindex, width, height )
     {
@@ -93,12 +143,14 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
         var feature = new OpenLayers.Feature.Vector(
             new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ),
             {some:'data'},
-            {externalGraphic: imgUrl, graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h, graphicZIndex : zindex});
-            
+            {externalGraphic: imgUrl, graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h, graphicZIndex : zindex}
+        );
         
         feature.attributes = { url : url };
             
         layerMarkers.addFeatures([feature]);
+        
+        
         
         return feature;
     }
@@ -167,3 +219,36 @@ function init( lon, lat, zoom, routeUrl, gpxUrl ) {
     // Add a click handler
     map.events.register("click", map, clickHandler );
 }
+
+
+function elevationGraph( divId, seriesData )
+{
+    externalSeriesData = seriesData
+    $(divId).highcharts({
+        chart : { type : 'line' },
+        title : { text : 'Elevation profile' },
+        xAxis : { title : { text : 'Distance' } },
+        yAxis : { title : { text : '(m)' } },
+        series : [{ showInLegend: false, name : 'elevation', type : 'area', data : seriesData }],
+        plotOptions :
+        {
+            series :
+            {
+                marker : { enabled : false },
+                point :
+                {
+                    events :
+                    {
+                        mouseOver : function()
+                        {
+                            var lonLat = new OpenLayers.LonLat(this.lon, this.lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+                            moveMapCrossLinkMarker( lonLat );
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+
