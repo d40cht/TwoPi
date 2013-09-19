@@ -161,7 +161,7 @@ function buildElevationGraph( divId, seriesData )
 
 function RouteController($scope, $log, $http)
 {
-    $scope.routingPreferences = ["Walking", "Cycling"];
+    $scope.routingPreferences = ["Walking"];
     $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
     $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
     
