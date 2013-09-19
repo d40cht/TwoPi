@@ -68,15 +68,15 @@
                         </div>
                         
                         <ul class="nav nav-tabs" id="routeMethodsTab">
-                            <li class="active"><a data-target="#start" data-toggle="tab">A->?</a></li>
-                            <li><a data-target="#startEnd" data-toggle="tab">A->B</a></li>
-                            <li><a data-target="#feelLucky" data-toggle="tab">?->?</a></li>
+                            <li class="active"><a data-target="#start" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
+                            <li><a data-target="#startEnd" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
+                            <li><a data-target="#feelLucky" data-toggle="tab"  ng-click="feelLuckyMode()">? - ?</a></li>
                         </ul>
                         
                         <div class="tab-content">
                         
                             <div class="tab-pane active" id="start">    
-                                <form ng-submit="routeWithStart()">
+                                <form ng-submit="requestRoute()">
                                     <div class="form-group">
                                         <label>Start</label>
                                         <div class="input-group">
@@ -94,7 +94,7 @@
                             </div>
                             
                             <div class="tab-pane" id="startEnd">
-                                <form>
+                                <form ng-submit="requestRoute()">
                                     <div class="form-group">
                                         <label>Start</label>
                                         <div class="input-group">
@@ -113,7 +113,7 @@
                                         <label>Distance (km)</label>
                                         <input class="form-control" type="number" name="distance" ng-model="distance" required>
                                         <br>
-                                        <button type="button" class="btn btn-primary">Go!</button>
+                                        <button type="submit" class="btn btn-primary">Go!</button>
                                     </div>
                                 </form>
                             </div>
@@ -124,7 +124,7 @@
                                         <label>Distance (km)</label>
                                         <input class="form-control" type="number" name="distance" ng-model="distance" required>
                                         <br>
-                                        <button type="button" class="btn btn-primary">Go!</button>
+                                        <button type="submit" class="btn btn-primary">Go!</button>
                                     </div>
                                 </form>
                             </div>

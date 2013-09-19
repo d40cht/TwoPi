@@ -88,6 +88,8 @@ case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint],
 
 case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
 
+case class RouteSegment( val edgeName : String, val pathElements : Seq[PathElement], val bearing : Float )
+
 
 class RTreeIndex[T]
 {
@@ -251,7 +253,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val seg3 = traceBack( midPointAnnotationMap(id2), reverse=true )
         val seg4 = traceBack( startPointAnnotationMap(id2), reverse=false )
         
-        val distalOverlap = if ( pruneDistalOverlap )
+        val distalOverlap = if ( false )//pruneDistalOverlap )
         {
             seg3.zip(seg2.reverse)
                 .takeWhile { case ( pe1, pe2 ) => pe1.ra.node.nodeId == pe2.ra.node.nodeId }
@@ -269,7 +271,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     
     // *************** The main mechanics of route finding happens here ***************
     
-    private def findRoute( startNode : RouteNode, targetDist : Double) : Option[Seq[PathElement]] =
+    private def findRoute( startNode : RouteNode, midNodeOption : Option[RouteNode], targetDist : Double) : Option[Seq[PathElement]] =
     {
         val random = util.Random
         val startPointAnnotationMap = runDijkstra( startNode, targetDist, random )
@@ -292,136 +294,148 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 .toVector
             
         // Have several attempts at destinations before finally giving up
-        val possibleRoutes = (0 until 20).iterator.map
-        { _ =>
-            // Choose randomly from the top 25% by cost to get a mid-point
-            if ( !candidateDestinations.isEmpty )
+        val possibleMidPoints = midNodeOption match
+        {
+            case Some(mn) => Seq( startPointAnnotationMap(mn.nodeId) )
+            case None       =>
             {
-                val elementIndex = random.nextInt( candidateDestinations.size )
+                (0 until 20).iterator.map
+                { _ =>
                 
-                val midPoint = candidateDestinations(elementIndex)._2
-                
-                log.info( "Computing distances from second node" )
-                val midPointAnnotationMap = runDijkstra( midPoint.node, targetDist, random )
-                
-                log.info( "Computing possible quarterpoints" )
-                val possibleQuarterPoints = midPointAnnotationMap
-                    // Add distance annotation from the start node
-                    .filter { case (nid, annot) => startPointAnnotationMap contains nid }
-                    .map { case (nid, annot) => (nid, startPointAnnotationMap(nid), annot ) }
-                    .filter
-                    { case (nid, annot1, annot2) =>
+                    // Choose randomly from the top 25% by cost to get a mid-point
+                    if ( !candidateDestinations.isEmpty )
+                    {
+                        val elementIndex = random.nextInt( candidateDestinations.size )
                         
-                        // Must be within threshold distance as a feasible midpoint
-                        val withinDistance = (annot1.dist + annot2.dist) < 0.8 * targetDist
-                        
-                        // Must not share the same parent in both graphs, otherwise the path in
-                        // will be the same as the path out
-                        val retraceFootsteps =
+                        Some( candidateDestinations(elementIndex)._2 )
+                    }
+                    else None
+                }.flatten
+            }
+        }
+        
+        val possibleRoutes = possibleMidPoints.map
+        { midPoint =>
+        
+            log.info( "Computing distances from second node" )
+            val midPointAnnotationMap = runDijkstra( midPoint.node, targetDist, random )
+            
+            log.info( "Computing possible quarterpoints" )
+            val possibleQuarterPoints = midPointAnnotationMap
+                // Add distance annotation from the start node
+                .filter { case (nid, annot) => startPointAnnotationMap contains nid }
+                .map { case (nid, annot) => (nid, startPointAnnotationMap(nid), annot ) }
+                .filter
+                { case (nid, annot1, annot2) =>
+                    
+                    // Must be within threshold distance as a feasible midpoint
+                    val withinDistance = (annot1.dist + annot2.dist) < 0.8 * targetDist
+                    
+                    // Must not share the same parent in both graphs, otherwise the path in
+                    // will be the same as the path out
+                    val retraceFootsteps =
+                    {
+                        (annot1.parent, annot2.parent) match
                         {
-                            (annot1.parent, annot2.parent) match
-                            {
-                                case (Some(p1), Some(p2))   => p1.ra.node == p2.ra.node
-                                case _                      => false
-                            }
+                            case (Some(p1), Some(p2))   => p1.ra.node == p2.ra.node
+                            case _                      => false
                         }
-                        
-                        withinDistance && !retraceFootsteps
-                    }
-                    .toSeq
-                    .sortBy { case (nid, annot1, annot2) => (annot1.cost + annot2.cost)/(annot1.dist + annot2.dist) }
-                    .toSeq
-                        
-                val trimmedQuarterPoints = possibleQuarterPoints
-                    .take( possibleQuarterPoints.size /4 )
-                    .toIndexedSeq
-                    
-                
-           
-                log.info( "Number of quarter-points: " + trimmedQuarterPoints.size )
-                    
-                log.info( "Generating sample quarter-point pairs." )
-                val possibleQuarterPointPairs = (0 until 100).iterator.map
-                { i =>
-                
-                    val startPoint = trimmedQuarterPoints( random.nextInt( trimmedQuarterPoints.size ) )
-                    
-                    val combinations : Iterator[QuarterPointPair] = (0 until 200).iterator.map
-                    { j =>
-                        val endPoint = trimmedQuarterPoints( random.nextInt( trimmedQuarterPoints.size ) )
-                        
-                        (startPoint, endPoint)
                     }
                     
-                    
-                    combinations.filter
-                    { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
-                    
-                        val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
-                        
-                        ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
-                    }
-                    .take( 50 )
+                    withinDistance && !retraceFootsteps
                 }
-                .flatten
                 .toSeq
+                .sortBy { case (nid, annot1, annot2) => (annot1.cost + annot2.cost)/(annot1.dist + annot2.dist) }
+                .toSeq
+                    
+            val trimmedQuarterPoints = possibleQuarterPoints
+                .take( possibleQuarterPoints.size /4 )
+                .toIndexedSeq
                 
-                log.info( "Number of possible quarter-point pairs: " + possibleQuarterPointPairs.size )
+            
+       
+            log.info( "Number of quarter-points: " + trimmedQuarterPoints.size )
                 
-                (midPoint, midPointAnnotationMap, possibleQuarterPointPairs)
-          
+            log.info( "Generating sample quarter-point pairs." )
+            val possibleQuarterPointPairs = (0 until 100).iterator.map
+            { i =>
+            
+                val startPoint = trimmedQuarterPoints( random.nextInt( trimmedQuarterPoints.size ) )
                 
-                log.info( "Evaluating sample quarter-point pairs." )
-                var quarterPointPairCount = 0
-                val costedQuarterPointPairs = possibleQuarterPointPairs.map
+                val combinations : Iterator[QuarterPointPair] = (0 until 200).iterator.map
+                { j =>
+                    val endPoint = trimmedQuarterPoints( random.nextInt( trimmedQuarterPoints.size ) )
+                    
+                    (startPoint, endPoint)
+                }
+                
+                
+                combinations.filter
                 { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
                 
-                    val routeNodeIds = routePath( startPointAnnotationMap, midPointAnnotationMap, nid1, nid2, false ).map( _.ra.node.nodeId ).toSeq
-                         
-                    val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
-                    
-                    val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
                     val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
                     
-                    quarterPointPairCount += 1
-                    
-                    // Upweight routes where nid1 and nid2 are farther apart
-                    (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
+                    ( (nid1 != nid2) && (routeDist > (targetDist * 0.8)) && (routeDist < (targetDist * 1.2)) )
                 }
-                .filter { _._4 > 0.70 }
                 .take( 50 )
-                .toVector
-                .sortBy( x => (x._3/x._5) / x._4 )
-                .toVector
+            }
+            .flatten
+            .toSeq
+            
+            log.info( "Number of possible quarter-point pairs: " + possibleQuarterPointPairs.size )
+            
+            (midPoint, midPointAnnotationMap, possibleQuarterPointPairs)
+      
+            
+            log.info( "Evaluating sample quarter-point pairs." )
+            var quarterPointPairCount = 0
+            val costedQuarterPointPairs = possibleQuarterPointPairs.map
+            { case ((nid1, annot11, annot12), (nid2, annot21, annot22)) => 
+            
+                val routeNodeIds = routePath( startPointAnnotationMap, midPointAnnotationMap, nid1, nid2, false ).map( _.ra.node.nodeId ).toSeq
+                     
+                val circularityRatio = routeNodeIds.toSet.size.toDouble / routeNodeIds.size.toDouble
                 
-                log.info( "Possible quarter-point pairs: " + costedQuarterPointPairs.size )
-                val topHalf = costedQuarterPointPairs.take( costedQuarterPointPairs.size / 2 )
+                val cost = annot11.cost + annot12.cost + annot21.cost + annot22.cost
+                val routeDist = annot11.dist + annot12.dist + annot21.dist + annot22.dist
                 
-                if ( !topHalf.isEmpty )
-                {
-                    val chosenPairIndex = random.nextInt( costedQuarterPointPairs.size / 2 )
+                quarterPointPairCount += 1
+                
+                // Upweight routes where nid1 and nid2 are farther apart
+                (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
+            }
+            .filter { _._4 > 0.70 }
+            .take( 50 )
+            .toVector
+            .sortBy( x => (x._3/x._5) / x._4 )
+            .toVector
+            
+            log.info( "Possible quarter-point pairs: " + costedQuarterPointPairs.size )
+            val topHalf = costedQuarterPointPairs.take( costedQuarterPointPairs.size / 2 )
+            
+            if ( !topHalf.isEmpty )
+            {
+                val chosenPairIndex = random.nextInt( costedQuarterPointPairs.size / 2 )
 
-                    // Find the best pair by cumulative cost
-                    val (bestId1, bestId2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22) = costedQuarterPointPairs(chosenPairIndex)
-                    
-                    log.info( "Route distance: %.2f, route cost: %.2f".format( routeDist / 1000.0, cost / 1000.0 ) )
-                    
-                    // Now the route is:
-                    // * startNode -> quarterPoint -> annot1 -> threeQuarterPoint -> startNode. Enumerate
-                    // the coordinates on the way.
-                    
-                    val quarterPoint = startPointAnnotationMap(bestId1)
-                    val threeQuarterPoint = startPointAnnotationMap(bestId2)
-                    log.info( startNode.coord.lat + ", " + startNode.coord.lon )
-                    log.info( midPoint.node.coord.lat + ", " + midPoint.node.coord.lon )
-                    log.info( quarterPoint.node.coord.lat + ", " + quarterPoint.node.coord.lon )
-                    log.info( threeQuarterPoint.node.coord.lat + ", " + threeQuarterPoint.node.coord.lon )
-                    
-                    val fullRoute = routePath( startPointAnnotationMap, midPointAnnotationMap, bestId1, bestId2, true )
-                    
-                    Some(fullRoute)
-                }
-                else None
+                // Find the best pair by cumulative cost
+                val (bestId1, bestId2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22) = costedQuarterPointPairs(chosenPairIndex)
+                
+                log.info( "Route distance: %.2f, route cost: %.2f".format( routeDist / 1000.0, cost / 1000.0 ) )
+                
+                // Now the route is:
+                // * startNode -> quarterPoint -> annot1 -> threeQuarterPoint -> startNode. Enumerate
+                // the coordinates on the way.
+                
+                val quarterPoint = startPointAnnotationMap(bestId1)
+                val threeQuarterPoint = startPointAnnotationMap(bestId2)
+                log.info( startNode.coord.lat + ", " + startNode.coord.lon )
+                log.info( midPoint.node.coord.lat + ", " + midPoint.node.coord.lon )
+                log.info( quarterPoint.node.coord.lat + ", " + quarterPoint.node.coord.lon )
+                log.info( threeQuarterPoint.node.coord.lat + ", " + threeQuarterPoint.node.coord.lon )
+                
+                val fullRoute = routePath( startPointAnnotationMap, midPointAnnotationMap, bestId1, bestId2, true )
+                
+                Some(fullRoute)
             }
             else None
         }
@@ -435,9 +449,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         else None
     }
     
-    def buildRoute( startNode : RouteNode, targetDist : Double) : Option[RouteResult] =
+    def buildRoute( startNode : RouteNode, midNodeOption : Option[RouteNode], targetDist : Double ) : Option[RouteResult] =
     {
-        findRoute( startNode, targetDist ).map
+        findRoute( startNode, midNodeOption, targetDist ).map
         { fullRoute =>
         
             val nodeList = fullRoute.map( _.ra.node ).toList

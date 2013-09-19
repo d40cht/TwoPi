@@ -82,21 +82,23 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     
     val letters = List("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z")
     
-    private def getRouteXML( lon : Double, lat : Double, distInKm : Double ) = //cached[scala.xml.Node]("routeXML", lon, lat, distInKm )
+    
+    private def getRouteXML( startCoord : Coord, midCoordOption : Option[Coord], distInKm : Double ) =
     {
         import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
         import scalaj.http.{Http, HttpOptions}
         implicit val formats = DefaultFormats
         
         val rgh = getRGH
-        val startCoords = Coord(lon, lat)
         
         log.info( "Finding closest node..." )
-        val closestNode = rgh.rg.getClosest( startCoords )
+        val closestNode = rgh.rg.getClosest( startCoord )
+        
+        val midNodeOption = midCoordOption.map { mc => rgh.rg.getClosest( mc ) }
         
         log.info( "Closest: " + closestNode.coord )
         
-        rgh.rg.buildRoute( closestNode, distInKm * 1000.0 ).map
+        rgh.rg.buildRoute( closestNode, midNodeOption, distInKm * 1000.0 ).map
         { route =>
         
             val routeNodes = route.routeNodes
@@ -121,8 +123,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             <route>
                 <metadata>
                     <request>
-                        <lon>{lon}</lon>
-                        <lat>{lat}</lat>
+                        <lon>{startCoord.lon}</lon>
+                        <lat>{startCoord.lat}</lat>
                         <distance>{distInKm}</distance>
                     </request>
                     <summary>
@@ -365,7 +367,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         
         println( lon, lat, distInKm )
         
-        getRouteXML( lon, lat, distInKm ) match
+        getRouteXML( Coord( lon, lat ), None, distInKm ) match
         {
             case Some( routeXml ) =>
             {
@@ -395,15 +397,21 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         }
     }
     
+    private def parseCoordPair( s : String ) =
+    {
+        val els = s.split(",").map(_.trim.toDouble)
+        Coord( els(0), els(1) )
+    }
+    
     post("/requestroute")
     {
-        val lon = params("lon").toDouble
-        val lat = params("lat").toDouble
+        val startCoord = parseCoordPair( params("start") )
+        val endCoordOption = params.get("mid").map( parseCoordPair )
         val distInKm = params("distance").toDouble
         
-        println( lon, lat, distInKm )
+        println( startCoord, endCoordOption, distInKm )
         
-        getRouteXML( lon, lat, distInKm ) match
+        getRouteXML( startCoord, endCoordOption, distInKm ) match
         {
             case Some( routeXml ) =>
             {

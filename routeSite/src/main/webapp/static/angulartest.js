@@ -34,7 +34,7 @@ function createPlaceMarker( lonLat, imgUrl, url, zindex, width, height )
     return feature;
 }
 
-function ManagedMarker( layer, lonLat, imgUrl, url, zindex, width, height )
+function ManagedMarker( map, layer, imgUrl, url, zindex, width, height )
 {   
     this.marker = null;
     
@@ -49,13 +49,15 @@ function ManagedMarker( layer, lonLat, imgUrl, url, zindex, width, height )
     
     this.moveMarker = function( newLonLat )
     {
+        var ll = newLonLat.clone();
+        ll.transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
         this.removeMarker();
-        this.marker = createPlaceMarker( newLonLat, imgUrl, url, zindex, width, height );
+        this.marker = createPlaceMarker( ll, imgUrl, url, zindex, width, height );
         layer.addFeatures([this.marker]);
     };
 }
 
-function buildMap( scope, mapId, lon, lat, zoom )
+function RouteMap( mapId, lon, lat, zoom )
 {
     var mousePosition = new OpenLayers.Control.MousePosition();
     var map = new OpenLayers.Map( mapId, {
@@ -96,29 +98,34 @@ function buildMap( scope, mapId, lon, lat, zoom )
         localStorage.setItem( "mapZoom", zoom );
     } );
     
-    var layerMarkers = new OpenLayers.Layer.Vector("Markers");
-    map.addLayer(layerMarkers);
+    var markerLayer = new OpenLayers.Layer.Vector("Markers");
+    map.addLayer(markerLayer);
     
-    var feature = new ManagedMarker( layerMarkers, lonLat, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
-    var clickHandler = function(e)
+    var clickCallback = null;
+    
+    function setClickCallback(fn)
     {
-        if ( scope.currentField != null )
+        clickCallback = fn;
+    }
+    this.setClickCallback = setClickCallback;
+    
+
+    function clickHandler(e)
+    {
+        if ( clickCallback != null )
         {
             var lonLat = map.getLonLatFromPixel(e.xy);
-            feature.moveMarker( lonLat );
-            
             lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
             
-            scope[scope.currentField] = lonLat.lon.toFixed(6) + "," + lonLat.lat.toFixed(5);
-            scope.currentField = null
-            scope.$apply()
+            clickCallback( lonLat );
         }
     }
     
     // Add a click handler
-    map.events.register("click", map, clickHandler );
+    map.events.register("click", map, clickHandler);
     
-    return map;
+    this.map = map;
+    this.markerLayer = markerLayer;
 }
 
 function buildElevationGraph( divId, seriesData )
@@ -167,35 +174,76 @@ function RouteController($scope, $log, $http)
     
     
     var eg = buildElevationGraph("elevation", []);
-    var map = buildMap($scope, "map", mapLon, mapLat, mapZoom);
+    var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
+    
+    var startMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
+    var midMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
     
     
-    $scope.currentField = null;
+    $scope.startCoord = "";
+    $scope.midCoord = "";
+    $scope.startMode = function()
+    {
+        midMarker.removeMarker();
+        $scope.midCoord = "";
+    }
+    
+    $scope.startEndMode = function()
+    {
+    }
+    
+    $scope.feelLuckyMode = function()
+    {
+        startMarker.removeMarker();
+        midMarker.removeMarker();
+        $scope.startCoord = "";
+        $scope.midCoord = "";
+    }
+    
     $scope.setStart = function()
     {
         $scope.startCoord = "";
-        $scope.currentField = "startCoord";
+        mapHolder.setClickCallback( function(lonLat)
+        {
+            startMarker.moveMarker( lonLat );
+            $scope.startCoord = lonLat.lon.toFixed(6) + "," + lonLat.lat.toFixed(5);
+            $scope.$apply();
+        } );
     };
     
     $scope.setMid = function()
     {
         $scope.midCoord = "";
-        $scope.currentField = "midCoord";
+        mapHolder.setClickCallback( function(lonLat)
+        {
+            midMarker.moveMarker( lonLat );
+            $scope.midCoord = lonLat.lon.toFixed(6) + "," + lonLat.lat.toFixed(5);
+            $scope.$apply();
+        } );
     };
     
-    $scope.routeWithStart = function()
+    $scope.requestRoute = function()
     {
         var dist = Number($scope.distance);
-        var start = $scope.startCoord.split(",");
-        var lon = Number(start[0]);
-        var lat = Number(start[1]);
-        
-        var params = $.param(
+        var start = $scope.startCoord;
+       
+        if ( $scope.midCoord == "" )
         {
-            distance : dist,
-            lon: lon,
-            lat: lat
-        } );
+            params = $.param(
+            {
+                distance : dist,
+                start : start
+            } );
+        }
+        else
+        {
+            params = $.param(
+            {
+                distance : dist,
+                start : start,
+                mid : $scope.midCoord
+            } );
+        };
         
         $http( {
             method: "POST",
