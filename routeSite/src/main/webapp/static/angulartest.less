@@ -1,0 +1,50 @@
+/* Sticky footer styles
+-------------------------------------------------- */
+
+@headerHeight: 40px;
+@footerHeight: 60px;
+
+
+html, body
+{
+  height: 100%;
+}
+
+div.row
+{
+    margin-left: 0px;
+    margin-right: 0px;
+}
+
+div.headerAndBody
+{
+    min-height: 100%;
+    height: auto !important;
+    height: 100%;
+    
+    margin: 0 auto -@footerHeight;
+    padding: 0 0 @footerHeight;
+}
+
+div.header
+{
+    height: @headerHeight;
+}
+
+div.leftBar
+{
+}
+
+div.content
+{
+}
+
+div.rightBar
+{
+}
+
+div.footer
+{
+     height: @footerHeight;
+     background-color: #f0f0f0;
+}
