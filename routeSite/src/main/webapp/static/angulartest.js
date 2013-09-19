@@ -182,27 +182,10 @@ function RouteController($scope, $log, $http)
     
     $scope.startCoord = "";
     $scope.midCoord = "";
-    $scope.startMode = function()
-    {
-        midMarker.removeMarker();
-        $scope.midCoord = "";
-    }
-    
-    $scope.startEndMode = function()
-    {
-    }
-    
-    $scope.feelLuckyMode = function()
-    {
-        startMarker.removeMarker();
-        midMarker.removeMarker();
-        $scope.startCoord = "";
-        $scope.midCoord = "";
-    }
     
     $scope.setStart = function()
     {
-        $scope.startCoord = "";
+        //$scope.startCoord = "";
         mapHolder.setClickCallback( function(lonLat)
         {
             startMarker.moveMarker( lonLat );
@@ -213,7 +196,7 @@ function RouteController($scope, $log, $http)
     
     $scope.setMid = function()
     {
-        $scope.midCoord = "";
+        //$scope.midCoord = "";
         mapHolder.setClickCallback( function(lonLat)
         {
             midMarker.moveMarker( lonLat );
@@ -221,6 +204,35 @@ function RouteController($scope, $log, $http)
             $scope.$apply();
         } );
     };
+    
+    $scope.startMode = function()
+    {
+        midMarker.removeMarker();
+        $scope.midCoord = "";
+        $scope.setStart();
+    }
+    
+    $scope.startEndMode = function()
+    {
+        if ( $scope.startCoord == "" )
+        {
+            $scope.setStart();
+        }
+        else
+        {
+            $scope.setMid();
+        }
+    }
+    
+    $scope.feelLuckyMode = function()
+    {
+        startMarker.removeMarker();
+        midMarker.removeMarker();
+        $scope.startCoord = "";
+        $scope.midCoord = "";
+    }
+    
+    $scope.setStart();
     
     $scope.requestRoute = function()
     {
