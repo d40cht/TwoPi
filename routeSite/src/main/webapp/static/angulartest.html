@@ -15,28 +15,121 @@
         <script src="http://code.jquery.com/jquery.js"></script>
         <script src="http:///netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.0.8/angular.min.js"></script>
+        <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+        <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
+        <script src="http://code.highcharts.com/highcharts.js"></script>
+        
+        <script src="angulartest.js"></script>
         
         
     </head>
     
-    <body style="height:100%">   
+    <body style="height:100%" ng-controller="RouteController">   
     
         <div class="headerAndBody">
             <div class="row header">
                 <div class="col-md-12">
-                    <h3>Header</h3>
+                    <h3>TwoPi.co.uk</h3>
                 </div>
             </div>
             
             <div class="row">
                 <div class="col-md-2 leftBar">
-                    <h2>Left</h2>
+                    <h2>Route</h2>
+                    Requested distance: {{distance}}
+                    <br>
+                    Routing preference: {{routingPreference}}
                 </div>
+                
                 <div class="col-md-8 content">
-                    <h2>Body</h2>
+                    <div id="map">
+                        Map
+                    </div>
+                    <div id="elevation">
+                        Elevation
+                    </div>
                 </div>
                 <div class="col-md-2 rightBar">
-                    <h2>Right</h2>
+                    <h2>Actions</h2>
+                    
+                        <div class="form-group">
+                            <label>Routing preference</label>
+                            <select class="form-control" ng-model="routingPreference" ng-options="r for r in routingPreferences" required="required">
+                            </select>
+                        </div>
+                        
+                        <ul class="nav nav-tabs" id="routeMethodsTab">
+                            <li class="active"><a data-target="#start" data-toggle="tab">A->?</a></li>
+                            <li><a data-target="#startEnd" data-toggle="tab">A->B</a></li>
+                            <li><a data-target="#feelLucky" data-toggle="tab">?->?</a></li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <div class="tab-pane active" id="start">
+                            
+                                <form>
+                                    <div class="form-group">
+                                        <label>Start</label>
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button">Pick</button>
+                                            </span>
+                                            <input type="text" class="form-control" readonly>
+                                        </div>
+                                        <label>Distance (km)</label>
+                                        <input class="form-control" type="number" name="distance" ng-model="distance" required>
+                                        <br>
+                                        <button type="button" class="btn btn-primary">Go!</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <div class="tab-pane" id="startEnd">
+                                <form>
+                                    <div class="form-group">
+                                        <label>Start</label>
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button">Pick</button>
+                                            </span>
+                                            <input type="text" class="form-control" readonly>
+                                        </div>
+                                        <label>End</label>
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button">Pick</button>
+                                            </span>
+                                            <input type="text" class="form-control" readonly>
+                                        </div>
+                                        <label>Distance (km)</label>
+                                        <input class="form-control" type="number" name="distance" ng-model="distance" required>
+                                        <br>
+                                        <button type="button" class="btn btn-primary">Go!</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <div class="tab-pane" id="feelLucky">
+                                <form>
+                                    <div class="form-group">
+                                        <label>Distance (km)</label>
+                                        <input class="form-control" type="number" name="distance" ng-model="distance" required>
+                                        <br>
+                                        <button type="button" class="btn btn-primary">Go!</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                        </div>
+                    
+                        
+                    </form>
+                    
+                    <script>
+                      $(function () {
+                        $('#routeMethodsTab a:first').tab('show')
+                      })
+                    </script>
                 </div>
             </div>
         </div>

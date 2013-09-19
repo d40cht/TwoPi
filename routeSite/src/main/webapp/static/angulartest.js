@@ -22,11 +22,11 @@ function localStorageWatch( scope, name )
 
 function RouteController($scope, $log)
 {
-    $scope.routeTypes = ["Walking", "Cycling"];
+    $scope.routingPreferences = ["Walking", "Cycling"];
     
     $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
-    $scope.routeType = localStorageGetOrElse("routeType", $scope.routeTypes[0] );
+    $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
     
     localStorageWatch( $scope, 'distance' );
-    localStorageWatch( $scope, 'routeType' );
+    localStorageWatch( $scope, 'routingPreference' );
 }
