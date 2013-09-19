@@ -395,6 +395,42 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         }
     }
     
+    post("/requestroute")
+    {
+        val lon = params("lon").toDouble
+        val lat = params("lat").toDouble
+        val distInKm = params("distance").toDouble
+        
+        println( lon, lat, distInKm )
+        
+        getRouteXML( lon, lat, distInKm ) match
+        {
+            case Some( routeXml ) =>
+            {
+                val hash = messageDigest( routeXml.toString )
+                if (false)
+                {
+                    // Currently this appears to crash saving XML in ways I do not understand
+                    scala.xml.XML.save( routeFilePath( hash ).toString, routeXml )
+                }
+                else
+                {
+                    val res = routeXml.toString
+                    
+                    val pw = new java.io.PrintWriter( routeFilePath( hash ) )
+                    pw.print( res )
+                    pw.close
+                }
+                
+                hash
+            }
+            case None =>
+            {
+                ""
+            }
+        }
+    }
+    
     
     // Embed route data in page in <script id="foo" type="text/xmldata"> tag?
     get("/route/:routeId")

@@ -18,6 +18,7 @@
         <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
         <script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
         <script src="http://code.highcharts.com/highcharts.js"></script>
+        <script src="https://raw.github.com/angular-ui/bootstrap/gh-pages/ui-bootstrap-tpls-0.6.0.min.js"></script>
         
         <script src="angulartest.js"></script>
         
@@ -73,21 +74,21 @@
                         </ul>
                         
                         <div class="tab-content">
-                            <div class="tab-pane active" id="start">
-                            
-                                <form>
+                        
+                            <div class="tab-pane active" id="start">    
+                                <form ng-submit="routeWithStart()">
                                     <div class="form-group">
                                         <label>Start</label>
                                         <div class="input-group">
                                             <span class="input-group-btn">
-                                                <button class="btn btn-default" type="button">Pick</button>
+                                                <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                             </span>
-                                            <input type="text" class="form-control" readonly>
+                                            <input type="text" class="form-control" placeholder="Start position" value="{{startCoord}}" readonly>
                                         </div>
                                         <label>Distance (km)</label>
                                         <input class="form-control" type="number" name="distance" ng-model="distance" required>
                                         <br>
-                                        <button type="button" class="btn btn-primary">Go!</button>
+                                        <button type="submit" class="btn btn-primary">Go!</button>
                                     </div>
                                 </form>
                             </div>
@@ -98,16 +99,16 @@
                                         <label>Start</label>
                                         <div class="input-group">
                                             <span class="input-group-btn">
-                                                <button class="btn btn-default" type="button">Pick</button>
+                                                <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                             </span>
-                                            <input type="text" class="form-control" readonly>
+                                            <input type="text" class="form-control" placeholder="Start position" value="{{startCoord}}" readonly>
                                         </div>
                                         <label>End</label>
                                         <div class="input-group">
                                             <span class="input-group-btn">
-                                                <button class="btn btn-default" type="button">Pick</button>
+                                                <button class="btn btn-default" type="button" ng-click="setMid()">Pick</button>
                                             </span>
-                                            <input type="text" class="form-control" readonly>
+                                            <input type="text" class="form-control" placeholder="Mid position" value="{{midCoord}}" readonly>
                                         </div>
                                         <label>Distance (km)</label>
                                         <input class="form-control" type="number" name="distance" ng-model="distance" required>
@@ -145,8 +146,5 @@
             </div>
         </div>
         
-        <script>
-            $(document).ready(function() { buildMap("map"); buildElevationGraph("elevation", []); } );
-        </script>
     </body>
 </html>
