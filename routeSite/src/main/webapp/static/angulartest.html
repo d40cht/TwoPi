@@ -24,16 +24,20 @@
         
     </head>
     
-    <body style="height:100%" ng-controller="RouteController">   
+    <body ng-controller="RouteController">   
     
         <div class="headerAndBody">
+        
+            <!-- Header -->
             <div class="row header">
                 <div class="col-md-12">
-                    <h3>TwoPi.co.uk</h3>
+                    <h2>TwoPi.co.uk</h2>
                 </div>
             </div>
             
-            <div class="row">
+            <div class="row" id="wrap">
+            
+                <!-- Left bar -->
                 <div class="col-md-2 leftBar">
                     <h2>Route</h2>
                     Requested distance: {{distance}}
@@ -41,14 +45,18 @@
                     Routing preference: {{routingPreference}}
                 </div>
                 
+                <!-- Main content -->
                 <div class="col-md-8 content">
+                    <!-- define a DIV into which the map will appear. Make it take up the whole window -->
                     <div id="map">
-                        Map
                     </div>
+                    
+                    <!-- Add elevation chart at bottom from highcharts -->
                     <div id="elevation">
-                        Elevation
                     </div>
                 </div>
+                
+                <!-- Right bar -->
                 <div class="col-md-2 rightBar">
                     <h2>Actions</h2>
                     
@@ -124,19 +132,21 @@
                     
                         
                     </form>
-                    
-                    <script>
-                      $(function () {
-                        $('#routeMethodsTab a:first').tab('show')
-                      })
-                    </script>
                 </div>
             </div>
         </div>
         <div class="row">
+        
+            <!-- Footer -->
             <div class="col-md-12 footer">
-                Footer
+                <div class="text-center" style="padding:8px">
+                    Footer
+                </div>
             </div>
         </div>
+        
+        <script>
+            $(document).ready(function() { buildMap("map"); buildElevationGraph("elevation", []); } );
+        </script>
     </body>
 </html>
