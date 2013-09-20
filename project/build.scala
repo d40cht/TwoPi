@@ -71,12 +71,18 @@ object Toplevel extends Build
                 )
             },
             mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
-            {
-                case "com/esotericsoftware/minlog/Log$Logger.class" => MergeStrategy.first
-                case "com/esotericsoftware/minlog/Log.class" => MergeStrategy.first
-                case "osmosis-plugins.conf" => MergeStrategy.first
-                case "about.html" => MergeStrategy.first
-                case x  => old(x)
+            { v =>
+                if ( v.startsWith( "org/objenesis" ) ) MergeStrategy.first
+                else if ( v.startsWith( "com/esotericsoftware/minlog" ) ) MergeStrategy.first
+                else
+                {
+                    v match
+                    {
+                        case "osmosis-plugins.conf" => MergeStrategy.first
+                        case "about.html" => MergeStrategy.first
+                        case x  => old(x)
+                    }
+                }
             } },
             resourceGenerators in Compile <+= (resourceManaged, baseDirectory) map
             { (managedBase, base) =>

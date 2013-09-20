@@ -1,4 +1,7 @@
 
+var TRACK_LAYER_INDEX = 0;
+var MARKER_LAYER_INDEX = 1;
+
 function localStorageGetOrElse( name, value )
 {
     var existing = localStorage.getItem(name);
@@ -102,6 +105,7 @@ function RouteMap( mapId, lon, lat, zoom )
     
     var markerLayer = new OpenLayers.Layer.Vector("Markers");
     map.addLayer(markerLayer);
+    map.setLayerIndex(markerLayer, MARKER_LAYER_INDEX);
     
     var clickCallback = null;
     
@@ -147,17 +151,20 @@ function RouteMap( mapId, lon, lat, zoom )
         }
         trackLayer = newTrackLayer;
         map.addLayer(trackLayer);
+        map.setLayerIndex(trackLayer, TRACK_LAYER_INDEX);
     }
     this.setTrackLayer = setTrackLayer;
 }
 
 function ElevationGraph( divId )
 {
+    var crossLinkFn = null;
+    
     var chartElement = $("#"+divId);
     var chart = chartElement.highcharts({
         chart : { type : 'line' },
         title : { text : 'Elevation profile' },
-        xAxis : { title : { text : 'Distance' } },
+        xAxis : { title : { text : 'Distance (km)' } },
         yAxis : { title : { text : '(m)' } },
         series : [{ showInLegend: false, name : 'elevation', type : 'area', data : [] }],
         plotOptions :
@@ -171,8 +178,11 @@ function ElevationGraph( divId )
                     {
                         mouseOver : function()
                         {
-                            /*var lonLat = new OpenLayers.LonLat(this.lon, this.lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-                            moveMapCrossLinkMarker( lonLat );*/
+                            if ( crossLinkFn != null )
+                            {
+                                var lonLat = new OpenLayers.LonLat(this.lon, this.lat);
+                                crossLinkFn( lonLat );
+                            }
                         }
                     }
                 }
@@ -180,9 +190,10 @@ function ElevationGraph( divId )
         }
     });
     
-    this.setData = function( data )
+    this.setData = function( data, newCrossLinkFn )
     {
         chartElement.highcharts().series[0].setData( data, true );
+        crossLinkFn = newCrossLinkFn;
     }
 }
 
@@ -206,6 +217,7 @@ function RouteController($scope, $log, $http)
     
     var startMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
     var midMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
+    var elevationCrossLinkMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/red_MarkerE.png", "End", 1, 20, 34 );
     
     
     $scope.startCoord = "";
@@ -301,7 +313,6 @@ function RouteController($scope, $log, $http)
             
             
             // Update the elevation graph
-            var distance = 0.0;
             var seriesData = [];
             var lastNode = null;
             for ( rd in data )
@@ -309,9 +320,11 @@ function RouteController($scope, $log, $http)
                 var dataEl = data[rd];
                 for ( n in dataEl.inboundNodes )
                 {
-                    var node = dataEl.inboundNodes[n];
-                    seriesData.push( [distance, node.height] );
-                    distance += 1.0;
+                    var nodeAndDist = dataEl.inboundNodes[n];
+                    var distance = nodeAndDist.distance / 1000.0;
+                    var node = nodeAndDist.node;
+                    
+                    seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
                     
                     var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
                     var tn = mapHolder.toMapProjection( rawPos );
@@ -321,10 +334,17 @@ function RouteController($scope, $log, $http)
                         trackLayer.addNodes( [lastNode, pf] );
                     }
                     lastNode = pf;
+                    
+                    
                 }
             }
-            eg.setData( seriesData );
-            mapHolder.setTrackLayer( trackLayer );
+            
+            eg.setData( seriesData, function( lonLat )
+            {
+                elevationCrossLinkMarker.moveMarker( lonLat );
+            } );
+            
+            mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
 
             //updateHeight( data );
         } )
