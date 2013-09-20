@@ -81,13 +81,28 @@ case class RouteEdge(
 case class EdgeAndBearing( val edge : RouteEdge, val bearing : Float )
 
 case class PathElement( ra : RouteAnnotation, re : Option[EdgeAndBearing] )
+{
+    def edgeNodes : Seq[Node] =
+    {
+        re match
+        {
+            case None => Seq()
+            case Some( eab ) =>
+            {
+                val rawNodes = eab.edge.nodes
+                if ( rawNodes.last == ra.node.node ) rawNodes
+                else rawNodes.reverse
+            }
+        }
+    }
+}
 
 case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : Double )
 {
     var parent : Option[PathElement]    = None
 }
 
-case class RouteResult( routeNodes : Seq[RouteNode], picList : Seq[ScenicPoint], pois : Seq[POI] )
+case class RouteResult( routeNodes : Seq[Node], picList : Seq[ScenicPoint], pois : Seq[POI] )
 
 case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
 
@@ -457,8 +472,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         findRoute( startNode, midNodeOption, targetDist ).map
         { fullRoute =>
         
-            val nodeList = fullRoute.map( _.ra.node ).toList
+            //val nodeList = fullRoute.map( _.ra.node.node ).toList
             val edgeList = fullRoute.flatMap( _.re ).toList
+            
+            val nodeList = fullRoute.flatMap( _.edgeNodes ).distinct.toList
             
             val topPics = edgeList
                 .flatMap( _.edge.scenicPoints )

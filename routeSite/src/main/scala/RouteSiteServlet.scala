@@ -5,7 +5,7 @@ import scala.collection.{mutable, immutable}
 import org.scalatra._
 import scalate.ScalateSupport
 
-import org.seacourt.osm.{OSMMap, Coord, Logging}
+import org.seacourt.osm.{OSMMap, Node, Coord, Logging}
 import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RTreeIndex, ScenicPoint}
 
 import org.eclipse.jetty.server.Server
@@ -104,7 +104,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             val routeNodes = route.routeNodes
             val pics = route.picList
             
-            var lastRN : Option[RouteNode] = None
+            var lastRN : Option[Node] = None
             
             // TODO: Distance calculations here are inaccurate - need to use the edge distance,
             // not the node-to-node distance. Return the correct data from buildRoute!
@@ -365,7 +365,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         val lat = params("lat").toDouble
         val distInKm = params("distance").toDouble
         
-        println( lon, lat, distInKm )
+        println( "Request makeroute: %.4f, %.4f, %.2fkm".format( lon, lat, distInKm ) )
         
         getRouteXML( Coord( lon, lat ), None, distInKm ) match
         {
@@ -409,7 +409,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         val endCoordOption = params.get("mid").map( parseCoordPair )
         val distInKm = params("distance").toDouble
         
-        println( startCoord, endCoordOption, distInKm )
+        println( "Request requestroute: %s, %s, %.2f".format( startCoord, endCoordOption, distInKm ) )
         
         getRouteXML( startCoord, endCoordOption, distInKm ) match
         {
