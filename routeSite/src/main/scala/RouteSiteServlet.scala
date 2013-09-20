@@ -455,7 +455,7 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     
     case class RouteData( routeId : String, lon : Double, lat : Double, requestDist : Double, distance : Double, ascent : Double, xmlData : scala.xml.Node )
     
-    get("/")
+    /*get("/")
     {
         val routeIdOption = params.get("routeId")
         
@@ -597,6 +597,11 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                 }
             </div>
         }
+    }*/
+    
+    get("/")
+    {
+        redirect("/static/webapp.html")
     }
     
     
