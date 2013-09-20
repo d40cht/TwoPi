@@ -151,9 +151,12 @@ object RoutableGraphBuilder extends Logging
         {
             val routeNodeMap = mutable.Map[Int, RouteNode]()
             
+            val numWays = osmMap.ways.size
             var nextEdgeId = 0
-            for ( w <- osmMap.ways )
+            for ( (w, i) <- osmMap.ways.zipWithIndex )
             {
+                if ( (i % 10000) == 0 ) log.info( "Processing way %d of %d".format( i, numWays ) )
+                
                 val tagMap = w.tags.map( t => (t.key, t.value) ).toMap
                 
                 val highwayAnnotation = tagMap.get("highway")

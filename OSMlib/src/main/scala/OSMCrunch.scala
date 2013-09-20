@@ -260,7 +260,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long], val heightMap : SRTMInMemo
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
                     nodesById.put( nId, nodes.size )
-                    val theNode = Node( c, heightMap.elevation( c.lon, c.lat ).get.toFloat, nodeTags.map( v => Tag(v._1, v._2) ).toArray )
+                    val theNode = Node( c, heightMap.elevation( c.lon, c.lat ).getOrElse(-9999.0).toFloat, nodeTags.map( v => Tag(v._1, v._2) ).toArray )
                     if ( isPOINode )
                     {
                         poiNodes.append( theNode )
@@ -297,7 +297,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long], val heightMap : SRTMInMemo
                             .foldLeft( Coord(0.0, 0.0) ) { case (acc, c) => Coord( acc.lon + c.lon, acc.lat + c.lat ) }
                         val meanCoord = Coord( sumCoord.lon / wayNodes.size.toDouble, sumCoord.lat / wayNodes.size.toDouble )
                         
-                        poiNodes.append( Node( meanCoord, heightMap.elevation( meanCoord.lon, meanCoord.lat ).get.toFloat, wayTags.toArray.map( t => Tag(t._1, t._2) ) ) )
+                        poiNodes.append( Node( meanCoord, heightMap.elevation( meanCoord.lon, meanCoord.lat ).getOrElse(-9999.0).toFloat, wayTags.toArray.map( t => Tag(t._1, t._2) ) ) )
 
                     }
                 }
