@@ -45,8 +45,11 @@ case class EdgeDest( val node : RouteNode, val edge : RouteEdge )
 {
 }
 
-case class RouteNode( val nodeId : Int, val coord : Coord, val height : Float )
+case class RouteNode( val nodeId : Int, val node : Node )
 {
+    def coord = node.coord
+    def height = node.height
+    
     val destinations = mutable.ArrayBuffer[EdgeDest]()
     
     def addEdge( dest : RouteNode, edge : RouteEdge ) =

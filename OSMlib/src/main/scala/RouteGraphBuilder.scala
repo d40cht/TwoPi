@@ -26,16 +26,14 @@ object RoutableGraphBuilder extends Logging
         def write( kryo : Kryo, output : Output, rg : RouteNode ) =
         {
             kryo.writeObject( output, rg.nodeId )
-            kryo.writeObject( output, rg.coord )
-            kryo.writeObject( output, rg.height )
+            kryo.writeObject( output, rg.node )
         }
         
         def read( kryo : Kryo, input : Input, ct : java.lang.Class[RouteNode] ) : RouteNode =
         {
             new RouteNode(
                 kryo.readObject( input, classOf[Int] ),
-                kryo.readObject( input, classOf[Coord] ),
-                kryo.readObject( input, classOf[Float] ) )
+                kryo.readObject( input, classOf[Node] ) )
         }
     }
 
@@ -114,7 +112,7 @@ object RoutableGraphBuilder extends Logging
     }
     
     
-    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], heightMap : SRTMInMemoryTiles, poiMap : RTreeIndex[POI] ) =
+    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], poiMap : RTreeIndex[POI] ) =
     {
         // Find all nodes which belong to more than one way
         val routeNodeIds =
@@ -249,14 +247,10 @@ object RoutableGraphBuilder extends Logging
                         
                             dist += ln.coord.distFrom( node.coord )
                             
-                            val prevHeightO = heightMap.elevation( node.coord.lon, node.coord.lat )
-                            val thisHeightO = heightMap.elevation( ln.coord.lon, ln.coord.lat )
+                            val prevHeight = node.height;//heightMap.elevation( node.coord.lon, node.coord.lat )
+                            val thisHeight = ln.height;//heightMap.elevation( ln.coord.lon, ln.coord.lat )
                             
-                            (prevHeightO, thisHeightO) match
-                            {
-                                case (Some(prevHeight), Some(thisHeight)) => absHeightDelta += prevHeight - thisHeight
-                                case _ =>
-                            }
+                            absHeightDelta += prevHeight - thisHeight
                         }
                         
                         if ( isRouteNode )
@@ -273,16 +267,7 @@ object RoutableGraphBuilder extends Logging
                             
                             val inclineScore = 1.0 - ((absHeightDelta / dist)*5.0)
                             
-                            val height = heightMap.elevation( node.coord.lon, node.coord.lat ) match
-                            {
-                                case Some(h) => h
-                                case None =>
-                                {
-                                    //println( "No height for coords: " + node.coord.toString )
-                                    -9999.0
-                                }
-                            }
-                            val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node.coord, height.toFloat) )
+                            val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node) )
                             
                             
                             
@@ -349,9 +334,6 @@ object GenerateRouteGraph extends App with Logging
             scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
         }
         
-        val srtmFiles = new java.io.File( "./data" ).listFiles.filter( _.toString.endsWith(".asc") )
-        log.info( "Found SRTM files: " + srtmFiles.toList )
-        val heightMap = new SRTMInMemoryTiles( srtmFiles )
         
         log.info( "Building wikipedia cross-linked POIs" )
         val poiMap = new RTreeIndex[POI]()
@@ -359,7 +341,7 @@ object GenerateRouteGraph extends App with Logging
         
         val rgFile = new java.io.File(mapFile + ".rg")
         log.info( "Building RoutableGraph" )
-        val rgi = RoutableGraphBuilder( map, scenicMap, heightMap, poiMap )
+        val rgi = RoutableGraphBuilder( map, scenicMap, poiMap )
         
         log.info( "Saving graph to: " + rgFile.toString )
         RoutableGraphBuilder.save( rgi, rgFile )

@@ -125,7 +125,7 @@ case class Coord( val lon : Double, val lat : Double )
     }
 }
 
-case class Node( val coord : Coord, val tags : Array[Tag] )
+case class Node( val coord : Coord, val height : Float, val tags : Array[Tag] )
 {
     def tagMap = tags.map( t => (t.key, t.value) ).toMap
 }
@@ -224,7 +224,7 @@ class RelevantWayNodes extends SimpleSink
 
 
 
-class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
+class CrunchSink( val wayNodeSet : mutable.Set[Long], val heightMap : SRTMInMemoryTiles ) extends SimpleSink
 {
     import scala.collection.JavaConversions._
     
@@ -260,7 +260,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                     if ( (ukNodes % 100000) == 0 ) log.info( "Nodes: " + ukNodes.toDouble / 1000000.0 + "M" )
                     
                     nodesById.put( nId, nodes.size )
-                    val theNode = Node( c, nodeTags.map( v => Tag(v._1, v._2) ).toArray )
+                    val theNode = Node( c, heightMap.elevation( c.lon, c.lat ).get.toFloat, nodeTags.map( v => Tag(v._1, v._2) ).toArray )
                     if ( isPOINode )
                     {
                         poiNodes.append( theNode )
@@ -297,7 +297,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
                             .foldLeft( Coord(0.0, 0.0) ) { case (acc, c) => Coord( acc.lon + c.lon, acc.lat + c.lat ) }
                         val meanCoord = Coord( sumCoord.lon / wayNodes.size.toDouble, sumCoord.lat / wayNodes.size.toDouble )
                         
-                        poiNodes.append( Node( meanCoord, wayTags.toArray.map( t => Tag(t._1, t._2) ) ) )
+                        poiNodes.append( Node( meanCoord, heightMap.elevation( meanCoord.lon, meanCoord.lat ).get.toFloat, wayTags.toArray.map( t => Tag(t._1, t._2) ) ) )
 
                     }
                 }
@@ -315,7 +315,7 @@ class CrunchSink( val wayNodeSet : mutable.Set[Long] ) extends SimpleSink
     }
 }
 
-class OSMCrunch( val dataFileName : File ) extends Logging
+class OSMCrunch( val dataFileName : File, val heightMap : SRTMInMemoryTiles ) extends Logging
 {
     import java.io._
     
@@ -336,7 +336,7 @@ class OSMCrunch( val dataFileName : File ) extends Logging
             
             log.info( "Pass 2: Building map" )
             val reader = new OsmosisReader( new BufferedInputStream( new FileInputStream( dataFileName ) ) )
-            val cs = new CrunchSink(wayNodeSet)
+            val cs = new CrunchSink( wayNodeSet, heightMap )
             reader.setSink( cs )   
             reader.run()
             cs.getData()
@@ -347,19 +347,23 @@ class OSMCrunch( val dataFileName : File ) extends Logging
     }
 }
 
-object OSMCrunch extends App
+object OSMCrunch extends App with Logging
 {    
     override def main( args : Array[String] )
     {
         Logger.clearHandlers()
         LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
 
+        val srtmFiles = new java.io.File( "./data" ).listFiles.filter( _.toString.endsWith(".asc") )
+        log.info( "Found SRTM files: " + srtmFiles.toList )
+        val heightMap = new SRTMInMemoryTiles( srtmFiles )
+        
         val mapFile = new File( args(1) )
         
         { 
             val map =
             {
-                val osmc = new OSMCrunch( new File(args(0)) )
+                val osmc = new OSMCrunch( new File(args(0)), heightMap )
                 osmc.run()
             }
             
@@ -424,7 +428,7 @@ class MapWithIndex( val map : OSMMap )
     }
 }
 
-
+/*
 object RecalculateAddPoints extends App with Logging
 {
     def recalculate( inputMap : OSMMap, maxNodeDist : Double ) : OSMMap =
@@ -492,6 +496,7 @@ object RecalculateAddPoints extends App with Logging
         OSMMap.save( res, new File( args(1) ) )
     }
 }
+*/
 
 object CalculateWayLength extends App with Logging
 {

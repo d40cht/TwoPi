@@ -185,7 +185,6 @@ function RouteController($scope, $log, $http)
     
     $scope.setStart = function()
     {
-        //$scope.startCoord = "";
         mapHolder.setClickCallback( function(lonLat)
         {
             startMarker.moveMarker( lonLat );
@@ -196,7 +195,6 @@ function RouteController($scope, $log, $http)
     
     $scope.setMid = function()
     {
-        //$scope.midCoord = "";
         mapHolder.setClickCallback( function(lonLat)
         {
             midMarker.moveMarker( lonLat );
