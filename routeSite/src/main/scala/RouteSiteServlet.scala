@@ -13,12 +13,16 @@ import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
 import org.eclipse.jetty.webapp.WebAppContext
 import org.scalatra.servlet.ScalatraListener
 
+
+// JSON handling support from Scalatra
+import org.json4s.{DefaultFormats, Formats}
+import org.scalatra.json._
+
+
 // In sbt:
 //
 // > container:start
 // > ~ ;copy-resources;aux-compile
-
-
 
 
 class RouteGraphHolder
@@ -27,7 +31,7 @@ class RouteGraphHolder
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
+class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging with JacksonJsonSupport
 {
     import net.sf.ehcache.{CacheManager, Element}
     
@@ -403,39 +407,25 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         Coord( els(0), els(1) )
     }
     
+    protected implicit val jsonFormats: Formats = DefaultFormats
+    
     post("/requestroute")
     {
+        contentType = formats("json")
+        
         val startCoord = parseCoordPair( params("start") )
-        val endCoordOption = params.get("mid").map( parseCoordPair )
+        val midCoordOption = params.get("mid").map( parseCoordPair )
         val distInKm = params("distance").toDouble
         
-        println( "Request requestroute: %s, %s, %.2f".format( startCoord, endCoordOption, distInKm ) )
+        println( "Request requestroute: %s, %s, %.2f".format( startCoord, midCoordOption, distInKm ) )
         
-        getRouteXML( startCoord, endCoordOption, distInKm ) match
+        val startNode = getRGH.rg.getClosest( startCoord )
+        val midNodeOption = midCoordOption.map { mc => getRGH.rg.getClosest( mc ) }
+        
+        getRGH.rg.buildRoute( startNode, midNodeOption, distInKm ) match
         {
-            case Some( routeXml ) =>
-            {
-                val hash = messageDigest( routeXml.toString )
-                if (false)
-                {
-                    // Currently this appears to crash saving XML in ways I do not understand
-                    scala.xml.XML.save( routeFilePath( hash ).toString, routeXml )
-                }
-                else
-                {
-                    val res = routeXml.toString
-                    
-                    val pw = new java.io.PrintWriter( routeFilePath( hash ) )
-                    pw.print( res )
-                    pw.close
-                }
-                
-                hash
-            }
-            case None =>
-            {
-                ""
-            }
+            case Some( route )  => route.directions
+            case None           => Seq()
         }
     }
     

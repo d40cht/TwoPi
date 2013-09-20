@@ -102,9 +102,11 @@ case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : 
     var parent : Option[PathElement]    = None
 }
 
-case class RouteResult( routeNodes : Seq[Node], picList : Seq[ScenicPoint], pois : Seq[POI] )
+case class RouteDirections( val inboundNodes : Array[Coord], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
 
-case class RouteDirections( val inboundPics : List[ScenicPoint], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
+case class RouteResult( routeNodes : Seq[Node], picList : Seq[ScenicPoint], pois : Seq[POI], directions : Array[RouteDirections] )
+
+
 
 case class RouteSegment( val edgeName : String, val pathElements : Seq[PathElement], val bearing : Float )
 
@@ -513,15 +515,16 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             
             var lastEdgeName = ""
-            var dist = 0.0
+            var cumulativeDist = 0.0
             
             var lastEdge : Option[EdgeAndBearing] = None
             
             val truncatedRoute = mutable.ArrayBuffer[RouteDirections]()
+            val recentNodes = mutable.ArrayBuffer[Node]()
             val recentPics = mutable.Set[ScenicPoint]()
             val recentPOIs = mutable.Set[POI]()
             
-            fullRoute.zipWithIndex.map
+            fullRoute.zipWithIndex.foreach
             { case (pathEl, i) =>
             
                 val destAnnotNode = pathEl.ra
@@ -535,7 +538,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     {
                         val e = eb.edge
 
-                        dist += e.dist / 1000.0
+                        cumulativeDist += e.dist
+                        recentNodes ++= e.nodes
                         recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
                         recentPOIs ++= e.pois.map(_.poi)
                         
@@ -551,8 +555,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                                 
                         if ( lastName != e.name )
                         {
-                            truncatedRoute.append( new RouteDirections( recentPics.toList, e.name, e.dist / 1000.0, dist, destAnnotNode.node.height, bearingDelta ) )
+                            truncatedRoute.append( new RouteDirections( recentNodes.map(_.coord).toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDist / 1000.0, destAnnotNode.node.height, bearingDelta ) )
                             recentPics.clear()
+                            recentPOIs.clear()
                         }
                     }
                 }
@@ -570,7 +575,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 println( "POI: " + poi )
             }
             
-            new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq, recentPOIs.toSeq )
+            new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq, truncatedRoute.flatMap( _.inboundPOIs ).distinct.toSeq, truncatedRoute.toArray )
         }
     }
 }
