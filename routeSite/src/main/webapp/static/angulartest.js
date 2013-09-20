@@ -272,6 +272,58 @@ function RouteController($scope, $log, $http)
     
     $scope.setStart();
     
+    function setRoute(data)
+    {
+        $scope.routeData = data;
+            
+        // Update the map
+        var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
+            style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
+            projection: new OpenLayers.Projection("EPSG:4326"),
+            hover : true });
+        
+        
+        // Update the elevation graph
+        var seriesData = [];
+        var lastNode = null;
+        for ( rd in data )
+        {
+            var dataEl = data[rd];
+            for ( n in dataEl.inboundNodes )
+            {
+                var nodeAndDist = dataEl.inboundNodes[n];
+                var distance = nodeAndDist.distance / 1000.0;
+                var node = nodeAndDist.node;
+                
+                seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
+                
+                var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
+                var tn = mapHolder.toMapProjection( rawPos );
+                var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
+                if ( lastNode != null )
+                {
+                    trackLayer.addNodes( [lastNode, pf] );
+                }
+                lastNode = pf;
+                
+                
+            }
+        }
+        
+        eg.setData( seriesData, function( lonLat )
+        {
+            elevationCrossLinkMarker.moveMarker( lonLat );
+        } );
+        
+        mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
+    }
+    
+    var cr = localStorage.getItem( 'currentRoute' );
+    if ( cr != null )
+    {
+        setRoute( JSON.parse(cr) );
+    }
+    
     $scope.requestRoute = function()
     {
         var dist = Number($scope.distance);
@@ -303,50 +355,8 @@ function RouteController($scope, $log, $http)
         } )
         .success( function(data, status, headers, config )
         {
-            $scope.routeData = data;
-            
-            // Update the map
-            var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
-                style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
-                projection: new OpenLayers.Projection("EPSG:4326"),
-                hover : true });
-            
-            
-            // Update the elevation graph
-            var seriesData = [];
-            var lastNode = null;
-            for ( rd in data )
-            {
-                var dataEl = data[rd];
-                for ( n in dataEl.inboundNodes )
-                {
-                    var nodeAndDist = dataEl.inboundNodes[n];
-                    var distance = nodeAndDist.distance / 1000.0;
-                    var node = nodeAndDist.node;
-                    
-                    seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
-                    
-                    var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
-                    var tn = mapHolder.toMapProjection( rawPos );
-                    var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
-                    if ( lastNode != null )
-                    {
-                        trackLayer.addNodes( [lastNode, pf] );
-                    }
-                    lastNode = pf;
-                    
-                    
-                }
-            }
-            
-            eg.setData( seriesData, function( lonLat )
-            {
-                elevationCrossLinkMarker.moveMarker( lonLat );
-            } );
-            
-            mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
-
-            //updateHeight( data );
+            localStorage.setItem( 'currentRoute', JSON.stringify( data ) );
+            setRoute( data );
         } )
         .error( function(data, status, headers, config )
         {

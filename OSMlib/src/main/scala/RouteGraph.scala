@@ -553,7 +553,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             lastNodeOption = Some(n)
                         }
                         
-                        recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
+                        recentPics ++= e.scenicPoints//.filter( sp => topPicsByEdge.contains( (sp, e) ) )
                         recentPOIs ++= e.pois.map(_.poi)
                         
                         val (bearingDelta, lastName) = lastEdge match
