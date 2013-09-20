@@ -273,7 +273,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val seg3 = traceBack( midPointAnnotationMap(id2), reverse=true )
         val seg4 = traceBack( startPointAnnotationMap(id2), reverse=false )
         
-        val distalOverlap = if ( false )//pruneDistalOverlap )
+        val distalOverlap = if ( pruneDistalOverlap )
         {
             seg3.zip(seg2.reverse)
                 .takeWhile { case ( pe1, pe2 ) => pe1.ra.node.nodeId == pe2.ra.node.nodeId }
@@ -539,7 +539,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         val e = eb.edge
 
                         cumulativeDist += e.dist
-                        recentNodes ++= e.nodes
+                        recentNodes ++= pathEl.edgeNodes
                         recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
                         recentPOIs ++= e.pois.map(_.poi)
                         
