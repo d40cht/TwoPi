@@ -102,7 +102,7 @@ case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : 
     var parent : Option[PathElement]    = None
 }
 
-case class RouteDirections( val inboundNodes : Array[Coord], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
+case class RouteDirections( val inboundNodes : Array[Node], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
 
 case class RouteResult( routeNodes : Seq[Node], picList : Seq[ScenicPoint], pois : Seq[POI], directions : Array[RouteDirections] )
 
@@ -296,7 +296,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val random = util.Random
         val startPointAnnotationMap = runDijkstra( startNode, targetDist, random )
         
-        log.info( "Computing distances from start node" )
+        log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
 
         val allDestinationsRaw = startPointAnnotationMap
             .filter { case (nid, annot) => annot.dist > targetDist * 0.1 && annot.dist < targetDist * 0.5 }
@@ -555,7 +555,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                                 
                         if ( lastName != e.name )
                         {
-                            truncatedRoute.append( new RouteDirections( recentNodes.map(_.coord).toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDist / 1000.0, destAnnotNode.node.height, bearingDelta ) )
+                            truncatedRoute.append( new RouteDirections( recentNodes.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDist / 1000.0, destAnnotNode.node.height, bearingDelta ) )
+                            recentNodes.clear()
                             recentPics.clear()
                             recentPOIs.clear()
                         }

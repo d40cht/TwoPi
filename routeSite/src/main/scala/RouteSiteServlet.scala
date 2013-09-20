@@ -15,8 +15,9 @@ import org.scalatra.servlet.ScalatraListener
 
 
 // JSON handling support from Scalatra
-import org.json4s.{DefaultFormats, Formats}
-import org.scalatra.json._
+import org.json4s._
+import org.json4s.native.JsonMethods._
+import org.json4s.JsonDSL._
 
 
 // In sbt:
@@ -31,9 +32,11 @@ class RouteGraphHolder
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging with JacksonJsonSupport
+class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
+    
+    implicit val formats = DefaultFormats
     
     Logging.configureDefaultLogging()
 
@@ -89,10 +92,6 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     
     private def getRouteXML( startCoord : Coord, midCoordOption : Option[Coord], distInKm : Double ) =
     {
-        import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
-        import scalaj.http.{Http, HttpOptions}
-        implicit val formats = DefaultFormats
-        
         val rgh = getRGH
         
         log.info( "Finding closest node..." )
@@ -157,15 +156,17 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
                         
                         try
                         {
+                            import scalaj.http.{Http, HttpOptions}
+                            
                             val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
                                 .option(HttpOptions.connTimeout(500))
                                 .option(HttpOptions.readTimeout(500))
                             { inputStream => 
-                                JsonParser.parse(new java.io.InputStreamReader(inputStream))
+                                parse(new java.io.InputStreamReader(inputStream))
                             }
                             
                             val imgMatches = (resJSON \\ "matches")
-                            val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head.value
+                            val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head._2
             
                             val title = (imgMetaData \\ "title").extract[String]
                             val authorName = (imgMetaData \\ "realname").extract[String]
@@ -407,11 +408,12 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         Coord( els(0), els(1) )
     }
     
-    protected implicit val jsonFormats: Formats = DefaultFormats
-    
     post("/requestroute")
     {
-        contentType = formats("json")
+        import org.json4s.native.Serialization.{read => sread, write => swrite}
+        implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
+        
+        contentType = "application/json"
         
         val startCoord = parseCoordPair( params("start") )
         val midCoordOption = params.get("mid").map( parseCoordPair )
@@ -422,11 +424,23 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         val startNode = getRGH.rg.getClosest( startCoord )
         val midNodeOption = midCoordOption.map { mc => getRGH.rg.getClosest( mc ) }
         
-        getRGH.rg.buildRoute( startNode, midNodeOption, distInKm ) match
+        val res = getRGH.rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
         {
-            case Some( route )  => route.directions
-            case None           => Seq()
+            case Some( route )  =>
+            {
+                log.info( "Route with %d directions".format( route.directions.size ) )
+                route.directions.toList
+            }
+            case None           =>
+            {
+                log.error( "No route found" );
+                List()
+            }
         }
+        
+        val rendered = swrite(res)
+        
+        rendered
     }
     
     

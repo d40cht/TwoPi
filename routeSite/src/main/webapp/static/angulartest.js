@@ -128,15 +128,15 @@ function RouteMap( mapId, lon, lat, zoom )
     this.markerLayer = markerLayer;
 }
 
-function buildElevationGraph( divId, seriesData )
+function ElevationGraph( divId )
 {
-    externalSeriesData = seriesData
-    $("#"+divId).highcharts({
+    var chartElement = $("#"+divId);
+    var chart = chartElement.highcharts({
         chart : { type : 'line' },
         title : { text : 'Elevation profile' },
         xAxis : { title : { text : 'Distance' } },
         yAxis : { title : { text : '(m)' } },
-        series : [{ showInLegend: false, name : 'elevation', type : 'area', data : seriesData }],
+        series : [{ showInLegend: false, name : 'elevation', type : 'area', data : [] }],
         plotOptions :
         {
             series :
@@ -148,14 +148,24 @@ function buildElevationGraph( divId, seriesData )
                     {
                         mouseOver : function()
                         {
-                            var lonLat = new OpenLayers.LonLat(this.lon, this.lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-                            moveMapCrossLinkMarker( lonLat );
+                            /*var lonLat = new OpenLayers.LonLat(this.lon, this.lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+                            moveMapCrossLinkMarker( lonLat );*/
                         }
                     }
                 }
             }
         }
     });
+    
+    this.addPoint = function( point )
+    {
+        chartElement.highcharts().series[0].addPoint( point, false );
+    }
+    
+    this.redraw = function()
+    {
+        chartElement.highcharts().redraw();
+    }
 }
 
 
@@ -173,7 +183,7 @@ function RouteController($scope, $log, $http)
     localStorageWatch( $scope, 'routingPreference' );
     
     
-    var eg = buildElevationGraph("elevation", []);
+    var eg = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
     
     var startMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
@@ -263,7 +273,21 @@ function RouteController($scope, $log, $http)
         } )
         .success( function(data, status, headers, config )
         {
-            alert( "Success: " + data );
+            $scope.routeData = data;
+            
+            var distance = 0.0;
+            for ( rd in data )
+            {
+                var dataEl = data[rd];
+                for ( n in dataEl.inboundNodes )
+                {
+                    var node = dataEl.inboundNodes[n];
+                    eg.addPoint( [distance, node.height] );
+                    distance += 1.0;
+                }
+            }
+            eg.redraw();
+            //updateHeight( data );
         } )
         .error( function(data, status, headers, config )
         {

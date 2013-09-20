@@ -52,7 +52,7 @@ object Toplevel extends Build
                 "org.scalatra" %% "scalatra" % scalatraVersion,
                 "org.scalatra" %% "scalatra-scalate" % scalatraVersion,
                 "org.scalatra" %% "scalatra-json" % scalatraVersion,
-                "org.json4s"   %% "json4s-jackson" % "3.2.4",
+                "org.json4s" % "json4s-native_2.10" % "3.2.5",
                 "org.scalatra" %% "scalatra-specs2" % scalatraVersion % "test",
                 "ch.qos.logback" % "logback-classic" % "1.0.6" % "runtime",
                 "org.eclipse.jetty" % "jetty-webapp" % "8.1.8.v20121106" % "container;compile",

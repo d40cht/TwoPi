@@ -40,10 +40,30 @@
             
                 <!-- Left bar -->
                 <div class="col-md-2 leftBar">
-                    <h2>Route</h2>
-                    Requested distance: {{distance}}
-                    <br>
-                    Routing preference: {{routingPreference}}
+                    <div style="overflow-y: auto; overflow-x: hidden">
+                        <h2>Route</h2>
+                        Requested distance: {{distance}}
+                        <br>
+                        Routing preference: {{routingPreference}}
+                        <br>
+                        <ul>
+                            <li ng-repeat="section in routeData">
+                                <ul>
+                                    <li ng-repeat="poi in section.inboundPOIs">
+                                        <div ng-switch on="poi.hasOwnProperty('wikiData')">
+                                            <div ng-switch-when="false">
+                                                {{poi.name}}
+                                            </div>
+                                            <div ng-switch-default>
+                                                <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">{{poi.name}}</a>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                                {{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}} ({{section.elevation.toFixed(0)}}m)
+                            </li>
+                        </ul>
+                    </div>
                 </div>
                 
                 <!-- Main content -->
