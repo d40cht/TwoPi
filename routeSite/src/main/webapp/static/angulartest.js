@@ -84,6 +84,8 @@ function RouteMap( mapId, lon, lat, zoom )
     var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
     map.setCenter(lonLat, zoom);
     
+    
+    
     map.events.register("moveend", map, function()
     {
         var lonLat = map.getCenter().clone();
@@ -121,11 +123,32 @@ function RouteMap( mapId, lon, lat, zoom )
         }
     }
     
+    function toMapProjection( lonLat )
+    {
+        var llc = lonLat.clone();
+        llc.transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+        return llc;
+    }
+    
+    this.toMapProjection = toMapProjection;
+    
     // Add a click handler
     map.events.register("click", map, clickHandler);
     
     this.map = map;
     this.markerLayer = markerLayer;
+    
+    var trackLayer = null;
+    function setTrackLayer( newTrackLayer )
+    {
+        if ( trackLayer != null )
+        {
+            map.removeLayer( trackLayer );
+        }
+        trackLayer = newTrackLayer;
+        map.addLayer(trackLayer);
+    }
+    this.setTrackLayer = setTrackLayer;
 }
 
 function ElevationGraph( divId )
@@ -157,14 +180,9 @@ function ElevationGraph( divId )
         }
     });
     
-    this.addPoint = function( point )
+    this.setData = function( data )
     {
-        chartElement.highcharts().series[0].addPoint( point, false );
-    }
-    
-    this.redraw = function()
-    {
-        chartElement.highcharts().redraw();
+        chartElement.highcharts().series[0].setData( data, true );
     }
 }
 
@@ -275,18 +293,39 @@ function RouteController($scope, $log, $http)
         {
             $scope.routeData = data;
             
+            // Update the map
+            var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
+                style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
+                projection: new OpenLayers.Projection("EPSG:4326"),
+                hover : true });
+            
+            
+            // Update the elevation graph
             var distance = 0.0;
+            var seriesData = [];
+            var lastNode = null;
             for ( rd in data )
             {
                 var dataEl = data[rd];
                 for ( n in dataEl.inboundNodes )
                 {
                     var node = dataEl.inboundNodes[n];
-                    eg.addPoint( [distance, node.height] );
+                    seriesData.push( [distance, node.height] );
                     distance += 1.0;
+                    
+                    var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
+                    var tn = mapHolder.toMapProjection( rawPos );
+                    var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
+                    if ( lastNode != null )
+                    {
+                        trackLayer.addNodes( [lastNode, pf] );
+                    }
+                    lastNode = pf;
                 }
             }
-            eg.redraw();
+            eg.setData( seriesData );
+            mapHolder.setTrackLayer( trackLayer );
+
             //updateHeight( data );
         } )
         .error( function(data, status, headers, config )

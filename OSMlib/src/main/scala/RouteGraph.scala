@@ -316,7 +316,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         // Have several attempts at destinations before finally giving up
         val possibleMidPoints = midNodeOption match
         {
-            case Some(mn) => Seq( startPointAnnotationMap(mn.nodeId) )
+            case Some(mn)   => (0 until 20).iterator.map( _ => startPointAnnotationMap(mn.nodeId) )
             case None       =>
             {
                 (0 until 20).iterator.map
@@ -369,7 +369,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 .toSeq
                     
             val trimmedQuarterPoints = possibleQuarterPoints
-                .take( possibleQuarterPoints.size /4 )
+                .take( possibleQuarterPoints.size / 4 )
                 .toIndexedSeq
                 
             
@@ -425,7 +425,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 (nid1, nid2, cost, circularityRatio, routeDist, annot11, annot12, annot21, annot22)
             }
             .filter { _._4 > 0.70 }
-            .take( 50 )
+            .take( 500 )
             .toVector
             .sortBy( x => (x._3/x._5) / x._4 )
             .toVector
@@ -564,18 +564,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 }
                 lastEdge = inboundEdge
             }
-            
-             
-            for ( rd <- truncatedRoute )
-            {
-                println( "[% 5.2fkm] % 3.2fkm, % 3.0fm elevation: %s, bearing: % 4d [%d]".format( rd.cumulativeDistance, rd.dist, rd.elevation, rd.edgeName, rd.bearing.toInt, rd.inboundPics.size ) )
-            }
-            
-            for ( poi <- recentPOIs )
-            {
-                println( "POI: " + poi )
-            }
-            
+
             new RouteResult( nodeList, truncatedRoute.flatMap( _.inboundPics ).distinct.toSeq, truncatedRoute.flatMap( _.inboundPOIs ).distinct.toSeq, truncatedRoute.toArray )
         }
     }
