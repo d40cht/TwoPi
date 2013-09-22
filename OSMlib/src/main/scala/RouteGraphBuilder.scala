@@ -159,15 +159,15 @@ object RoutableGraphBuilder extends Logging
                 
                 val tagMap = w.tags.map( t => (t.key, t.value) ).toMap
                 
-                val highwayAnnotation = tagMap.get("highway")
-                val junctionAnnotation = tagMap.get("junction")
-                val bridgeAnnotation = tagMap.get("bridge")
-                val nameAnnotation = tagMap.get("name")
-                val refAnnotation = tagMap.get("ref")
+                val highwayAnnotation : Option[String] = tagMap.get("highway")
+                val junctionAnnotation : Option[String] = tagMap.get("junction")
+                val bridgeAnnotation : Option[String] = tagMap.get("bridge")
+                val nameAnnotation : Option[String] = tagMap.get("name")
+                val refAnnotation : Option[String] = tagMap.get("ref")
                     
                 // Other important things:
                 // ford: yes - In the case of Duxford Ford, this is not fordable.
-                var costMultiplierOption = highwayAnnotation match
+                var costMultiplierOption : Option[Double] = highwayAnnotation match
                 {
                      case None => None
                      case Some( valueString ) =>
@@ -205,7 +205,7 @@ object RoutableGraphBuilder extends Logging
                     { n =>
                         if (n.matches("A[0-9]+"))
                         {
-                            costMultiplier = 1.5
+                            costMultiplier *= 1.5
                         }
                     }
                     
@@ -318,23 +318,10 @@ object GenerateRouteGraph extends App with Logging
 
     private def buildScenicMap() =
     {
-        val simpleDateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd")
-        
-        val imageTitlesFiles = new java.io.File("data/gridimage_base.tsv")
-        val imageMetaData = io.Source.fromFile( imageTitlesFiles, "iso-8859-1" ).getLines.drop(1).map
-        { l =>
-            val els = l.split("\t").map( _.trim )
-            val imageId = els(0).toInt
-            val title = els(3)
-            val dateTaken = els(5)
-            
-            (imageId, (title, simpleDateFormat.parse(dateTaken)))
-        } 
-        .toMap
+        val scenicMap = new RTreeIndex[ScenicPoint]()
         
         val scenicOrNotFile = new java.io.File("data/scenicOrNot.tsv")
-        val scenicMap = new RTreeIndex[ScenicPoint]()
-        io.Source.fromFile( scenicOrNotFile ).getLines.drop(1).foreach
+        val scenicScores = io.Source.fromFile( scenicOrNotFile ).getLines.drop(1).map
         { l =>
         
             val els = l.split("\t").map( _.trim)
@@ -342,17 +329,62 @@ object GenerateRouteGraph extends App with Logging
             val lon = els(2).toDouble
             val score = (els(3).toDouble - 1.0) / 9.0
             val picLink = els(6)
-            val picIndex = picLink.split("/").last.toInt
+            val imageId = picLink.split("/").last.toInt
             
-            imageMetaData.get(picIndex) match
+            (imageId, score)
+        }.toMap
+        
+        val simpleDateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd")
+        val imageDetailFile = new java.io.File("data/all_voted_dump.tsv")
+        val imageMetaData = io.Source.fromFile( imageDetailFile, "iso-8859-1" ).getLines.drop(1).foreach
+        { l =>
+            val els = l.split("\t").map( _.trim )
+            
+            val imageId = els(0).toInt
+            val lat = els(1).toDouble
+            val lon = els(2).toDouble
+            val title = els(3)
+            val hash = els(7)
+            // TODO: Re-instate date parsing? Ask Barry to re-do the dump with this column
+            // or alternatively parse it out of gridimage_base.tsv
+            val dateTaken = simpleDateFormat.parse("2013-01-01")//els(5)
+            val thumbs = els(8)
+            val galleryAvg = els(9)
+            
+            val score = scenicScores.get( imageId ) match
             {
-                case Some( (title, dateTaken) ) =>
+                case Some(s)	=> s
+                case None		=>
                 {
-                    val c = new Coord( lat=lat, lon=lon )
-                    scenicMap.add( c, new ScenicPoint( c, score, title, dateTaken, picIndex ) )
+                    // This is really rather crude as the relation between gallery scores and scenicornot may well
+                    // not be linear
+                	if ( galleryAvg != "NULL" && galleryAvg != "0" ) (galleryAvg.toDouble - 1.0) / 4.0
+                	// OK - all we have is a number of thumbs. But no idea of number of views. Score of 0.5
+                	else 0.5
                 }
-                case None =>
             }
+            
+            def imgUrl( index : Long, hash : String ) : String =
+		    {
+		        val yz = index / 1000000
+		        val ab = (index % 1000000) / 10000
+		        val cd = (index % 10000) / 100
+		        
+		        val fullPath = if ( yz == 0 )
+		        {
+		            "/photos/%02d/%02d/%06d_%s".format( ab, cd, index, hash )
+		        }
+		        else
+		        {
+		            "/geophotos/%02d/%02d/%02d/%06d_%s".format( yz, ab, cd, index, hash )
+		        }
+		        
+		        "http://s%d.geograph.org.uk%s_213x160.jpg".format( index % 4, fullPath )
+		    }
+            
+            
+            val c = new Coord( lat=lat, lon=lon )
+            scenicMap.add( c, new ScenicPoint( c, score, title, imageId, imgUrl( imageId, hash ) ) )
         }
         
         scenicMap

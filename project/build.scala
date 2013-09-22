@@ -12,7 +12,7 @@ object Toplevel extends Build
 {
     lazy val scalatraVersion = "2.2.1"
     
-    lazy val commonSettings = Defaults.defaultSettings ++ Seq(
+    lazy val commonSettings = Defaults.defaultSettings ++ assemblySettings ++ Seq(
         scalaVersion    := "2.10.2",
         version         := "0.0.1",
         organization := "org.seacourt",
@@ -35,7 +35,21 @@ object Toplevel extends Build
             "org.apache.commons" % "commons-lang3" % "3.1",
             "com.rockymadden.stringmetric" % "stringmetric-core" % "0.25.3",
             "org.apache.commons" % "commons-compress" % "1.5"
-        )
+        ),
+        mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
+        { v =>
+            if ( v.startsWith( "org/objenesis" ) ) MergeStrategy.first
+            else if ( v.startsWith( "com/esotericsoftware/minlog" ) ) MergeStrategy.first
+            else
+            {
+                v match
+                {
+                    case "osmosis-plugins.conf" => MergeStrategy.first
+                    case "about.html" => MergeStrategy.first
+                    case x  => old(x)
+                }
+            }
+        } }
     )
     
     lazy val OSMlib = Project( id="OSMlib", base=file("OSMlib"),
