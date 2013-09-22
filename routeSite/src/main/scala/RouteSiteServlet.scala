@@ -599,6 +599,61 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         }
     }*/
     
+    get("/geographImage/:picIndex")
+    {
+        contentType = "image/jpeg"
+        
+        // None of this is thread-safe. Mediate through a db instead
+        val picIndex = params("picIndex").toInt
+        
+        val geographImageCacheDir = new java.io.File("geographImages")
+        if ( !geographImageCacheDir.exists ) geographImageCacheDir.mkdirs()
+        
+        val picCacheFile = new java.io.File( geographImageCacheDir, picIndex.toString )
+        
+        if ( !picCacheFile.exists )
+        {
+            try
+            {
+                import scalaj.http.{Http, HttpOptions}
+                
+                log.info( "Requesting image hash for " + picIndex )
+                val resJSON = Http("http://jam.geograph.org.uk/sample8.php?q=&select=title,grid_reference,realname,user_id,hash&range=%d,%d".format( picIndex, picIndex ))
+                    .option(HttpOptions.connTimeout(500))
+                    .option(HttpOptions.readTimeout(500))
+                { inputStream => 
+                    parse(new java.io.InputStreamReader(inputStream))
+                }
+                
+                val imgMatches = (resJSON \\ "matches")
+                val imgMetaData = imgMatches.asInstanceOf[JObject].obj.head._2
+
+                val title = (imgMetaData \\ "title").extract[String]
+                val authorName = (imgMetaData \\ "realname").extract[String]
+                val hash = (imgMetaData \\ "hash").extract[String]
+                
+                val imageUrl = imgUrl( picIndex, hash )
+                
+                log.info( "Caching file from " + imageUrl )
+                Http(imageUrl)
+                    .option(HttpOptions.connTimeout(500))
+                    .option(HttpOptions.readTimeout(500))
+                { is =>
+                
+                    val os = new java.io.FileOutputStream( picCacheFile )
+                    org.apache.commons.io.IOUtils.copy(is, os)
+                    os.close()
+                }
+            }
+            catch
+            {
+                case _ : Throwable => None
+            }
+        }
+        
+        picCacheFile
+    }
+    
     get("/")
     {
         redirect("/static/webapp.html")

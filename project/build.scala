@@ -30,7 +30,7 @@ object Toplevel extends Build
             "org.openstreetmap.osmosis" % "osmosis-pbf" % "0.43-RELEASE",
             "com.vividsolutions" % "jts" % "1.13",
             "net.sourceforge.jsi" % "jsi" % "1.0.0",
-            "org.scalaz" % "scalaz-core_2.10" % "7.0.3",
+            "org.scalaz" %% "scalaz-core" % "7.0.3",
             "org.scalatest" %% "scalatest" % "1.9.1" % "test",
             "org.apache.commons" % "commons-lang3" % "3.1",
             "com.rockymadden.stringmetric" % "stringmetric-core" % "0.25.3",
@@ -45,6 +45,7 @@ object Toplevel extends Build
     lazy val routeSite = Project( id="routeSite", base=file("routeSite"),
         settings=commonSettings ++ assemblySettings ++ ScalatraPlugin.scalatraWithJRebel ++ scalateSettings ++ Seq(
             libraryDependencies ++= Seq(
+                "commons-io" % "commons-io" % "2.4",
                 "javax.transaction" % "jta" % "1.1",
                 "net.sf.ehcache" % "ehcache" % "2.7.2",
                 "org.scalaj" %% "scalaj-http" % "0.3.9" exclude("junit", "junit"),
@@ -52,7 +53,7 @@ object Toplevel extends Build
                 "org.scalatra" %% "scalatra" % scalatraVersion,
                 "org.scalatra" %% "scalatra-scalate" % scalatraVersion,
                 "org.scalatra" %% "scalatra-json" % scalatraVersion,
-                "org.json4s" % "json4s-native_2.10" % "3.2.5",
+                "org.json4s" %% "json4s-native" % "3.2.5",
                 "org.scalatra" %% "scalatra-specs2" % scalatraVersion % "test",
                 "ch.qos.logback" % "logback-classic" % "1.0.6" % "runtime",
                 "org.eclipse.jetty" % "jetty-webapp" % "8.1.8.v20121106" % "container;compile",

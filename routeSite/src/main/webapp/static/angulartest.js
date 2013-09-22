@@ -185,7 +185,8 @@ function ElevationGraph( divId )
                             }
                         }
                     }
-                }
+                },
+                turboThreshold : 0
             }
         }
     });
@@ -317,6 +318,11 @@ function RouteController($scope, $log, $http)
         
         mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
     }
+    
+    $scope.moveMarker = function( lon, lat )
+    {
+        elevationCrossLinkMarker.moveMarker( new OpenLayers.LonLat( lon, lat ) );
+    };
     
     var cr = localStorage.getItem( 'currentRoute' );
     if ( cr != null )

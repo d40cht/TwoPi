@@ -313,17 +313,28 @@ object RoutableGraphBuilder extends Logging
 }
 
 
-
 object GenerateRouteGraph extends App with Logging
-{    
-    override def main( args : Array[String] )
+{
+
+    private def buildScenicMap() =
     {
-        val mapFile = new java.io.File( args(0) )
+        val simpleDateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd")
         
-        val map = OSMMap.load( mapFile )
+        val imageTitlesFiles = new java.io.File("data/gridimage_base.tsv")
+        val imageMetaData = io.Source.fromFile( imageTitlesFiles, "iso-8859-1" ).getLines.drop(1).map
+        { l =>
+            val els = l.split("\t").map( _.trim )
+            val imageId = els(0).toInt
+            val title = els(3)
+            val dateTaken = els(5)
+            
+            (imageId, (title, simpleDateFormat.parse(dateTaken)))
+        } 
+        .toMap
         
+        val scenicOrNotFile = new java.io.File("data/scenicOrNot.tsv")
         val scenicMap = new RTreeIndex[ScenicPoint]()
-        io.Source.fromFile( new java.io.File("data/scenicOrNot.tsv") ).getLines.drop(1).foreach
+        io.Source.fromFile( scenicOrNotFile ).getLines.drop(1).foreach
         { l =>
         
             val els = l.split("\t").map( _.trim)
@@ -333,9 +344,28 @@ object GenerateRouteGraph extends App with Logging
             val picLink = els(6)
             val picIndex = picLink.split("/").last.toInt
             
-            val c = new Coord( lat=lat, lon=lon )
-            scenicMap.add( c, new ScenicPoint( c, score, picIndex ) )
+            imageMetaData.get(picIndex) match
+            {
+                case Some( (title, dateTaken) ) =>
+                {
+                    val c = new Coord( lat=lat, lon=lon )
+                    scenicMap.add( c, new ScenicPoint( c, score, title, dateTaken, picIndex ) )
+                }
+                case None =>
+            }
         }
+        
+        scenicMap
+    }
+
+    override def main( args : Array[String] )
+    {
+        val mapFile = new java.io.File( args(0) )
+        
+        val map = OSMMap.load( mapFile )
+        
+        log.info( "Building scenic map" )
+        val scenicMap = buildScenicMap()
         
         
         log.info( "Building wikipedia cross-linked POIs" )
