@@ -1,4 +1,21 @@
 
+angular.module('TwoPi', [])
+    .config(['$routeProvider', function($routeProvider)
+    {
+        $routeProvider
+            .when('/',
+            {
+                templateUrl : 'partials/makeroute.html',
+                controller  : RouteController
+            } )
+            .when('/:routeId',
+            {
+                templateUrl : 'partials/makeroute.html',
+                controller  : RouteController
+            } );
+    }] );
+
+
 var TRACK_LAYER_INDEX = 0;
 var MARKER_LAYER_INDEX = 1;
 
