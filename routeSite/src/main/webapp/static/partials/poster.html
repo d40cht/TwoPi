@@ -1,0 +1,28 @@
+<div class="row" id="wrap">         
+    <!-- Left bar -->
+    <div class="col-md-12 leftBar">
+        <h2>Full screen: {{routeId}}</h2>
+        
+        <div id="masonryContainer">
+            <div ng-repeat="url in picUrls" class="masonryItem">
+                <img src="{{url}}"></img>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        $( document ).ready( function()
+        {
+            var $container = $('#masonryContainer');
+            $container.imagesLoaded( function()
+            {
+                $container.masonry( {
+                    itemSelect : '.masonryItem',
+                    gutter : 10
+                } );
+            } );
+        } );
+    </script>
+</div>
+
+

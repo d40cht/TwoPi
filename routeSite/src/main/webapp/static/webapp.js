@@ -12,6 +12,11 @@ angular.module('TwoPi', [])
             {
                 templateUrl : 'partials/makeroute.html',
                 controller  : RouteController
+            } )
+            .when('/poster/:routeId',
+            {
+                templateUrl : 'partials/poster.html',
+                controller  : PosterController
             } );
     }] );
 
@@ -213,6 +218,42 @@ function ElevationGraph( divId )
         chartElement.highcharts().series[0].setData( data, true );
         crossLinkFn = newCrossLinkFn;
     }
+}
+
+function PosterController($scope, $routeParams, $http)
+{
+    $scope.routeId = $routeParams.routeId
+    
+    $http( {
+            method: "GET",
+            url : ("/getroute/" + $scope.routeId)
+        } )
+        .success( function( data, status, headers, config )
+        {
+            //alert( data );
+            //var routeData = JSON.parse( data );
+            
+            
+            var picUrls = [];
+            for ( rd in data )
+            {
+                var dataEl = data[rd];
+                for ( pic in dataEl.inboundPics )
+                {
+                    var picUrl = dataEl.inboundPics[pic].imgUrl
+                    picUrls.push( picUrl );
+                }
+            }
+            
+            $scope.picUrls = picUrls;
+            $scope.routeData = data;
+            
+            
+        } )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure: " + data );
+        } );
 }
 
 
