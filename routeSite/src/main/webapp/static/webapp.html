@@ -50,12 +50,13 @@
                             <li ng-repeat="section in routeData">
                                 <ul>    
                                     <li ng-repeat="poi in section.inboundPOIs">
-                                        <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
-                                            <img alt="{{poi.name}}" title="{{poi.name}}" src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
-                                        </a>
-                                    </li>
-                                </ul>
-                                <ul>    
+                                        <span ng-switch on="poi.hasOwnProperty('wikiData')">
+                                            <a ng-switch-when="true" href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
+                                                <img alt="{{poi.name}}" title="{{poi.name}}" src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
+                                            </a>
+                                            <span ng-switch-when="false">{{poi.name}}</span>
+                                        </span>
+                                    </li>  
                                     <li ng-repeat="pic in section.inboundPics">
                                         <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" src="{{pic.imgUrl}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
                                     </li>
