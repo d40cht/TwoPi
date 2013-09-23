@@ -167,9 +167,9 @@ object RoutableGraphBuilder extends Logging
                     
                 // Other important things:
                 // ford: yes - In the case of Duxford Ford, this is not fordable.
-                var costMultiplierOption : Option[Double] = highwayAnnotation match
+                println( highwayAnnotation )
+                var costMultiplierOption = highwayAnnotation match
                 {
-                     case None => None
                      case Some( valueString ) =>
                      {
                         //if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
@@ -189,7 +189,9 @@ object RoutableGraphBuilder extends Logging
                         else if ( valueString.startsWith( "footpath" ) ) Some( 0.6 )
                         else None
                      }
+                     case None => None
                 }
+
                 
                 costMultiplierOption.foreach
                 { costMultiplierPre =>
@@ -343,7 +345,8 @@ object GenerateRouteGraph extends App with Logging
             val imageId = els(0).toInt
             val lat = els(1).toDouble
             val lon = els(2).toDouble
-            val title = els(3)
+            val title = els(4)
+            val photographer = els(5)
             val hash = els(7)
             // TODO: Re-instate date parsing? Ask Barry to re-do the dump with this column
             // or alternatively parse it out of gridimage_base.tsv
@@ -384,7 +387,7 @@ object GenerateRouteGraph extends App with Logging
             
             
             val c = new Coord( lat=lat, lon=lon )
-            scenicMap.add( c, new ScenicPoint( c, score, title, imageId, imgUrl( imageId, hash ) ) )
+            scenicMap.add( c, new ScenicPoint( c, score, photographer, title, imageId, imgUrl( imageId, hash ) ) )
         }
         
         scenicMap

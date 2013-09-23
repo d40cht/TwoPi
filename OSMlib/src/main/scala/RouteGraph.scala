@@ -36,7 +36,7 @@ case class POI(
 {
 }
 
-case class ScenicPoint( coord : Coord, score : Double, title : String, picIndex : Int, imgUrl : String )
+case class ScenicPoint( coord : Coord, score : Double, photographer : String, title : String, picIndex : Int, imgUrl : String )
 {
     assert( score >= 0.0 && score <= 1.0 )
 }
