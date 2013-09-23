@@ -75,7 +75,7 @@ object RoutableGraphBuilder extends Logging
     
     private def rgKryo() =
     {
-        val kryo = new Kryo()
+        val kryo = KryoSerializer.registered.newKryo 
         
         kryo.register( classOf[RouteNode], new RouteNodeSerializer() )
         kryo.register( classOf[RoutableGraph], new RoutableGraphSerializer() )
@@ -164,7 +164,6 @@ object RoutableGraphBuilder extends Logging
                     
                 // Other important things:
                 // ford: yes - In the case of Duxford Ford, this is not fordable.
-                println( highwayAnnotation )
                 var costMultiplierOption = highwayAnnotation match
                 {
                      case Some( valueString ) =>
