@@ -369,6 +369,16 @@ function RouteController($scope, $log, $http)
             alert( "Failure: " + data );
         } );
     };
+    
+    $scope.hasWikiData = function(poi)
+    {
+        return poi.hasOwnProperty('wikiData');
+    }
+    
+    $scope.hasWikiImage = function(poi)
+    {
+        return poi.wikiData.hasOwnProperty('imageUrl');
+    }
 }
 
 
