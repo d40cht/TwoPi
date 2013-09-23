@@ -200,7 +200,7 @@ function ElevationGraph( divId )
 
 
 function RouteController($scope, $log, $http)
-{
+{   
     $scope.routingPreferences = ["Walking"];
     $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
     $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
@@ -372,12 +372,12 @@ function RouteController($scope, $log, $http)
     
     $scope.hasWikiData = function(poi)
     {
-        return poi.hasOwnProperty('wikiData');
+        return Object.keys(poi).indexOf('wikiData') > 0;
     }
     
     $scope.hasWikiImage = function(poi)
     {
-        return poi.wikiData.hasOwnProperty('imageUrl');
+        return Object.keys(poi.wikiData).indexOf('imageUrl') > 0;
     }
 }
 

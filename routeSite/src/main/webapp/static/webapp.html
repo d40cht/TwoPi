@@ -52,21 +52,20 @@
                                     <li ng-repeat="poi in section.inboundPOIs">
                                         <div ng-switch on="hasWikiData(poi)">
                                             <div ng-switch-when="true">
-                                                <div ng-switch-on="hasWikiImage(poi)">
-                                                    <div ng-switch-when="true">
-                                                        <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
-                                                            <img alt="{{poi.name}}" title="{{poi.name}}" src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
-                                                        </a>
-                                                    </div>
-                                                    <div ng-switch-default>
-                                                        <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
-                                                            {{poi.name}}
-                                                        </a>
-                                                    </div>
+                                                <div ng-if="hasWikiImage(poi)">
+                                                    <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
+                                                        <img alt="{{poi.name}}" title="{{poi.name}}" src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
+                                                    </a>
                                                 </div>
-                                                <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
-                                                    <img alt="{{poi.name}}" title="{{poi.name}}" src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
-                                                </a>
+                                                
+                                                <div>
+                                                    <table><tr>
+                                                    <td><img src="/img/wikipediaLink.png"/></td>
+                                                    <td><a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
+                                                        {{poi.name}}
+                                                    </a></td>
+                                                    </tr></table>
+                                                </div>
                                             </div>
                                             <div ng-switch-default>{{poi.name}}</div>
                                         </div>
