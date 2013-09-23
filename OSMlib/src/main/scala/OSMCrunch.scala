@@ -550,8 +550,7 @@ object ProcessGPXToBin extends App with Logging
 {
     import com.esotericsoftware.kryo.{Kryo, Serializer}
     import com.esotericsoftware.kryo.io.{ Input, Output }
-    import com.twitter.chill._
-    import org.objenesis.strategy.StdInstantiatorStrategy
+    import com.twitter.chill.{KryoSerializer}
     
     override def main( args : Array[String] )
     {
@@ -574,8 +573,7 @@ object ProcessGPXToBin extends App with Logging
         val jt = new TarInputStream( new BufferedInputStream(
             new GZIPInputStream( new FileInputStream( args(0) ) ) ) )
             
-        val kryo = new Kryo()
-        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy())
+        val kryo = KryoSerializer.registered.newKryo
         val output = new Output( new GZIPOutputStream( new FileOutputStream( args(1) ) ) )
         
         //2011-07-15T10:52:03Z

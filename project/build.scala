@@ -26,7 +26,7 @@ object Toplevel extends Build
         libraryDependencies ++= Seq(
             "com.twitter" %% "util-logging" % "6.3.6",
             "org.xeustechnologies" % "jtar" % "1.1",
-            "com.twitter" %% "chill" % "0.2.3",
+            "com.twitter" %% "chill" % "0.3.2",
             "org.openstreetmap.osmosis" % "osmosis-pbf" % "0.43-RELEASE",
             "com.vividsolutions" % "jts" % "1.13",
             "net.sourceforge.jsi" % "jsi" % "1.0.0",
