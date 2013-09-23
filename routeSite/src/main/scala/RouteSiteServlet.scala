@@ -25,7 +25,6 @@ import org.json4s.JsonDSL._
 // > container:start
 // > ~ ;copy-resources;aux-compile
 
-
 class RouteGraphHolder
 {
     val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
@@ -120,7 +119,8 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         import org.json4s.native.Serialization.{read => sread, write => swrite}
         implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
         
-        contentType = "application/json"
+        //contentType = "application/json"
+        contentType = "text/plain"
         
         val startCoord = parseCoordPair( params("start") )
         val midCoordOption = params.get("mid").map( parseCoordPair )
@@ -146,8 +146,33 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         }
         
         val rendered = swrite(res)
+        val hash = messageDigest( rendered )
+        val pw = new java.io.PrintWriter( routeFilePath( hash ), "utf-8" )
+        try
+        {
+            pw.print( rendered )
+        }
+        finally
+        {
+            pw.close
+        }
         
-        rendered
+        println( "Saving out " + hash )
+        
+        hash
+    }
+    
+    get("/getroute/:routeId")
+    {
+        contentType = "application/json"
+        
+        println( "Request..." )
+        
+        val hash = params("routeId")
+        
+        println( "Hash: " + hash )
+        
+        routeFilePath( hash )
     }
     
     get("/")

@@ -199,8 +199,9 @@ function ElevationGraph( divId )
 }
 
 
-function RouteController($scope, $log, $http)
+function RouteController($scope, $log, $http, $location)
 {   
+    // TODO: Record start and end coords into localStorage
     $scope.routingPreferences = ["Walking"];
     $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
     $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
@@ -213,16 +214,16 @@ function RouteController($scope, $log, $http)
     localStorageWatch( $scope, 'routingPreference' );
     
     
+    $scope.startCoord = "";
+    $scope.midCoord = "";
+    
+    
     var eg = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
     
     var startMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
     var midMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
     var elevationCrossLinkMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/red_MarkerE.png", "End", 1, 20, 34 );
-    
-    
-    $scope.startCoord = "";
-    $scope.midCoord = "";
     
     $scope.setStart = function()
     {
@@ -273,50 +274,63 @@ function RouteController($scope, $log, $http)
     
     $scope.setStart();
     
-    function setRoute(data)
+    function setRoute(routeId)
     {
-        $scope.routeData = data;
+        $http( {
+            method: "GET",
+            url : ("/getroute/" + routeId)
+        } )
+        .success( function(data, status, headers, config )
+        {
+            //alert( data );
+            //var routeData = JSON.parse( data );
+            var routeData = data;
             
-        // Update the map
-        var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
-            style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
-            projection: new OpenLayers.Projection("EPSG:4326"),
-            hover : true });
-        
-        
-        // Update the elevation graph
-        var seriesData = [];
-        var lastNode = null;
-        for ( rd in data )
-        {
-            var dataEl = data[rd];
-            for ( n in dataEl.inboundNodes )
+            $scope.routeData = routeData;
+            
+            // Update the map
+            var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
+                style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
+                projection: new OpenLayers.Projection("EPSG:4326"),
+                hover : true });
+            
+            
+            // Update the elevation graph
+            var seriesData = [];
+            var lastNode = null;
+            for ( rd in routeData )
             {
-                var nodeAndDist = dataEl.inboundNodes[n];
-                var distance = nodeAndDist.distance / 1000.0;
-                var node = nodeAndDist.node;
-                
-                seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
-                
-                var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
-                var tn = mapHolder.toMapProjection( rawPos );
-                var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
-                if ( lastNode != null )
+                var dataEl = data[rd];
+                for ( n in dataEl.inboundNodes )
                 {
-                    trackLayer.addNodes( [lastNode, pf] );
+                    var nodeAndDist = dataEl.inboundNodes[n];
+                    var distance = nodeAndDist.distance / 1000.0;
+                    var node = nodeAndDist.node;
+                    
+                    seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
+                    
+                    var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
+                    var tn = mapHolder.toMapProjection( rawPos );
+                    var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
+                    if ( lastNode != null )
+                    {
+                        trackLayer.addNodes( [lastNode, pf] );
+                    }
+                    lastNode = pf;
                 }
-                lastNode = pf;
-                
-                
             }
-        }
-        
-        eg.setData( seriesData, function( lonLat )
+            
+            eg.setData( seriesData, function( lonLat )
+            {
+                elevationCrossLinkMarker.moveMarker( lonLat );
+            } );
+            
+            mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
+        } )
+        .error( function(data, status, headers, config )
         {
-            elevationCrossLinkMarker.moveMarker( lonLat );
+            alert( "Failure: " + data );
         } );
-        
-        mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
     }
     
     $scope.moveMarker = function( lon, lat )
@@ -324,10 +338,10 @@ function RouteController($scope, $log, $http)
         elevationCrossLinkMarker.moveMarker( new OpenLayers.LonLat( lon, lat ) );
     };
     
-    var cr = localStorage.getItem( 'currentRoute' );
+    var cr = $location.search()['routeId'];
     if ( cr != null )
     {
-        setRoute( JSON.parse(cr) );
+        setRoute( cr );
     }
     
     $scope.requestRoute = function()
@@ -361,8 +375,10 @@ function RouteController($scope, $log, $http)
         } )
         .success( function(data, status, headers, config )
         {
-            localStorage.setItem( 'currentRoute', JSON.stringify( data ) );
-            setRoute( data );
+            var hash = data;
+            $location.search( 'routeId', hash );
+            localStorage.setItem( 'currentRoute', hash );
+            setRoute( hash );
         } )
         .error( function(data, status, headers, config )
         {
