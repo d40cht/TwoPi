@@ -139,10 +139,8 @@ http://dbpedia.org/ontology/Event
 
 
 
-object POIBuilder extends Logging
-{
-    
-    
+object POIBuilder extends App with Logging
+{   
     private def getWikiLocations( fileName : Seq[File] ) : Seq[(String, Coord)] =
     {
         import java.io._
@@ -309,17 +307,38 @@ object POIBuilder extends Logging
         return POITypes.Unclassified
     }
     
+    // For reasons unknown, mappingbased_properties is more complete than geo_coordinates for geo coordinates
+    lazy val dbpediaCoordFile1 = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
+    lazy val dbpediaCoordFile2 = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
+    lazy val dbpediaImageFile = new java.io.File( "data/images_en.nt.bz2" )
+    lazy val dbpediaTypeFile = new java.io.File( "data/instance_types_en.nt.bz2" )
+    lazy val dbpediaAbstractFile = new java.io.File( "data/short_abstracts_en.nt.bz2" )
+    
+    lazy val wikiLocatedCacheFile = new File("data/wikilocated.cache")
+    
+    override def main( args : Array[String] )
+    {
+        val lon = args(0).toDouble
+        val lat = args(1).toDouble
+        
+        log.info( "Ingesting dbpedia data" )
+        val wikiLocated = kryoCache( wikiLocatedCacheFile, extractLocatedWikiArticles( Seq(dbpediaCoordFile1, dbpediaCoordFile2), dbpediaImageFile, dbpediaTypeFile ) )
+        log.info( "Number of wikipedia articles with locations: " + wikiLocated.size )
+        
+        log.info( "Building r-tree index" )
+        val treeMap = new RTreeIndex[WikiLocated]()
+        wikiLocated.foreach { case wl => treeMap.add( wl.coord, wl ) }
+        
+        val nearest = treeMap.nearest( Coord( lon, lat ), 20 )
+        
+        nearest.foreach
+        { nr =>
+            println( nr )
+        }
+    }
+    
     def build( map : OSMMap ) : Seq[POI] =
     {
-        // For reasons unknown, mappingbased_properties is more complete than geo_coordinates for geo coordinates
-        val dbpediaCoordFile1 = new java.io.File( "data/geo_coordinates_en.nt.bz2" )
-        val dbpediaCoordFile2 = new java.io.File( "data/mappingbased_properties_en.nt.bz2" )
-        
-        val dbpediaImageFile = new java.io.File( "data/images_en.nt.bz2" )
-        val dbpediaTypeFile = new java.io.File( "data/instance_types_en.nt.bz2" )
-        val dbpediaAbstractFile = new java.io.File( "data/short_abstracts_en.nt.bz2" )
-        val wikiLocatedCacheFile = new File("data/wikilocated.cache")
-        
         log.info( "Ingesting dbpedia data" )
         val wikiLocated = kryoCache( wikiLocatedCacheFile, extractLocatedWikiArticles( Seq(dbpediaCoordFile1, dbpediaCoordFile2), dbpediaImageFile, dbpediaTypeFile ) )
         log.info( "Number of wikipedia articles with locations: " + wikiLocated.size )

@@ -36,7 +36,7 @@ case class POI(
 {
 }
 
-case class ScenicPoint( coord : Coord, score : Double, picIndex : Int )
+case class ScenicPoint( coord : Coord, score : Double, photographer : String, title : String, picIndex : Int, imgUrl : String )
 {
     assert( score >= 0.0 && score <= 1.0 )
 }
@@ -102,7 +102,9 @@ case class RouteAnnotation( val node : RouteNode, var cost : Double, var dist : 
     var parent : Option[PathElement]    = None
 }
 
-case class RouteDirections( val inboundNodes : Array[Node], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float )
+case class NodeAndDistance( val node : Node, val distance : Double )
+
+case class RouteDirections( val inboundNodes : Array[NodeAndDistance], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float, coord : Coord )
 
 case class RouteResult( routeNodes : Seq[Node], picList : Seq[ScenicPoint], pois : Seq[POI], directions : Array[RouteDirections] )
 
@@ -520,10 +522,15 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             var lastEdge : Option[EdgeAndBearing] = None
             
             val truncatedRoute = mutable.ArrayBuffer[RouteDirections]()
-            val recentNodes = mutable.ArrayBuffer[Node]()
+            val recentNodeDists = mutable.ArrayBuffer[NodeAndDistance]()
             val recentPics = mutable.Set[ScenicPoint]()
             val recentPOIs = mutable.Set[POI]()
             
+            val seenPics = mutable.Set[ScenicPoint]()
+            val seenPOIs = mutable.Set[POI]()
+            
+            // TODO: This is all horribly imperative. Refactor
+            var lastNodeOption : Option[Node] = None
             fullRoute.zipWithIndex.foreach
             { case (pathEl, i) =>
             
@@ -538,10 +545,21 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     {
                         val e = eb.edge
 
-                        cumulativeDist += e.dist
-                        recentNodes ++= pathEl.edgeNodes
-                        recentPics ++= e.scenicPoints.filter( sp => topPicsByEdge.contains( (sp, e) ) )
-                        recentPOIs ++= e.pois.map(_.poi)
+                        pathEl.edgeNodes.foreach
+                        { n =>
+                            lastNodeOption match
+                            {
+                                case Some( lastNode ) => cumulativeDist += n.coord.distFrom( lastNode.coord )
+                                case _ =>
+                            }
+                            recentNodeDists.append( NodeAndDistance( n, cumulativeDist ) )
+                            lastNodeOption = Some(n)
+                        }
+                        
+                        recentPics ++= e.scenicPoints.filter( p => !seenPics.contains(p) )//.filter( sp => topPicsByEdge.contains( (sp, e) ) )
+                        recentPOIs ++= e.pois.map(_.poi).filter( p => !seenPOIs.contains(p) )
+                        seenPics ++= e.scenicPoints
+                        seenPOIs ++= e.pois.map(_.poi)
                         
                         val (bearingDelta, lastName) = lastEdge match
                         {
@@ -555,8 +573,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                                 
                         if ( lastName != e.name )
                         {
-                            truncatedRoute.append( new RouteDirections( recentNodes.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDist / 1000.0, destAnnotNode.node.height, bearingDelta ) )
-                            recentNodes.clear()
+                            truncatedRoute.append( new RouteDirections( recentNodeDists.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDist / 1000.0, destAnnotNode.node.height, bearingDelta, recentNodeDists.last.node.coord ) )
+                            recentNodeDists.clear()
                             recentPics.clear()
                             recentPOIs.clear()
                         }

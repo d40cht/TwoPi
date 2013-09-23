@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en" ng-app>
     <head>
-        <title>AngularJS test</title>
+        <title>Find a route</title>
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css"/>
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-theme.min.css"/>
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.min.css"/>
-        <link rel="stylesheet/less" type="text/css" href="angulartest.less"/>
+        <link rel="stylesheet/less" type="text/css" href="webapp.less"/>
         
         
         <script src="http://cdnjs.cloudflare.com/ajax/libs/less.js/1.4.1/less.min.js"></script>
@@ -20,7 +20,7 @@
         <script src="http://code.highcharts.com/highcharts.js"></script>
         <script src="https://raw.github.com/angular-ui/bootstrap/gh-pages/ui-bootstrap-tpls-0.6.0.min.js"></script>
         
-        <script src="angulartest.js"></script>
+        <script src="webapp.js"></script>
         
         
     </head>
@@ -40,7 +40,7 @@
             
                 <!-- Left bar -->
                 <div class="col-md-2 leftBar">
-                    <div style="overflow-y: auto; overflow-x: hidden">
+                    <div>
                         <h2>Route</h2>
                         Requested distance: {{distance}}
                         <br>
@@ -48,19 +48,19 @@
                         <br>
                         <ul>
                             <li ng-repeat="section in routeData">
-                                <ul>
+                                <ul>    
                                     <li ng-repeat="poi in section.inboundPOIs">
-                                        <div ng-switch on="poi.hasOwnProperty('wikiData')">
-                                            <div ng-switch-when="false">
-                                                {{poi.name}}
-                                            </div>
-                                            <div ng-switch-default>
-                                                <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">{{poi.name}}</a>
-                                            </div>
-                                        </div>
+                                        <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
+                                            <img alt="{{poi.name}}" title="{{poi.name}}" src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
+                                        </a>
                                     </li>
                                 </ul>
-                                {{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}} ({{section.elevation.toFixed(0)}}m)
+                                <ul>    
+                                    <li ng-repeat="pic in section.inboundPics">
+                                        <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" src="{{pic.imgUrl}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
+                                    </li>
+                                </ul>
+                                <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}} ({{section.elevation.toFixed(0)}}m)</div>
                             </li>
                         </ul>
                     </div>
