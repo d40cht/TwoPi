@@ -7,14 +7,14 @@ import java.util.zip._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
-import com.twitter.chill.{KryoSerializer}
-
 object Utility extends Logging
 {
+    import com.twitter.chill._
+    
     def kryoSave[T]( obj : T, outputFile : File ) =
     {
         val kryo = KryoSerializer.registered.newKryo
-        
+
         val output = new Output( new GZIPOutputStream( new FileOutputStream( outputFile ) ) )
         kryo.writeObject(output, obj)
         output.close
@@ -23,7 +23,8 @@ object Utility extends Logging
     def kryoLoad[T]( inputFile : File )( implicit tag : ClassTag[T] ) : T =
     {
         val kryo = KryoSerializer.registered.newKryo
-        val input = new Input( new GZIPInputStream( new java.io.FileInputStream( inputFile ) ) )
+
+        val input = new Input( new GZIPInputStream( new FileInputStream( inputFile ) ) )
         val obj = kryo.readObject( input, tag.runtimeClass ).asInstanceOf[T]
         input.close
         obj
