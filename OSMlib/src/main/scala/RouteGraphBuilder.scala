@@ -363,27 +363,8 @@ object GenerateRouteGraph extends App with Logging
                 }
             }
             
-            def imgUrl( index : Long, hash : String ) : String =
-		    {
-		        val yz = index / 1000000
-		        val ab = (index % 1000000) / 10000
-		        val cd = (index % 10000) / 100
-		        
-		        val fullPath = if ( yz == 0 )
-		        {
-		            "/photos/%02d/%02d/%06d_%s".format( ab, cd, index, hash )
-		        }
-		        else
-		        {
-		            "/geophotos/%02d/%02d/%02d/%06d_%s".format( yz, ab, cd, index, hash )
-		        }
-		        
-		        "http://s%d.geograph.org.uk%s_213x160.jpg".format( index % 4, fullPath )
-		    }
-            
-            
             val c = new Coord( lat=lat, lon=lon )
-            scenicMap.add( c, new ScenicPoint( c, score, photographer, title, imageId, imgUrl( imageId, hash ) ) )
+            scenicMap.add( c, new ScenicPoint( c, score.toFloat, photographer, title, imageId, hash ) )
         }
         
         scenicMap

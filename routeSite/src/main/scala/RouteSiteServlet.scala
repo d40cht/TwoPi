@@ -180,7 +180,75 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
         redirect("/static/webapp.html")
     }
     
+    private def imgUrl( index : Long, hash : String ) : String =
+    {
+        val yz = index / 1000000
+        val ab = (index % 1000000) / 10000
+        val cd = (index % 10000) / 100
+        
+        val fullPath = if ( yz == 0 )
+        {
+            "/photos/%02d/%02d/%06d_%s".format( ab, cd, index, hash )
+        }
+        else
+        {
+            "/geophotos/%02d/%02d/%02d/%06d_%s".format( yz, ab, cd, index, hash )
+        }
+        
+        fullPath
+    }
     
+    private def cacheToFile( url : String, fileName : java.io.File ) =
+    {
+        import scalaj.http.{Http, HttpOptions}
+        val res = Http(url)
+            .option(HttpOptions.connTimeout(500))
+            .option(HttpOptions.readTimeout(500))
+        { inputStream =>
+        
+            val os = new java.io.FileOutputStream( fileName )
+            try
+            {   
+                org.apache.commons.io.IOUtils.copy( inputStream, os )
+            }
+            finally
+            {
+                os.close
+            }
+        }
+    }
+    
+    private val geoGraphCache = new java.io.File( "geographCache" )
+    
+    get("/geographThumb/:id/:hash")
+    {
+        contentType = "image/jpeg"
+        
+        val id = params("id").toLong
+        val hash = params("hash")
+        val fullPath = imgUrl( id, hash )
+        
+        val url = "http://s%d.geograph.org.uk%s_213x160.jpg".format( id % 4, fullPath )
+        val fname = new java.io.File( geoGraphCache, "%d_thumb.jpg".format( id ) )
+        cacheToFile( url, fname )
+        
+        fname
+    }
+    
+    get("/geographFull/:id/:hash")
+    {
+        contentType = "image/jpeg"
+        
+        val id = params("id").toLong
+        val hash = params("hash")
+        val fullPath = imgUrl( id, hash )
+        
+        val url = "http://s0.geograph.org.uk%s.jpg".format( fullPath )
+        val fname = new java.io.File( geoGraphCache, "%d.jpg".format( id ) )
+        cacheToFile( url, fname )
+        
+        fname
+    }
     
     /*get("/routegpx/:routeId")
     {
