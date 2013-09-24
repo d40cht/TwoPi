@@ -220,7 +220,7 @@ function ElevationGraph( divId )
     }
 }
 
-function PosterController($scope, $routeParams, $http)
+function PosterController($scope, $routeParams, $http, $timeout)
 {
     $scope.routeId = $routeParams.routeId
     
@@ -234,21 +234,48 @@ function PosterController($scope, $routeParams, $http)
             //var routeData = JSON.parse( data );
             
             
-            var picUrls = [];
+            var pics = [];
             for ( rd in data )
             {
                 var dataEl = data[rd];
                 for ( pic in dataEl.inboundPics )
                 {
-                    var picUrl = dataEl.inboundPics[pic].imgUrl
-                    picUrls.push( picUrl );
+                    pics.push( dataEl.inboundPics[pic] );
                 }
             }
             
-            $scope.picUrls = picUrls;
+            // Sort to get highest scoring pictures first
+            var picsSorted = pics.slice(0);
+            picsSorted.sort( function( a, b)
+            {
+                if ( a.score < b.score ) return 1;
+                else if ( a.score > b.score ) return -1;
+                else return 0;
+            } );
+            
+            for ( pi in picsSorted )
+            {
+                var pic = picsSorted[pi];
+                if ( pi < 2 ) pic.picClass = "masonrySize1";
+                else if ( pi < 6 ) pic.picClass = "masonrySize2";
+                else pic.picClass = "masonrySize3";
+            }
+            $scope.pics = pics;
             $scope.routeData = data;
             
             
+            $timeout( function()
+            {
+                var $container = $('#masonryContainer');
+                
+                $container.imagesLoaded( function()
+                {
+                    $container.masonry( {
+                        columnWidth: 60,
+                        itemSelect : '.masonryItem',
+                    } );
+                } );
+            }, 0 );
         } )
         .error( function(data, status, headers, config )
         {

@@ -44,6 +44,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     private lazy val getRGH = new RouteGraphHolder()
     
     CacheManager.getInstance().addCache("memoized")
+    
+    private val geoGraphCache = new java.io.File( "geographCache" )
+    if ( !geoGraphCache.exists() ) geoGraphCache.mkdirs()
    
     
     def cached[T](name : String, args : Any* )( body : => T ) =
@@ -217,8 +220,6 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             }
         }
     }
-    
-    private val geoGraphCache = new java.io.File( "geographCache" )
     
     get("/geographThumb/:id/:hash")
     {
