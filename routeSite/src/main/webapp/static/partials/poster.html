@@ -3,9 +3,9 @@
     <div class="col-md-12 leftBar">
         <h2>Full screen: {{routeId}}</h2>
         
-        <div id="masonryContainer">
+        <div id="masonryContainer" style="height: 100%; width: 100%">
             <div ng-repeat="url in picUrls" class="masonryItem">
-                <img src="{{url}}"></img>
+                <img src="{{url}}" style="width: 150px; height: 100px"></img>
             </div>
         </div>
     </div>
@@ -14,12 +14,14 @@
         $( document ).ready( function()
         {
             var $container = $('#masonryContainer');
+            $container.masonry( {
+                itemSelect : '.masonryItem',
+                gutter : 10
+            } );
+            
             $container.imagesLoaded( function()
             {
-                $container.masonry( {
-                    itemSelect : '.masonryItem',
-                    gutter : 10
-                } );
+                $container.layout();
             } );
         } );
     </script>
