@@ -19,6 +19,10 @@ import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.JsonDSL._
 
+// Slick support
+import scala.slick.session.Database
+import Database.threadLocalSession
+
 
 // In sbt:
 //
@@ -31,7 +35,7 @@ class RouteGraphHolder
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
+class RouteSiteServlet( val db : Database ) extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
     
@@ -51,15 +55,9 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     
     def cached[T](name : String, args : Any* )( body : => T ) =
     {
-        import java.security.MessageDigest
+        import org.seacourt.osm.Utility.shaHash
         
-
-        def md5(s: String) : String =
-        {
-            MessageDigest.getInstance("SHA").digest(s.getBytes).map( x => "%02x".format(x) ).mkString
-        }
-        
-        val hash = md5( name + "_" + List(args:_*).map( _.toString ).mkString("_") ).toString
+        val hash = shaHash( name + "_" + List(args:_*).map( _.toString ).mkString("_") ).toString
         
         val cache = CacheManager.getInstance().getCache("memoized")   
         try

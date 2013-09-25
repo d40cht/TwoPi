@@ -260,7 +260,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
                 else if ( pi < 6 ) pic.picClass = "masonrySize2";
                 else pic.picClass = "masonrySize3";
             }
-            $scope.pics = pics;
+            $scope.pics = picsSorted;
             $scope.routeData = data;
             
             
