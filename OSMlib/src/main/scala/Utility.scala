@@ -9,10 +9,9 @@ import scala.reflect.runtime.universe._
 
 object Utility extends Logging
 {
-    import com.twitter.chill._
-    
     def kryoSave[T]( obj : T, outputFile : File ) =
     {
+        import com.twitter.chill._
         val kryo = KryoSerializer.registered.newKryo
 
         val output = new Output( new GZIPOutputStream( new FileOutputStream( outputFile ) ) )
@@ -22,6 +21,7 @@ object Utility extends Logging
     
     def kryoLoad[T]( inputFile : File )( implicit tag : ClassTag[T] ) : T =
     {
+        import com.twitter.chill._
         val kryo = KryoSerializer.registered.newKryo
 
         val input = new Input( new GZIPInputStream( new FileInputStream( inputFile ) ) )
@@ -32,6 +32,7 @@ object Utility extends Logging
     
     def kryoCache[T]( cacheFileName : File, generateFn : => T )( implicit tag : ClassTag[T] ) : T =
     {
+        import com.twitter.chill._
         if ( cacheFileName.exists )
         {
             log.info( "Loading data from cache: " + cacheFileName )
@@ -48,6 +49,12 @@ object Utility extends Logging
             log.info( "...complete" )
             res
         }
+    }
+    
+    def shaHash(s: String) : String =
+    {
+        import java.security.MessageDigest
+        MessageDigest.getInstance("SHA").digest(s.getBytes).map( x => "%02x".format(x) ).mkString
     }
 }
 
