@@ -29,6 +29,9 @@ class RouteGraphHolder
 {
     val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
 }
+
+case class User( val id : Int, val name : String, val email : String )
+
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
 class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
@@ -44,10 +47,13 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     private lazy val getRGH = new RouteGraphHolder()
     
     CacheManager.getInstance().addCache("memoized")
+    CacheManager.getInstance().addCache("sessions")
     
     private val geoGraphCache = new java.io.File( "geographCache" )
     if ( !geoGraphCache.exists() ) geoGraphCache.mkdirs()
    
+    private def getMemoizedCache = CacheManager.getInstance().getCache("memoized")
+    private def getSessionCache = CacheManager.getInstance().getCache("session")
     
     def cached[T](name : String, args : Any* )( body : => T ) =
     {
@@ -88,16 +94,65 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
             cache.releaseWriteLockOnKey( hash )
         }
     }
-
-    // So what do we do with this information?
-    // Auth flow example: oauthssodemo.appspot.com/step/1
+    
+    private val googleRedirectURI="http://www.two-pi.co.uk/googleoauth2callback"
+	private val googleClientId = "725550604793.apps.googleusercontent.com"
+	private val googleClientSecret = ""
     
     // http://www.jaredarmstrong.name/2011/08/scalatra-an-example-authentication-app/ and 
     // http://www.jaredarmstrong.name/2011/08/scalatra-form-authentication-with-remember-me/
     get("/googleoauth2callback")
     {
-        // Google etc incoming, reply of form:
-        //http://www.two-pi.co.uk/googleoauth2callback#state=1234&access_token=ya29.AHES6ZQDbSARS6qaTmJJ_G7FQXBgSEwP8TJWc0OwDxvgl7V7ZRQrKQ&token_type=Bearer&expires_in=3600
+        // From: https://developers.google.com/accounts/docs/OAuth2WebServer
+        import scalaj.http.{Http, HttpOptions}
+        import net.liftweb.json.{JsonParser, DefaultFormats, JObject}
+        implicit val formats = DefaultFormats
+        
+        params.get("error") foreach
+        { message =>
+
+            flash("error") = message
+            redirect("/")
+        }
+        
+        // Now get auth code
+        val code = params("code")
+        
+        val authCodeRes = Http.post("https://www.googleapis.com/o/oauth2/token")
+        	.params(
+    	        "code" 			-> code,
+    	        "client_id" 	-> googleClientId,
+    	        "client_secret"	-> googleClientSecret,
+    	        "redirect_uri"	-> googleRedirectURI,
+    	        "grant_type"	-> "authorization_code" )
+    	    { inputStream =>
+        
+            	JsonParser.parse(new java.io.InputStreamReader(inputStream))
+            
+    	    }
+        
+        // Post once again to get user information
+        val accessToken = (authCodeRes \\ "access_token").extract[String]
+        val url = "https://www.googleapis.com/oauth2/v1/userinfo?access_token=" + accessToken
+        val resJSON = Http(url)
+            .option(HttpOptions.connTimeout(500))
+            .option(HttpOptions.readTimeout(500))
+        { inputStream =>
+        
+            JsonParser.parse(new java.io.InputStreamReader(inputStream))
+        }
+        
+        val id 			= (resJSON \\ "id").extract[String]
+        val email 		= (resJSON \\ "email").extract[String]
+        val name 		= (resJSON \\ "name").extract[String]
+        val givenName 	= (resJSON \\ "given_name").extract[String]
+        val familyName	= (resJSON \\ "family_name").extract[String]
+        val profileLink	= (resJSON \\ "profile_link").extract[String]
+        val picture		= (resJSON \\ "picture").extract[String]
+        val gender		= (resJSON \\ "gender").extract[String]
+        
+        println( (id, email, name, givenName, familyName, profileLink, picture, gender) )
+        
         log.info( "Callback from google" )
     }
 
@@ -115,6 +170,43 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     {
         val els = s.split(",").map(_.trim.toDouble)
         Coord( els(0), els(1) )
+    }
+    
+    private val trackingCookie = "routeSite"
+    private val oneWeek = 7*24*60*60
+    
+    private var currTrackingId : Option[String] = None
+    
+    before()
+    {
+        // If there is no tracking cookie, add one so we can handle
+        // persistent sessions, oath etc
+    	if ( !cookies.get(trackingCookie).isDefined )
+    	{
+    		currTrackingId = Some(java.util.UUID.randomUUID.toString)
+    	    response.addHeader("Set-Cookie",
+    	    	Cookie(trackingCookie, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek, httpOnly=true)).toCookieString)
+    	}
+    	else
+    	{
+    	    currTrackingId = cookies.get(trackingCookie)
+    	}
+    }
+    
+    
+
+    private def getUser : Option[User] =
+    {
+        cookies.get(trackingCookie).flatMap
+        { tc =>
+            
+            val userData = getSessionCache.get(tc)
+            if ( tc == null ) None
+            else
+            {
+            	Some( userData.getObjectValue.asInstanceOf[User] )
+            }
+        }
     }
     
     post("/requestroute")
@@ -180,7 +272,18 @@ class RouteSiteServlet extends ScalatraServlet with ScalateSupport with FlashMap
     
     get("/")
     {
-        redirect("/static/webapp.html")
+        import org.scalatra.util.RicherString._
+        
+        contentType="text/html"
+            
+        val clientState = currTrackingId.get
+		val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&state=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
+		    "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+		        clientState,
+		        googleClientId,
+		        googleRedirectURI )
+            
+        layoutTemplate("/static/frame.ssp", "googleOpenIdLink" -> googleOpenIdLink.urlEncode )
     }
     
     private def imgUrl( index : Long, hash : String ) : String =

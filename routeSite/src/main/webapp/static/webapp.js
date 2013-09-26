@@ -5,17 +5,17 @@ angular.module('TwoPi', [])
         $routeProvider
             .when('/',
             {
-                templateUrl : 'partials/makeroute.html',
+                templateUrl : 'static/partials/makeroute.html',
                 controller  : RouteController
             } )
             .when('/:routeId',
             {
-                templateUrl : 'partials/makeroute.html',
+                templateUrl : 'static/partials/makeroute.html',
                 controller  : RouteController
             } )
             .when('/poster/:routeId',
             {
-                templateUrl : 'partials/poster.html',
+                templateUrl : 'static/partials/poster.html',
                 controller  : PosterController
             } );
     }] );
@@ -260,7 +260,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
                 else if ( pi < 6 ) pic.picClass = "masonrySize2";
                 else pic.picClass = "masonrySize3";
             }
-            $scope.pics = pics;
+            $scope.pics = picsSorted;
             $scope.routeData = data;
             
             

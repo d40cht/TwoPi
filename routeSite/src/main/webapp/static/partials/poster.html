@@ -5,7 +5,7 @@
             <div ng-repeat="pic in pics" class="masonryItem {{pic.picClass}}">
                 <div class="panel panel-primary">
                     <div class="panel-body">
-                        <img ng-src="/geographFull/{{pic.picIndex}}/{{pic.imgHash}}" title="{{pic.name}}" style="width: 100%"></img>
+                        <img ng-src="/geographFull/{{pic.picIndex}}/{{pic.imgHash}}" title="{{pic.title}}, {{pic.score}}" style="width: 100%"></img>
                     </div>
                     <div class="panel-heading">{{pic.title}}, {{pic.photographer}}</div>
                 </div>
