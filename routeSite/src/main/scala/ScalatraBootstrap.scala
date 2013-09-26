@@ -61,12 +61,14 @@ trait DatabaseEvolutionManager
                 .sortBy( _._1 )
                 
              
-            // Check that we have a dense series of version numbers   
+            // Check that we have a dense series of version numbers for applied evolutions
             appliedEvolutions.zipWithIndex.foreach
             { case ((v, hash, clean), i) =>
                 assert( v == i, "Existing evolutions are not well-formed: " + appliedEvolutions.map(_._1).mkString(",") )
                 assert( clean, "Evolution was not cleanly applied: " + i )
             }
+            
+            assert( appliedEvolutions.isEmpty || evolutions.last._1 >= appliedEvolutions.last._1, "This application package is at an older version than the database" )
            
             
             val evoMap = appliedEvolutions.map( x => (x._1, x._2) ).toMap

@@ -35,7 +35,7 @@ class RouteGraphHolder
 }
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet( val db : Database ) extends ScalatraServlet with ScalateSupport with FlashMapSupport with Logging
+class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSupport with FlashMapSupport with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
     
