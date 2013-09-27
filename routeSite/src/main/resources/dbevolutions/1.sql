@@ -1,1 +1,0 @@
-CREATE TABLE Users( id PRIMARY KEY, oauthId VARCHAR );

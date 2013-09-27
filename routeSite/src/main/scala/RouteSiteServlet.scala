@@ -34,13 +34,18 @@ class RouteGraphHolder
     val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
 }
 
-case class User( val id : Int, val name : String, val email : String )
-
 // Weird cost:
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSupport with FlashMapSupport with Logging
+class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
+    with ScalateSupport
+    with GZipSupport
+    with FlashMapSupport
+    with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
+
+    def flashError( message : String )  { flash("error") = message }
+    def flashInfo( message : String )   { flash("info") = message }
     
     implicit val formats = DefaultFormats
     
@@ -57,7 +62,7 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
     if ( !geoGraphCache.exists() ) geoGraphCache.mkdirs()
    
     private def getMemoizedCache = CacheManager.getInstance().getCache("memoized")
-    private def getSessionCache = CacheManager.getInstance().getCache("session")
+    private def getSessionCache = CacheManager.getInstance().getCache("sessions")
     
     def cached[T](name : String, args : Any* )( body : => T ) =
     {
@@ -95,7 +100,7 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
     
     private val googleRedirectURI="http://www.two-pi.co.uk/googleoauth2callback"
 	private val googleClientId = "725550604793.apps.googleusercontent.com"
-	private val googleClientSecret = ""
+	private val googleClientSecret = "mYcfxnq8nrSDe8iCP9qN9TWn"
     
     // http://www.jaredarmstrong.name/2011/08/scalatra-an-example-authentication-app/ and 
     // http://www.jaredarmstrong.name/2011/08/scalatra-form-authentication-with-remember-me/
@@ -116,7 +121,7 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
         // Now get auth code
         val code = params("code")
         
-        val authCodeRes = Http.post("https://www.googleapis.com/o/oauth2/token")
+        val authCodeRes = Http.post("https://accounts.google.com/o/oauth2/token")
         	.params(
     	        "code" 			-> code,
     	        "client_id" 	-> googleClientId,
@@ -125,7 +130,10 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
     	        "grant_type"	-> "authorization_code" )
     	    { inputStream =>
         
-            	JsonParser.parse(new java.io.InputStreamReader(inputStream))
+                val writer = new java.io.StringWriter()
+                org.apache.commons.io.IOUtils.copy( inputStream, writer )
+                val res = writer.toString()
+            	JsonParser.parse( res )
             
     	    }
         
@@ -137,7 +145,10 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
             .option(HttpOptions.readTimeout(500))
         { inputStream =>
         
-            JsonParser.parse(new java.io.InputStreamReader(inputStream))
+            val writer = new java.io.StringWriter()
+            org.apache.commons.io.IOUtils.copy( inputStream, writer )
+            val res = writer.toString()
+        	JsonParser.parse( res )
         }
         
         val id 			= (resJSON \\ "id").extract[String]
@@ -145,16 +156,40 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
         val name 		= (resJSON \\ "name").extract[String]
         val givenName 	= (resJSON \\ "given_name").extract[String]
         val familyName	= (resJSON \\ "family_name").extract[String]
-        val profileLink	= (resJSON \\ "profile_link").extract[String]
-        val picture		= (resJSON \\ "picture").extract[String]
+        val profileLink	= (resJSON \\ "link").extract[String]
         val gender		= (resJSON \\ "gender").extract[String]
         
-        println( (id, email, name, givenName, familyName, profileLink, picture, gender) )
+        log.info( "Google user info: " + (id, email, name, givenName, familyName, profileLink, gender).toString )
         
-        log.info( "Callback from google" )
-    }
+        val extId = "google_" + id
 
-     
+        val existingUserOption = persistence.getUser(extId)
+        val userDetails = existingUserOption match
+        {
+            case Some( user )   =>
+            {
+                flash("info") = "Welcome back: " + user.name
+                user
+            }
+            case None           =>
+            {
+                val newUser = persistence.addUser( extId, email, name )
+                flash("info") = "Thanks for joining: " + newUser.name
+                newUser
+            }
+        }
+        
+        cookies.get(trackingCookie).foreach
+        { tc =>
+            
+            getSessionCache.put( new Element(tc, userDetails) )
+        }
+        
+        redirect("/")
+    }
+    
+    
+    
     def routeFilePath( routeId : String ) = new java.io.File("routes/route_%s.xml".format(routeId)).getAbsoluteFile
     
     def messageDigest( s : String ) = java.security.MessageDigest
@@ -192,6 +227,11 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
     }
     
     
+    def signinUser( userId : String ) : Boolean = ???
+    
+    def addUser( user : User ) = ???
+
+     
 
     private def getUser : Option[User] =
     {
@@ -281,7 +321,10 @@ class RouteSiteServlet( val db : Database ) extends ScalatraServlet with GZipSup
 		        googleClientId,
 		        googleRedirectURI )
             
-        layoutTemplate("/static/frame.ssp", "googleOpenIdLink" -> googleOpenIdLink.urlEncode )
+        layoutTemplate("/static/frame.ssp",
+            "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
+            "flash" -> flash
+        )
     }
     
     private def imgUrl( index : Long, hash : String ) : String =

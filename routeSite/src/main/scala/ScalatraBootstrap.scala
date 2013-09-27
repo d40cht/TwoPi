@@ -1,4 +1,3 @@
-package org.seacourt.routeSite
 
 
 import org.scalatra._
@@ -14,95 +13,101 @@ import scala.slick.driver.H2Driver.simple._
 import scala.slick.jdbc.{StaticQuery}
 import scala.slick.jdbc.meta.{MTable}
 
-trait DatabaseEvolutionManager
+package org.seacourt.routeSite
 {
-    def logger : Logger
-    
-    object DbEvolutions extends Table[(Int, String, Boolean)]("DbEvolutions")
+
+    trait DatabaseEvolutionManager
     {
-        def version     = column[Int]("version", O.PrimaryKey )
-        def scriptHash  = column[String]("scriptHash")
-        def cleanApply  = column[Boolean]("cleanApply")
-        def * = version ~ scriptHash ~ cleanApply
-    }
-    
-    val db : Database
-    
-    private def applyEvolutionScript( script : String, version : Int, scriptHash : String )
-    { 
-        // DDL (which will form the main part of evolution scripts) is not transactional
-        // on H2. So there's no point running these scripts in a transaction
-        DbEvolutions.insert( (version, scriptHash, false) )
-        script.split(";").foreach
-        { cmd =>
+        def logger : Logger
         
-            logger.debug( "Applying: " + cmd )
-            StaticQuery.updateNA(cmd).execute
-        }
-        // If we get here, mark the evolution as cleanly applied
-        Query(DbEvolutions)
-            .filter( _.version === version )
-            .map( _.cleanApply )
-            .update(true)
-        
-    }
-    
-    def evolveDb( evolutions : Seq[(Int, String)] )
-    {
-        db withSession
+        object DbEvolutions extends Table[(Int, String, Boolean)]("DbEvolutions")
         {
-            if ( MTable.getTables.list.isEmpty )
-            {
-                DbEvolutions.ddl.create
-            }
+            def version     = column[Int]("version", O.PrimaryKey )
+            def scriptHash  = column[String]("scriptHash")
+            def cleanApply  = column[Boolean]("cleanApply")
+            def * = version ~ scriptHash ~ cleanApply
+        }
         
-            val appliedEvolutions = Query(DbEvolutions)
-                .list
-                .sortBy( _._1 )
-                
-             
-            // Check that we have a dense series of version numbers for applied evolutions
-            appliedEvolutions.zipWithIndex.foreach
-            { case ((v, hash, clean), i) =>
-                assert( v == i, "Existing evolutions are not well-formed: " + appliedEvolutions.map(_._1).mkString(",") )
-                assert( clean, "Evolution was not cleanly applied: " + i )
+        val db : Database
+        
+        private def applyEvolutionScript( script : String, version : Int, scriptHash : String )
+        { 
+            // DDL (which will form the main part of evolution scripts) is not transactional
+            // on H2. So there's no point running these scripts in a transaction
+            DbEvolutions.insert( (version, scriptHash, false) )
+            script.split(";").foreach
+            { cmd =>
+            
+                logger.info( "Applying: " + cmd )
+                StaticQuery.updateNA(cmd).execute
             }
+            // If we get here, mark the evolution as cleanly applied
+            Query(DbEvolutions)
+                .filter( _.version === version )
+                .map( _.cleanApply )
+                .update(true)
             
-            assert( appliedEvolutions.isEmpty || evolutions.last._1 >= appliedEvolutions.last._1, "This application package is at an older version than the database" )
-           
-            
-            val evoMap = appliedEvolutions.map( x => (x._1, x._2) ).toMap
-            for ( (version, evolutionScript) <- evolutions )
+        }
+        
+        def evolveDb( evolutions : Seq[(Int, String)] )
+        {
+            db withSession
             {
-                val computedHash = org.seacourt.osm.Utility.shaHash( evolutionScript )
-                evoMap.get(version) match
+                if ( MTable.getTables.list.isEmpty )
                 {
-                    case Some(hash) =>
-                    {
-                        assert( hash == computedHash, "Hash of evolution %d in db does not match the evo script: %s, %s".format(version, hash, computedHash) )
-                        logger.debug( "Skipping already applied evolution (%d)".format( version ) )
-                    }
-                    case None =>
-                    {
-                        // Apply this evolution script
-                        logger.debug( "Applying evolution: %d".format(version) )
-                        applyEvolutionScript( evolutionScript, version, computedHash )
-                    }
+                    DbEvolutions.ddl.create
                 }
-            }   
-        }    
+            
+                val appliedEvolutions = Query(DbEvolutions)
+                    .list
+                    .sortBy( _._1 )
+                    
+                 
+                // Check that we have a dense series of version numbers for applied evolutions
+                appliedEvolutions.zipWithIndex.foreach
+                { case ((v, hash, clean), i) =>
+                    assert( v == i, "Existing evolutions are not well-formed: " + appliedEvolutions.map(_._1).mkString(",") )
+                    assert( clean, "Evolution was not cleanly applied: " + i )
+                }
+                
+                assert( appliedEvolutions.isEmpty || evolutions.last._1 >= appliedEvolutions.last._1, "This application package is at an older version than the database" )
+               
+                
+                val evoMap = appliedEvolutions.map( x => (x._1, x._2) ).toMap
+                for ( (version, evolutionScript) <- evolutions )
+                {
+                    val computedHash = org.seacourt.osm.Utility.shaHash( evolutionScript )
+                    evoMap.get(version) match
+                    {
+                        case Some(hash) =>
+                        {
+                            assert( hash == computedHash, "Hash of evolution %d in db does not match the evo script: %s, %s".format(version, hash, computedHash) )
+                            logger.info( "Skipping already applied evolution (%d)".format( version ) )
+                        }
+                        case None =>
+                        {
+                            // Apply this evolution script
+                            logger.info( "Applying evolution: %d".format(version) )
+                            applyEvolutionScript( evolutionScript, version, computedHash )
+                        }
+                    }
+                }   
+            }    
+        }
     }
+
 }
 
-class ScalatraBootstrap extends LifeCycle with DatabaseEvolutionManager
+class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEvolutionManager
 {
     val logger = LoggerFactory.getLogger(getClass)
-    
+    logger.info( "Stuff" )
     val cpds = new ComboPooledDataSource
     logger.info("Created c3p0 connection pool")
     
     
     val db = Database.forDataSource(cpds)
+    val persistence = new org.seacourt.routeSite.Persistence(db)
     
     private def evolveFromJar() =
     {
@@ -112,7 +117,7 @@ class ScalatraBootstrap extends LifeCycle with DatabaseEvolutionManager
         // Yes, I know this is horrible. But there isn't a way to list resource paths
         // in a jar, so this'll do for now.
         val evolutionsFromJar = Stream.from(0)
-            .map( version => (version, classLoader.getResourceAsStream( resourcePath + version.toString )) )
+            .map( version => (version, classLoader.getResourceAsStream( resourcePath + version.toString + ".sql" )) )
             .takeWhile( _._2 != null )
             .map
             { case (version, istream) =>
@@ -129,7 +134,7 @@ class ScalatraBootstrap extends LifeCycle with DatabaseEvolutionManager
     
     override def init(context: ServletContext)
     {
-        context.mount(new RouteSiteServlet(db), "/*")
+        context.mount(new org.seacourt.routeSite.RouteSiteServlet(persistence), "/*")
     }
     
     private def closeDbConnection()
