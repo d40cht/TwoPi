@@ -320,10 +320,13 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 		        clientState,
 		        googleClientId,
 		        googleRedirectURI )
+		        
+        val user = getUser
             
         layoutTemplate("/static/frame.ssp",
             "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
-            "flash" -> flash
+            "flash" -> flash,
+            "user" -> user
         )
     }
     

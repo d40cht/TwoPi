@@ -1,19 +1,7 @@
 <%@ val googleOpenIdLink : String %>
 <%@ val flash : org.scalatra.FlashMap %>
+<%@ val user : Option[org.seacourt.routeSite.User] %>
 
-<!--
-flash.get("error") match
-                        {
-                            case Some(message) =>
-                                <div class="row-fluid">
-                                    <div class="span12">
-                                        <div style="background-color: red; color:white">
-                                            <p class="text-center"><strong>Error: {message}</strong></p>
-                                        </div>
-                                    </div>
-                                </div>
-                            case None => <div/>
-                        }-->
 
 <!doctype html>
 <html lang="en" ng-app="TwoPi">
@@ -52,11 +40,16 @@ flash.get("error") match
                 <div class="col-md-12">
                     <h2>TwoPi.co.uk
                     
-                    <div style="display: inline">
-                        <a class="btn" href="${googleOpenIdLink}">
-                            <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
-                        </a>
-                    </div>
+                    #match (user)
+                    #case(None)
+                        <div style="display: inline">
+                            <a class="btn" href="${googleOpenIdLink}">
+                                <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
+                            </a>
+                        </div>
+                    #otherwise
+                        ${user.get.name}
+                    #end
                     </h2>
                 </div>
             </div>
