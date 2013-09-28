@@ -218,7 +218,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     	{
     		currTrackingId = Some(java.util.UUID.randomUUID.toString)
     	    response.addHeader("Set-Cookie",
-    	    	Cookie(trackingCookie, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek, httpOnly=true)).toCookieString)
+    	    	Cookie(trackingCookie, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek)).toCookieString)
     	}
     	else
     	{
@@ -239,12 +239,28 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         { tc =>
             
             val userData = getSessionCache.get(tc)
-            if ( tc == null ) None
+            if ( userData == null ) None
             else
             {
             	Some( userData.getObjectValue.asInstanceOf[User] )
             }
         }
+    }
+    
+    get("/logout")
+    {
+        getUser map
+        { u =>
+            cookies.get(trackingCookie).foreach
+            { tc =>
+                
+                getSessionCache.remove(tc)
+                
+                flashInfo("Goodbye " + u.name)
+            }
+        }
+        
+        redirect("/")
     }
     
     post("/requestroute")
@@ -322,13 +338,14 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 		        googleRedirectURI )
 		        
         val user = getUser
-            
+        
         layoutTemplate("/static/frame.ssp",
             "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
             "flash" -> flash,
             "user" -> user
         )
     }
+    
     
     private def imgUrl( index : Long, hash : String ) : String =
     {

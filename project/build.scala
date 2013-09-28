@@ -69,6 +69,8 @@ object Toplevel extends Build
                 "org.scalatra" %% "scalatra-json" % scalatraVersion,
                 "org.json4s" %% "json4s-native" % "3.2.5",
                 "org.scalatra" %% "scalatra-specs2" % scalatraVersion % "test",
+                "org.scalatra" %% "scalatra-scalatest" % "2.2.1" % "test",
+                "org.scalatest" %% "scalatest" % "1.9.1" % "test",
                 "ch.qos.logback" % "logback-classic" % "1.0.6" % "runtime",
                 "org.eclipse.jetty" % "jetty-webapp" % "8.1.8.v20121106" % "container;compile",
                 "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" % "container;provided;test" artifacts (Artifact("javax.servlet", "jar", "jar")),

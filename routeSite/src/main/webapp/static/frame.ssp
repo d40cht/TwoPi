@@ -37,20 +37,29 @@
         
             <!-- Header -->
             <div class="row header">
-                <div class="col-md-12">
-                    <h2>TwoPi.co.uk
+                <div class="col-md-12" style="height:100%">
+                    <div style="float:left">
+                        <h2>TwoPi.co.uk</h2>
+                    </div>
                     
-                    #match (user)
-                    #case(None)
-                        <div style="display: inline">
-                            <a class="btn" href="${googleOpenIdLink}">
-                                <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
-                            </a>
+                    <div style="display: table; float:right; height: 100%">
+                        <div style="display:table-cell; vertical-align: middle; height: 100%">
+                            #match (user)
+                            #case(None)
+                                Sign in:
+                                <div style="display: inline">
+                                    <a class="btn" href="${googleOpenIdLink}">
+                                        <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
+                                    </a>
+                                </div>
+                            #otherwise
+                                
+                                <a href="/">${user.get.name}</a> |
+                                <a href="/logout">Logout</a>
+                            #end
                         </div>
-                    #otherwise
-                        ${user.get.name}
-                    #end
-                    </h2>
+                    </div>
+                    
                 </div>
             </div>
             

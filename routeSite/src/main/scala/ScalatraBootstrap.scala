@@ -107,7 +107,7 @@ class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEv
     
     
     val db = Database.forDataSource(cpds)
-    val persistence = new org.seacourt.routeSite.Persistence(db)
+    val persistence = new org.seacourt.routeSite.DbPersistence(db)
     
     private def evolveFromJar() =
     {
@@ -149,3 +149,4 @@ class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEv
         closeDbConnection
     }
 }
+

@@ -20,8 +20,13 @@ private object UserTable extends Table[User]("Users")
 }
 
 
+trait Persistence
+{
+    def getUser( extId : String ) : Option[User]
+    def addUser( extId : String, email : String, name : String ) : User
+}
 
-class Persistence( val db : Database )
+class DbPersistence( val db : Database ) extends Persistence
 {
     private def timestampNow = new java.sql.Timestamp( (new java.util.Date()).getTime() )
     
