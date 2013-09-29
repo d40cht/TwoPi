@@ -324,6 +324,10 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         routeFilePath( hash )
     }
     
+    get("/user")
+    {
+    }
+    
     get("/")
     {
         import org.scalatra.util.RicherString._

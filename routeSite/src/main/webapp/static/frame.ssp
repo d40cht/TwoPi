@@ -6,7 +6,7 @@
 <!doctype html>
 <html lang="en" ng-app="TwoPi">
     <head>
-        <title>Find a route</title>
+        <title>TwoPI.co.uk: Circular walking and cycling routes</title>
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         
@@ -80,7 +80,7 @@
                     #end
                 </div>
                 
-                <div ng-view style="height: 100%; overflow: hidden"></div>
+                <div ng-view style="height: 100%"></div>
             </div>
             
         </div>

@@ -2,11 +2,28 @@
     <!-- Left bar -->
     <div class="col-md-2 leftBar">
         <div>
-            <h2>Route</h2>
-            Requested distance: {{distance}}
+            <h2>Route details</h2>
+            
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Enter route name">
+                <span class="input-group-btn">
+                    <button class="btn btn-default" type="button">Save route</button>
+                </span>
+            </div>
             <br>
-            Routing preference: {{routingPreference}}
-            <br>
+            
+            <table class="table table-condensed">
+                <tr><td>Route type</td><td>{{routingPreference}}</td></tr>
+                <tr><td>Distance</td><td>{{routeInfo.distance.toFixed(1)}}km</td></tr>
+                <tr><td>Ascent</td><td>{{routeInfo.ascent.toFixed(0)}}m</td></tr>
+            </table>
+            
+            <div class="text-center">
+                <a href="/#/poster/{{routeInfo.routeId}}" class="btn btn-default">Visual route</a>
+                <a href=/gpx/{{routeInfo.routeId}} class="btn btn-default">Export GPX</a>
+            </div>
+            <hr>
+            
             <ul>
                 <li ng-repeat="section in routeData">
                     <ul>    
@@ -37,7 +54,7 @@
                             <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" ng-src="/geographThumb/{{pic.picIndex}}/{{pic.imgHash}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
                         </li>
                     </ul>
-                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}} ({{section.elevation.toFixed(0)}}m)</div>
+                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}}</div>
                 </li>
             </ul>
         </div>

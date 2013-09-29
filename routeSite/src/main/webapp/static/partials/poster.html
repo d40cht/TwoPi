@@ -1,13 +1,32 @@
 <div class="row">         
     <!-- Left bar -->
-    <div class="col-md-12 leftBar">
+    <div class="col-md-2">
+        <h3>Wikipedia</h3>
+        <div ng-repeat="pic in wiki"">
+            <div class="panel panel-primary">
+                <div class="panel-body">
+                    <a href="{{pic.link}}">
+                        <img ng-src="{{pic.imgSrc}}" title="{{pic.title}}" style="width: 100%"></img>
+                    </a>
+                </div>
+                
+                <div class="panel-heading"><a href="{{pic.link}}">{{pic.title}}</a></div>
+            </div>
+            <br>
+        </div>
+    </div>
+    <div class="col-md-10">
+        <h3>Geograph images</h3>
         <div id="masonryContainer">
             <div ng-repeat="pic in pics" class="masonryItem {{pic.picClass}}">
                 <div class="panel panel-primary">
                     <div class="panel-body">
-                        <img ng-src="/geographFull/{{pic.picIndex}}/{{pic.imgHash}}" title="{{pic.title}}, {{pic.score}}" style="width: 100%"></img>
+                        <a href="{{pic.link}}">
+                            <img ng-src="{{pic.imgSrc}}" title="{{pic.title}}" style="width: 100%"></img>
+                        </a>
                     </div>
-                    <div class="panel-heading">{{pic.title}}, {{pic.photographer}}</div>
+                    
+                    <div class="panel-heading"><a href="{{pic.link}}">{{pic.title}}</a></div>
                 </div>
             </div>
         </div>

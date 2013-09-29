@@ -232,15 +232,36 @@ function PosterController($scope, $routeParams, $http, $timeout)
         {
             //alert( data );
             //var routeData = JSON.parse( data );
-            
-            
+
             var pics = [];
+            var wiki = [];
             for ( rd in data )
             {
                 var dataEl = data[rd];
-                for ( pic in dataEl.inboundPics )
+                for ( picI in dataEl.inboundPics )
                 {
-                    pics.push( dataEl.inboundPics[pic] );
+                    var pic = dataEl.inboundPics[picI];
+                    pics.push( {
+                        title   : pic.title + ", " + pic.photographer,
+                        imgSrc  : "/geographFull/" + pic.picIndex + "/" + pic.imgHash,
+                        link    : "http://www.geograph.org.uk/photo/" + pic.picIndex,
+                        score   : pic.score
+                    } );
+                }
+                
+                for ( poiI in dataEl.inboundPOIs )
+                {
+                    var poi = dataEl.inboundPOIs[poiI];
+                    
+                    if ( poi.hasOwnProperty("wikiData") && poi.wikiData.hasOwnProperty("imageUrl") )
+                    {
+                        wiki.push( {
+                            title   : "Wikipedia: " + poi.wikiData.name.replace(/_/g, " "),
+                            imgSrc  : poi.wikiData.imageUrl,
+                            link    : "http://en.wikipedia.org/wiki/" + poi.wikiData.name,
+                            score   : 0.6
+                        } );
+                    }
                 }
             }
             
@@ -261,6 +282,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
                 else pic.picClass = "masonrySize3";
             }
             $scope.pics = picsSorted;
+            $scope.wiki = wiki;
             $scope.routeData = data;
             
             
@@ -383,6 +405,9 @@ function RouteController($scope, $log, $http, $location)
             // Update the elevation graph
             var seriesData = [];
             var lastNode = null;
+            var lastPF = null;
+            var ascent = 0.0;
+            var totalDistance = 0.0;
             for ( rd in routeData )
             {
                 var dataEl = data[rd];
@@ -397,11 +422,15 @@ function RouteController($scope, $log, $http, $location)
                     var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
                     var tn = mapHolder.toMapProjection( rawPos );
                     var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
-                    if ( lastNode != null )
+                    if ( lastPF != null )
                     {
-                        trackLayer.addNodes( [lastNode, pf] );
+                        heightDelta = node.height - lastNode.height;
+                        if ( heightDelta > 0.0 ) ascent += heightDelta;
+                        trackLayer.addNodes( [lastPF, pf] );
                     }
-                    lastNode = pf;
+                    lastPF = pf;
+                    lastNode = node;
+                    totalDistance = distance;
                 }
             }
             
@@ -411,6 +440,13 @@ function RouteController($scope, $log, $http, $location)
             } );
             
             mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
+            
+            $scope.routeInfo =
+            {
+                routeId     : routeId,
+                distance    : totalDistance,
+                ascent      : ascent
+            }
         } )
         .error( function(data, status, headers, config )
         {
