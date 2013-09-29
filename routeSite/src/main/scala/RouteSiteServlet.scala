@@ -294,34 +294,39 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             }
         }
         
-        val rendered = swrite(res)
-        val hash = messageDigest( rendered )
-        val pw = new java.io.PrintWriter( routeFilePath( hash ), "utf-8" )
-        try
-        {
-            pw.print( rendered )
-        }
-        finally
-        {
-            pw.close
-        }
+        val jsonRendered = swrite(res)
+        val routeId = persistence.addRoute(jsonRendered)
         
-        println( "Saving out " + hash )
-        
-        hash
+        routeId.toString
     }
     
     get("/getroute/:routeId")
     {
         contentType = "application/json"
         
-        println( "Request..." )
-        
-        val hash = params("routeId")
-        
-        println( "Hash: " + hash )
-        
-        routeFilePath( hash )
+        persistence.getRoute( params("routeId").toInt ) match
+        {
+            case Some(routeData)    => routeData
+            case None               => "Error: route not found"
+        }
+    }
+    
+    get("/saveroute/:routeId/:routeName")
+    {
+        getUser match
+        {
+            case Some(user) =>
+            {
+                val routeId = params("routeId").toInt
+                val routeName = params("routeName")
+                persistence.saveRouteToUser( user.id, routeId, routeName )
+                "success"
+            }
+            case None =>
+            {
+                "fail"
+            }
+        }
     }
     
     get("/user")

@@ -4,12 +4,14 @@
         <div>
             <h2>Route details</h2>
             
-            <div class="input-group">
-                <input type="text" class="form-control" placeholder="Enter route name">
-                <span class="input-group-btn">
-                    <button class="btn btn-default" type="button">Save route</button>
-                </span>
-            </div>
+            <form ng-submit="saveRoute()">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Enter route name" name="routeName" ng-model="routeName">
+                    <span class="input-group-btn">
+                        <button class="btn btn-default" type="submit">Save route</button>
+                    </span>
+                </div>
+            </form>
             <br>
             
             <table class="table table-condensed">

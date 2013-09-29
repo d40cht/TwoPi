@@ -1,6 +1,6 @@
 
 angular.module('TwoPi', [])
-    .config(['$routeProvider', function($routeProvider)
+    .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider)
     {
         $routeProvider
             .when('/',
@@ -18,6 +18,8 @@ angular.module('TwoPi', [])
                 templateUrl : 'static/partials/poster.html',
                 controller  : PosterController
             } );
+            
+        $locationProvider.html5Mode(true);
     }] );
 
 
@@ -306,7 +308,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
 }
 
 
-function RouteController($scope, $log, $http, $location)
+function RouteController($scope, $log, $http, $location, $routeParams)
 {   
     // TODO: Record start and end coords into localStorage
     $scope.routingPreferences = ["Walking"];
@@ -377,6 +379,18 @@ function RouteController($scope, $log, $http, $location)
         midMarker.removeMarker();
         $scope.startCoord = "";
         $scope.midCoord = "";
+    }
+    
+    $scope.saveRoute = function()
+    {
+        $http( {
+            method  : "GET",
+            url     : "/saveroute/" + $scope.routeInfo.routeId
+        } )
+        .success( function(data, status, headers, config )
+        {
+            alert( "Saved route to: " + $scope.routeName );
+        } );
     }
     
     $scope.setStart();
@@ -459,7 +473,7 @@ function RouteController($scope, $log, $http, $location)
         elevationCrossLinkMarker.moveMarker( new OpenLayers.LonLat( lon, lat ) );
     };
     
-    var cr = $location.search()['routeId'];
+    var cr = $routeParams['routeId'];
     if ( cr != null )
     {
         setRoute( cr );
@@ -497,7 +511,7 @@ function RouteController($scope, $log, $http, $location)
         .success( function(data, status, headers, config )
         {
             var hash = data;
-            $location.search( 'routeId', hash );
+            $location.path( "/" + hash );
             localStorage.setItem( 'currentRoute', hash );
             setRoute( hash );
         } )

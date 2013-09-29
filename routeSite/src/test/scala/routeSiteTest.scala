@@ -26,6 +26,15 @@ class DatabaseSimpleTest extends FlatSpec
         def * = version ~ scriptHash
     }
     
+    object AutoIncTable extends Table[(Int, String)]("AutoInc")
+    {
+        def id          = column[Int]("id", O.PrimaryKey, O.AutoInc)
+        def text        = column[String]("text")
+        
+        def * = id ~ text
+        def autoInc = text returning id
+    }
+    
     val db = Database.forURL("jdbc:h2:mem:testSimple;DB_CLOSE_DELAY=-1", driver = "org.h2.Driver")
  
     "A database" should "persist data that has been inserted into it" in
@@ -33,6 +42,7 @@ class DatabaseSimpleTest extends FlatSpec
         db withSession
         {
             DbFoo.ddl.create
+            AutoIncTable.ddl.create
             assert( Query(DbFoo).list.length === 0 )
             
             DbFoo.insert( (3, "Foo") )
@@ -56,7 +66,28 @@ class DatabaseSimpleTest extends FlatSpec
             assert( Query(DbFoo).sortBy( _.version ).map( _.version ).list === List( 1, 2, 3 ) )
         }
     }
+    
+    "Slick" should "allow autoincrement columns to be returned after inserts" in
+    {
+        db withSession
+        {
+            val res1 = AutoIncTable.autoInc.insert("a")
+            assert( res1 === 1 )
+            val res2 = AutoIncTable.autoInc.insert("b")
+            assert( res2 === 2 )
+            val res3 = AutoIncTable.autoInc.insert("c")
+            assert( res3 === 3 )
+            
+            val allData = Query(AutoIncTable).list
+            
+            assert( allData === List(
+                (1, "a"),
+                (2, "b"),
+                (3, "c") ) )
+        }
+    }
 }
+
 
 
 class DatabaseEvolutionsTest extends FlatSpec

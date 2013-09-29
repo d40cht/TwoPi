@@ -19,11 +19,32 @@ private object UserTable extends Table[User]("Users")
     def * = id ~ extId ~ name ~ email ~ numLogins ~ firstLogin ~ lastLogin <> (User, User.unapply _)
 }
 
+private object RouteTable extends Table[(Int, String)]("Routes")
+{
+    def id          = column[Int]("id", O.PrimaryKey)
+    def routeData   = column[String]("routeData")
+    
+    def * = id ~ routeData
+    def autoInc = (routeData) returning id
+}
+
+private object UserRouteTable extends Table[(Int, Int, String)]("UserRoutes")
+{
+    def routeId     = column[Int]("routeId")
+    def userId      = column[Int]("userId")
+    def routeName   = column[String]("name")
+    
+    def * = routeId ~ userId ~ routeName
+}
 
 trait Persistence
 {
     def getUser( extId : String ) : Option[User]
     def addUser( extId : String, email : String, name : String ) : User
+    def addRoute( routeJSON : String ) : Int
+    def getRoute( routeId : Int ) : Option[String]
+    def saveRouteToUser( userId : Int, routeId : Int, routeName : String )
+    def getUserRoutes( userId : Int ) : List[(Int, String, String)]
 }
 
 class DbPersistence( val db : Database ) extends Persistence
@@ -60,6 +81,47 @@ class DbPersistence( val db : Database ) extends Persistence
             insertCols.insert( (extId, name, email, 0, now, now ) )
             
             Query(UserTable).filter( _.extId === extId ).firstOption.get
+        }
+    }
+    
+    def addRoute( routeData : String ) : Int =
+    {
+        db withSession
+        {
+            RouteTable.autoInc.insert( routeData )
+        }
+    }
+    
+    def getRoute( routeId : Int ) : Option[String] =
+    {
+        db withSession
+        {
+            Query(RouteTable)
+                .filter( _.id === routeId )
+                .map( _.routeData )
+                .firstOption
+        }
+    }
+    
+    def saveRouteToUser( userId : Int, routeId : Int, routeName : String )
+    {
+        db withSession
+        {
+            UserRouteTable.insert( (routeId, userId, routeName) )
+        }
+    }
+    
+    def getUserRoutes( userId : Int ) : List[(Int, String, String)] =
+    {
+        db withSession
+        {
+            val routes = for
+            {
+                ur  <- UserRouteTable
+                r   <- RouteTable if ur.routeId === r.id
+            } yield ( ur.routeId, ur.routeName, r.routeData )
+            
+            routes.list
         }
     }
 }
