@@ -2,24 +2,24 @@
 angular.module('TwoPi', [])
     .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider)
     {
+        $locationProvider.html5Mode(true);
+        
         $routeProvider
-            .when('/',
+            .when('/app',
             {
-                templateUrl : 'static/partials/makeroute.html',
+                templateUrl : '/static/partials/makeroute.html',
                 controller  : RouteController
             } )
-            .when('/:routeId',
+            .when('/app/:routeId',
             {
-                templateUrl : 'static/partials/makeroute.html',
+                templateUrl : '/static/partials/makeroute.html',
                 controller  : RouteController
             } )
-            .when('/poster/:routeId',
+            .when('/app/poster/:routeId',
             {
-                templateUrl : 'static/partials/poster.html',
+                templateUrl : '/static/partials/poster.html',
                 controller  : PosterController
             } );
-            
-        $locationProvider.html5Mode(true);
     }] );
 
 
@@ -232,9 +232,6 @@ function PosterController($scope, $routeParams, $http, $timeout)
         } )
         .success( function( data, status, headers, config )
         {
-            //alert( data );
-            //var routeData = JSON.parse( data );
-
             var pics = [];
             var wiki = [];
             for ( rd in data )
@@ -385,11 +382,11 @@ function RouteController($scope, $log, $http, $location, $routeParams)
     {
         $http( {
             method  : "GET",
-            url     : "/saveroute/" + $scope.routeInfo.routeId
+            url     : "/saveroute/" + $scope.routeInfo.routeId + "/" + $scope.routeName
         } )
         .success( function(data, status, headers, config )
         {
-            alert( "Saved route to: " + $scope.routeName );
+            alert( data );
         } );
     }
     
@@ -511,8 +508,8 @@ function RouteController($scope, $log, $http, $location, $routeParams)
         .success( function(data, status, headers, config )
         {
             var hash = data;
-            $location.path( "/" + hash );
             localStorage.setItem( 'currentRoute', hash );
+            $location.path( "/app/" + hash );
             setRoute( hash );
         } )
         .error( function(data, status, headers, config )

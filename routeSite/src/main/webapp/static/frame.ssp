@@ -13,7 +13,9 @@
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css"/>
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-theme.min.css"/>
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.min.css"/>
-        <link rel="stylesheet/less" type="text/css" href="static/webapp.less"/>
+        <link rel="stylesheet/less" type="text/css" href="/static/webapp.less"/>
+        
+        <base href="/app"/>
         
         
         <script src="http://cdnjs.cloudflare.com/ajax/libs/less.js/1.4.1/less.min.js"></script>
@@ -27,7 +29,7 @@
         <script src="http://masonry.desandro.com/masonry.pkgd.js"></script>
         <script src="http://desandro.github.io/imagesloaded/imagesloaded.pkgd.min.js"></script>
         
-        <script src="static/webapp.js"></script>
+        <script src="/static/webapp.js"></script>
         
         
     </head>

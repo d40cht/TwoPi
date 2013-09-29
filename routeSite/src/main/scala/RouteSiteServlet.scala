@@ -43,11 +43,13 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
+    import org.json4s.native.Serialization.{read => sread, write => swrite}
+    implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
 
     def flashError( message : String )  { flash("error") = message }
     def flashInfo( message : String )   { flash("info") = message }
     
-    implicit val formats = DefaultFormats
+    //implicit val formats = DefaultFormats
     
     Logging.configureDefaultLogging()
 
@@ -97,6 +99,23 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             cache.releaseWriteLockOnKey( hash )
         }
     }
+    
+    private val trackingCookieName = "routeSite"
+    private val oneWeek = 7*24*60*60
+    
+    before()
+    {
+        // If there is no tracking cookie, add one so we can handle
+        // persistent sessions, oath etc
+    	if ( !cookies.get(trackingCookieName).isDefined )
+    	{
+    		val currTrackingId = Some(java.util.UUID.randomUUID.toString)
+    	    response.addHeader("Set-Cookie",
+    	    	Cookie(trackingCookieName, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek)).toCookieString)
+    	}
+    }
+    
+    def trackingCookie = cookies.get(trackingCookieName)
     
     private val googleRedirectURI="http://www.two-pi.co.uk/googleoauth2callback"
 	private val googleClientId = "725550604793.apps.googleusercontent.com"
@@ -179,7 +198,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             }
         }
         
-        cookies.get(trackingCookie).foreach
+        trackingCookie.foreach
         { tc =>
             
             getSessionCache.put( new Element(tc, userDetails) )
@@ -204,38 +223,10 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val els = s.split(",").map(_.trim.toDouble)
         Coord( els(0), els(1) )
     }
-    
-    private val trackingCookie = "routeSite"
-    private val oneWeek = 7*24*60*60
-    
-    private var currTrackingId : Option[String] = None
-    
-    before()
-    {
-        // If there is no tracking cookie, add one so we can handle
-        // persistent sessions, oath etc
-    	if ( !cookies.get(trackingCookie).isDefined )
-    	{
-    		currTrackingId = Some(java.util.UUID.randomUUID.toString)
-    	    response.addHeader("Set-Cookie",
-    	    	Cookie(trackingCookie, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek)).toCookieString)
-    	}
-    	else
-    	{
-    	    currTrackingId = cookies.get(trackingCookie)
-    	}
-    }
-    
-    
-    def signinUser( userId : String ) : Boolean = ???
-    
-    def addUser( user : User ) = ???
-
-     
 
     private def getUser : Option[User] =
     {
-        cookies.get(trackingCookie).flatMap
+        trackingCookie.flatMap
         { tc =>
             
             val userData = getSessionCache.get(tc)
@@ -251,7 +242,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         getUser map
         { u =>
-            cookies.get(trackingCookie).foreach
+            trackingCookie.foreach
             { tc =>
                 
                 getSessionCache.remove(tc)
@@ -265,9 +256,6 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     post("/requestroute")
     {
-        import org.json4s.native.Serialization.{read => sread, write => swrite}
-        implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
-        
         //contentType = "application/json"
         contentType = "text/plain"
         
@@ -304,6 +292,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         contentType = "application/json"
         
+        println( "Route id: " + params("routeId") )
+        
         persistence.getRoute( params("routeId").toInt ) match
         {
             case Some(routeData)    => routeData
@@ -329,20 +319,38 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         }
     }
     
+    get("/myroutes")
+    {
+        contentType = "application/json"
+        getUser match
+        {
+            case Some(user) =>
+            {
+                val routes = persistence.getUserRoutes( user.id )
+                
+                swrite(routes)
+            }
+            case None       => "fail"
+        }
+    }
+    
     get("/user")
     {
     }
     
     get("/")
     {
+        redirect("/app/")
+    }
+    
+    get("/app*")
+    {
         import org.scalatra.util.RicherString._
         
         contentType="text/html"
             
-        val clientState = currTrackingId.get
-		val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&state=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
+		val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
 		    "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
-		        clientState,
 		        googleClientId,
 		        googleRedirectURI )
 		        

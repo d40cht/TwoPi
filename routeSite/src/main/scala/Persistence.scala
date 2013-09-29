@@ -8,7 +8,7 @@ case class User( id : Int, extId : String, name : String, email : String, numLog
 
 private object UserTable extends Table[User]("Users")
 {
-    def id          = column[Int]("id", O.PrimaryKey )
+    def id          = column[Int]("id", O.PrimaryKey, O.AutoInc)
     def extId       = column[String]("extId")
     def name        = column[String]("name")
     def email       = column[String]("email")
@@ -21,7 +21,7 @@ private object UserTable extends Table[User]("Users")
 
 private object RouteTable extends Table[(Int, String)]("Routes")
 {
-    def id          = column[Int]("id", O.PrimaryKey)
+    def id          = column[Int]("id", O.PrimaryKey, O.AutoInc)
     def routeData   = column[String]("routeData")
     
     def * = id ~ routeData
