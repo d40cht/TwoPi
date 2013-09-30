@@ -5,20 +5,25 @@ angular.module('TwoPi', [])
         $locationProvider.html5Mode(true);
         
         $routeProvider
-            .when('/app',
+            .when('/',
             {
                 templateUrl : '/static/partials/makeroute.html',
                 controller  : RouteController
             } )
-            .when('/app/:routeId',
+            .when('/route/:routeId',
             {
                 templateUrl : '/static/partials/makeroute.html',
                 controller  : RouteController
             } )
-            .when('/app/poster/:routeId',
+            .when('/poster/:routeId',
             {
                 templateUrl : '/static/partials/poster.html',
                 controller  : PosterController
+            } )
+            .when('/user',
+            {
+                templateUrl : '/static/partials/user.html',
+                controller  : UserController
             } );
     }] );
 
@@ -178,6 +183,12 @@ function RouteMap( mapId, lon, lat, zoom )
         map.setLayerIndex(trackLayer, TRACK_LAYER_INDEX);
     }
     this.setTrackLayer = setTrackLayer;
+    
+    function zoomToExtent( bounds )
+    {
+        map.zoomToExtent( bounds );
+    }
+    this.zoomToExtent = zoomToExtent;
 }
 
 function ElevationGraph( divId )
@@ -222,6 +233,18 @@ function ElevationGraph( divId )
     }
 }
 
+function UserController($scope, $routeParams, $http)
+{
+    $http( {
+            method: "GET",
+            url : ("/myroutes")
+        } )
+        .success( function( data, status, headers, config )
+        {
+            $scope.myroutes = data;
+        } );
+}
+
 function PosterController($scope, $routeParams, $http, $timeout)
 {
     $scope.routeId = $routeParams.routeId
@@ -234,9 +257,9 @@ function PosterController($scope, $routeParams, $http, $timeout)
         {
             var pics = [];
             var wiki = [];
-            for ( rd in data )
+            for ( rd in data.directions )
             {
-                var dataEl = data[rd];
+                var dataEl = data.directions[rd];
                 for ( picI in dataEl.inboundPics )
                 {
                     var pic = dataEl.inboundPics[picI];
@@ -382,7 +405,7 @@ function RouteController($scope, $log, $http, $location, $routeParams)
     {
         $http( {
             method  : "GET",
-            url     : "/saveroute/" + $scope.routeInfo.routeId + "/" + $scope.routeName
+            url     : "/saveroute/" + $scope.routeId + "/" + $scope.routeName
         } )
         .success( function(data, status, headers, config )
         {
@@ -398,12 +421,8 @@ function RouteController($scope, $log, $http, $location, $routeParams)
             method: "GET",
             url : ("/getroute/" + routeId)
         } )
-        .success( function(data, status, headers, config )
+        .success( function(routeData, status, headers, config )
         {
-            //alert( data );
-            //var routeData = JSON.parse( data );
-            var routeData = data;
-            
             $scope.routeData = routeData;
             
             // Update the map
@@ -419,9 +438,11 @@ function RouteController($scope, $log, $http, $location, $routeParams)
             var lastPF = null;
             var ascent = 0.0;
             var totalDistance = 0.0;
-            for ( rd in routeData )
+            
+            var bounds = new OpenLayers.Bounds();
+            for ( rd in routeData.directions )
             {
-                var dataEl = data[rd];
+                var dataEl = routeData.directions[rd];
                 for ( n in dataEl.inboundNodes )
                 {
                     var nodeAndDist = dataEl.inboundNodes[n];
@@ -433,6 +454,8 @@ function RouteController($scope, $log, $http, $location, $routeParams)
                     var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
                     var tn = mapHolder.toMapProjection( rawPos );
                     var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
+                    bounds.extend( new OpenLayers.LonLat( tn.lon, tn.lat ) );
+                    
                     if ( lastPF != null )
                     {
                         heightDelta = node.height - lastNode.height;
@@ -451,13 +474,9 @@ function RouteController($scope, $log, $http, $location, $routeParams)
             } );
             
             mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
+            mapHolder.zoomToExtent( bounds );
             
-            $scope.routeInfo =
-            {
-                routeId     : routeId,
-                distance    : totalDistance,
-                ascent      : ascent
-            }
+            $scope.routeId = routeId
         } )
         .error( function(data, status, headers, config )
         {
@@ -509,7 +528,7 @@ function RouteController($scope, $log, $http, $location, $routeParams)
         {
             var hash = data;
             localStorage.setItem( 'currentRoute', hash );
-            $location.path( "/app/" + hash );
+            $location.path( "/route/" + hash );
             setRoute( hash );
         } )
         .error( function(data, status, headers, config )

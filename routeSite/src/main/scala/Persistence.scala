@@ -5,6 +5,7 @@ import Database.threadLocalSession
 import scala.slick.driver.H2Driver.simple._
 
 case class User( id : Int, extId : String, name : String, email : String, numLogins : Int, firstLogin : java.sql.Timestamp, lastLogin : java.sql.Timestamp )
+case class UserRoute( id : Int, name : String, distance : Double, ascent : Double )
 
 private object UserTable extends Table[User]("Users")
 {
@@ -19,20 +20,22 @@ private object UserTable extends Table[User]("Users")
     def * = id ~ extId ~ name ~ email ~ numLogins ~ firstLogin ~ lastLogin <> (User, User.unapply _)
 }
 
-private object RouteTable extends Table[(Int, String)]("Routes")
+private object RouteTable extends Table[(Int, String, Double, Double)]("Routes")
 {
     def id          = column[Int]("id", O.PrimaryKey, O.AutoInc)
     def routeData   = column[String]("routeData")
+    def distance    = column[Double]("distance")
+    def ascent      = column[Double]("ascent")
     
-    def * = id ~ routeData
-    def autoInc = (routeData) returning id
+    def * = id ~ routeData ~ distance ~ ascent
+    def autoInc = (routeData ~ distance ~ ascent) returning id
 }
 
 private object UserRouteTable extends Table[(Int, Int, String)]("UserRoutes")
 {
     def routeId     = column[Int]("routeId")
     def userId      = column[Int]("userId")
-    def routeName   = column[String]("name")
+    def routeName   = column[String]("routeName")
     
     def * = routeId ~ userId ~ routeName
 }
@@ -41,10 +44,10 @@ trait Persistence
 {
     def getUser( extId : String ) : Option[User]
     def addUser( extId : String, email : String, name : String ) : User
-    def addRoute( routeJSON : String ) : Int
+    def addRoute( routeJSON : String, distance : Double, ascent : Double ) : Int
     def getRoute( routeId : Int ) : Option[String]
     def saveRouteToUser( userId : Int, routeId : Int, routeName : String )
-    def getUserRoutes( userId : Int ) : List[(Int, String, String)]
+    def getUserRoutes( userId : Int ) : List[UserRoute]
 }
 
 class DbPersistence( val db : Database ) extends Persistence
@@ -84,11 +87,11 @@ class DbPersistence( val db : Database ) extends Persistence
         }
     }
     
-    def addRoute( routeData : String ) : Int =
+    def addRoute( routeData : String, distance : Double, ascent : Double ) : Int =
     {
         db withSession
         {
-            RouteTable.autoInc.insert( routeData )
+            RouteTable.autoInc.insert( (routeData, distance, ascent) )
         }
     }
     
@@ -111,7 +114,7 @@ class DbPersistence( val db : Database ) extends Persistence
         }
     }
     
-    def getUserRoutes( userId : Int ) : List[(Int, String, String)] =
+    def getUserRoutes( userId : Int ) : List[UserRoute] =
     {
         db withSession
         {
@@ -119,9 +122,9 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 ur  <- UserRouteTable
                 r   <- RouteTable if ur.routeId === r.id
-            } yield ( ur.routeId, ur.routeName, r.routeData )
+            } yield ( ur.routeId, ur.routeName, r.distance, r.ascent )
             
-            routes.list
+            routes.list.map( r => UserRoute( r._1, r._2, r._3, r._4 ) )
         }
     }
 }

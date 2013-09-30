@@ -45,6 +45,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     import net.sf.ehcache.{CacheManager, Element}
     import org.json4s.native.Serialization.{read => sread, write => swrite}
     implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
+    
+    private val loginExpirySeconds = 60*60*24*10
 
     def flashError( message : String )  { flash("error") = message }
     def flashInfo( message : String )   { flash("info") = message }
@@ -110,9 +112,14 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     	if ( !cookies.get(trackingCookieName).isDefined )
     	{
     		val currTrackingId = Some(java.util.UUID.randomUUID.toString)
+    		//log.info( "Setting tracking cookie to: " + currTrackingId )
     	    response.addHeader("Set-Cookie",
     	    	Cookie(trackingCookieName, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek)).toCookieString)
     	}
+    	/*else
+    	{
+    	    log.info( "Found tracking cookie id: " + cookies.get(trackingCookieName).get)
+    	}*/
     }
     
     def trackingCookie = cookies.get(trackingCookieName)
@@ -173,12 +180,13 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val id 			= (resJSON \\ "id").extract[String]
         val email 		= (resJSON \\ "email").extract[String]
         val name 		= (resJSON \\ "name").extract[String]
-        val givenName 	= (resJSON \\ "given_name").extract[String]
+        /*val givenName 	= (resJSON \\ "given_name").extract[String]
         val familyName	= (resJSON \\ "family_name").extract[String]
         val profileLink	= (resJSON \\ "link").extract[String]
         val gender		= (resJSON \\ "gender").extract[String]
         
-        log.info( "Google user info: " + (id, email, name, givenName, familyName, profileLink, gender).toString )
+        log.info( "Google user info: " + (id, email, name, givenName, familyName, profileLink, gender).toString )*/
+        log.info( "Google user info: " + (id, email, name).toString )
         
         val extId = "google_" + id
 
@@ -201,7 +209,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         trackingCookie.foreach
         { tc =>
             
-            getSessionCache.put( new Element(tc, userDetails) )
+            getSessionCache.put( new Element(tc, userDetails, loginExpirySeconds, loginExpirySeconds) )
         }
         
         redirect("/")
@@ -268,24 +276,24 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val startNode = getRGH.rg.getClosest( startCoord )
         val midNodeOption = midCoordOption.map { mc => getRGH.rg.getClosest( mc ) }
         
-        val res = getRGH.rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
+        getRGH.rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
         {
             case Some( route )  =>
             {
                 log.info( "Route with %d directions".format( route.directions.size ) )
-                route.directions.toList
+                val jsonRendered = swrite(route)
+                val routeId = persistence.addRoute(jsonRendered, route.distance, route.ascent)
+                
+                routeId.toString
             }
             case None           =>
             {
                 log.error( "No route found" );
-                List()
+                "Error"
             }
         }
         
-        val jsonRendered = swrite(res)
-        val routeId = persistence.addRoute(jsonRendered)
         
-        routeId.toString
     }
     
     get("/getroute/:routeId")
@@ -298,6 +306,40 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         {
             case Some(routeData)    => routeData
             case None               => "Error: route not found"
+        }
+    }
+    
+    get("/gpx/:routeId")
+    {   
+        persistence.getRoute( params("routeId").toInt ) match
+        {
+            case Some(routeData)    =>
+            {
+                log.info( routeData )
+                val routeResult = sread[org.seacourt.osm.route.RouteResult]( routeData )
+                <gpx>
+                    <name>Example route</name>
+                    <trk><trkseg>
+                    {
+                        routeResult.directions.flatMap
+                        { rd =>
+                            
+                            rd.inboundNodes.map
+                            { n =>
+                            
+                                <trkpt lat={n.node.coord.lat.toString} lon={n.node.coord.lon.toString}>
+                                    <ele>{n.node.height.toString}</ele>
+                                </trkpt>
+                            }
+                        }
+                    }
+                    </trkseg></trk>
+                </gpx>
+            }
+            case None               =>
+            {
+                <gpx></gpx>
+            }
         }
     }
     
@@ -333,14 +375,10 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             case None       => "fail"
         }
     }
-    
-    get("/user")
-    {
-    }
-    
+
     get("/")
     {
-        redirect("/app/")
+        redirect("./app")
     }
     
     get("/app*")

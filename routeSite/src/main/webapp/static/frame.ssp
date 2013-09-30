@@ -15,9 +15,6 @@
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.min.css"/>
         <link rel="stylesheet/less" type="text/css" href="/static/webapp.less"/>
         
-        <base href="/app"/>
-        
-        
         <script src="http://cdnjs.cloudflare.com/ajax/libs/less.js/1.4.1/less.min.js"></script>
         <script src="http://code.jquery.com/jquery.js"></script>
         <script src="http:///netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
@@ -31,6 +28,7 @@
         
         <script src="/static/webapp.js"></script>
         
+        <base href="/app/">
         
     </head>
     
@@ -56,7 +54,7 @@
                                 </div>
                             #otherwise
                                 
-                                <a href="/">${user.get.name}</a> |
+                                <a href="/app/user">${user.get.name}</a> |
                                 <a href="/logout">Logout</a>
                             #end
                         </div>
@@ -96,6 +94,17 @@
                 </div>
             </div>
         </div>
+        
+        <script>
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+        ga('create', 'UA-44464792-1', 'twopi.co.uk');
+        ga('send', 'pageview');
+
+        </script>
         
     </body>
 </html>

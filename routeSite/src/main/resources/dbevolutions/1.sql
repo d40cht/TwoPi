@@ -1,6 +1,8 @@
 CREATE TABLE "Routes"(
     "id"            INTEGER PRIMARY KEY AUTO_INCREMENT,
-    "routeData"     VARCHAR
+    "routeData"     VARCHAR,
+    "distance"      REAL,
+    "ascent"        REAL
 );
 
 CREATE TABLE "UserRoutes"(
