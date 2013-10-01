@@ -161,6 +161,7 @@ object RoutableGraphBuilder extends Logging
                 val bridgeAnnotation : Option[String] = tagMap.get("bridge")
                 val nameAnnotation : Option[String] = tagMap.get("name")
                 val refAnnotation : Option[String] = tagMap.get("ref")
+                val footAnnotation : Option[String] = tagMap.get("foot")
                     
                 // Other important things:
                 // ford: yes - In the case of Duxford Ford, this is not fordable.
@@ -171,7 +172,6 @@ object RoutableGraphBuilder extends Logging
                         //if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
                         if ( valueString.startsWith( "trunk" ) ) Some( 20.0 )
                         else if ( valueString.startsWith( "primary" ) ) Some( 10.0 )
-                        //else if ( valueString.startsWith( "service" ) ) 1.1
                         // Not yet classified, so be conservative
                         else if ( valueString.startsWith( "road" ) ) Some( 1.4 )
                         else if ( valueString.startsWith( "secondary" ) ) Some( 1.4 )
@@ -180,6 +180,7 @@ object RoutableGraphBuilder extends Logging
                         else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
                         else if ( valueString.startsWith( "residential" ) ) Some( 1.1 )
                         else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
+                        else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) ) Some( 0.7 )
                         else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
                         else if ( valueString.startsWith( "footway" ) ) Some( 0.6 )
                         else if ( valueString.startsWith( "footpath" ) ) Some( 0.6 )

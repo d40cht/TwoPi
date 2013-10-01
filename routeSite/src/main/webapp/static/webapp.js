@@ -470,7 +470,7 @@ function RouteController($scope, $log, $http, $location, $routeParams)
             {
                 var db = routeData.debugPoints[dbi];
                 
-                var nm = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/blue_Marker" + db.name + ".png", db.name, 1, 20, 34 );
+                var nm = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/" + db.name + ".png", db.name, 1, 20, 34 );
                 nm.moveMarker( new OpenLayers.LonLat( db.coord.lon, db.coord.lat ) );
             }
             
