@@ -126,8 +126,7 @@
                                 </span>
                                 <input type="text" class="form-control" placeholder="Mid position" value="{{midCoord}}" readonly>
                             </div>
-                            <label>Distance (km)</label>
-                            <input class="form-control" type="number" name="distance" ng-model="distance" required>
+                            <input type="hidden" name="distance" ng-model="distance" value="0.0">
                             <br>
                             <button type="submit" class="btn btn-primary">Go!</button>
                         </div>

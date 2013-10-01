@@ -425,14 +425,12 @@ function RouteController($scope, $log, $http, $location, $routeParams)
         {
             $scope.routeData = routeData;
             
-            // Update the map
+            // Update the map and elevation graph
             var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
                 style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
                 projection: new OpenLayers.Projection("EPSG:4326"),
                 hover : true });
             
-            
-            // Update the elevation graph
             var seriesData = [];
             var lastNode = null;
             var lastPF = null;
@@ -468,13 +466,26 @@ function RouteController($scope, $log, $http, $location, $routeParams)
                 }
             }
             
+            for ( dbi in routeData.debugPoints )
+            {
+                var db = routeData.debugPoints[dbi];
+                
+                var nm = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/blue_Marker" + db.name + ".png", db.name, 1, 20, 34 );
+                nm.moveMarker( new OpenLayers.LonLat( db.coord.lon, db.coord.lat ) );
+            }
+            
+            mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
+            mapHolder.zoomToExtent( bounds );
+            
+            
+            //new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
+            
             eg.setData( seriesData, function( lonLat )
             {
                 elevationCrossLinkMarker.moveMarker( lonLat );
             } );
             
-            mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
-            mapHolder.zoomToExtent( bounds );
+            
             
             $scope.routeId = routeId
         } )
