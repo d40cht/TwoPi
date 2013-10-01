@@ -12,6 +12,79 @@ import org.seacourt.routeSite._
 
 import scala.collection.{mutable, immutable}
 
+import org.json4s._
+import org.json4s.native.JsonMethods._
+import org.json4s.JsonDSL._
+
+import org.seacourt.osm.{Coord}
+import org.seacourt.osm.route.{RouteResult, RouteDirections, POI, POIType}
+
+case class FooBarBaz( val a : Int, val b : Double, val c : String )
+
+class LiftJSONTest extends FlatSpec
+{
+    import org.json4s.native.Serialization.{read => sread, write => swrite}
+    implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
+    
+    "Lift JSON" should "serialize case classes successfully to and from a string" in
+    {
+        val z = FooBarBaz( 3, 5.0, "Hello world" )
+        
+        val ser = swrite(z)
+        
+        println( ser )
+        
+        val unser = sread[FooBarBaz]( ser )
+        
+        assert( z === unser )
+    }
+    
+    "Lift JSON" should "serialize POIs (with polymorphic POIType) successfully to and from a string" in
+    {
+        val poi = POI( Coord(5.0, 6.0), "The White Hart", org.seacourt.osm.poi.POITypes.Pub, None )
+        
+        val ser = swrite(poi)
+        
+        println( ser )
+        
+        val unser = sread[POI]( ser )
+        
+        assert( poi.name === unser.name )
+    }
+    
+    "Lift JSON" should "serialize RouteResult successfully to and from a string" in
+    {
+        /*
+        case class POI(
+            // From OSM
+            val coord : Coord,
+            // From OSM
+            val name : String,
+            // Change to some kind of enum. From OSM largely?
+            val poiType : POIType,
+            val wikiData : Option[WikiLocated] )
+        {
+        }
+        */
+        //case class RouteDirections( val inboundNodes : Array[NodeAndDistance], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float, coord : Coord )
+        
+        val poi = POI( Coord(5.0, 6.0), "The White Hart", org.seacourt.osm.poi.POITypes.Pub, None )
+        
+        
+        val dir = RouteDirections( Array(), Array(), Array(poi), "test edge", 0.0, 0.0, 0.0, 0.0f, Coord( 3.0, 4.0 ) )
+        val z = RouteResult( Array(dir), 4.0, 103.2 )
+        
+        val ser = swrite(z)
+        
+        println( ser )
+        
+        val unser = sread[RouteResult]( ser )
+        
+        assert( z.distance === unser.distance )
+        assert( z.ascent === unser.ascent )
+    }
+}
+
 case class DBEvolverTest( val db : Database ) extends DatabaseEvolutionManager
 {
     val logger = LoggerFactory.getLogger(getClass)

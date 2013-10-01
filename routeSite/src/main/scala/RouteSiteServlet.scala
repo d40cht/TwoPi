@@ -6,7 +6,7 @@ import org.scalatra._
 import scalate.ScalateSupport
 
 import org.seacourt.osm.{OSMMap, Node, Coord, Logging}
-import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RTreeIndex, ScenicPoint}
+import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RTreeIndex, ScenicPoint, POIType}
 
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
@@ -23,6 +23,7 @@ import org.json4s.JsonDSL._
 import scala.slick.session.Database
 import Database.threadLocalSession
 
+import org.seacourt.osm.route.{RouteResult}
 
 // In sbt:
 //
@@ -38,13 +39,13 @@ class RouteGraphHolder
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
 class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     with ScalateSupport
-    with GZipSupport
+    //with GZipSupport
     with FlashMapSupport
     with Logging
 {
     import net.sf.ehcache.{CacheManager, Element}
     import org.json4s.native.Serialization.{read => sread, write => swrite}
-    implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
+    implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
     
     private val loginExpirySeconds = 60*60*24*10
 
@@ -271,17 +272,18 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val midCoordOption = params.get("mid").map( parseCoordPair )
         val distInKm = params("distance").toDouble
         
-        println( "Request requestroute: %s, %s, %.2f".format( startCoord, midCoordOption, distInKm ) )
+        log.info( "Request requestroute: %s, %s, %.2f".format( startCoord, midCoordOption, distInKm ) )
         
         val startNode = getRGH.rg.getClosest( startCoord )
         val midNodeOption = midCoordOption.map { mc => getRGH.rg.getClosest( mc ) }
         
         getRGH.rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
         {
-            case Some( route )  =>
+            case Some( route : RouteResult )  =>
             {
                 log.info( "Route with %d directions".format( route.directions.size ) )
                 val jsonRendered = swrite(route)
+                
                 val routeId = persistence.addRoute(jsonRendered, route.distance, route.ascent)
                 
                 routeId.toString
@@ -300,7 +302,6 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         contentType = "application/json"
         
-        println( "Route id: " + params("routeId") )
         
         persistence.getRoute( params("routeId").toInt ) match
         {
@@ -315,8 +316,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         {
             case Some(routeData)    =>
             {
-                log.info( routeData )
-                val routeResult = sread[org.seacourt.osm.route.RouteResult]( routeData )
+                val routeResult = sread[RouteResult]( routeData )
                 <gpx>
                     <name>Example route</name>
                     <trk><trkseg>

@@ -99,10 +99,12 @@ class DbPersistence( val db : Database ) extends Persistence
     {
         db withSession
         {
-            Query(RouteTable)
+            val res = Query(RouteTable)
                 .filter( _.id === routeId )
                 .map( _.routeData )
                 .firstOption
+                
+            res
         }
     }
     
