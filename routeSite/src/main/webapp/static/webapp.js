@@ -354,6 +354,8 @@ function RouteController($scope, $log, $http, $location, $routeParams)
     var midMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
     var elevationCrossLinkMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/red_MarkerE.png", "End", 1, 20, 34 );
     
+    $scope.mapHolder = mapHolder;
+    
     $scope.setStart = function()
     {
         mapHolder.setClickCallback( function(lonLat)
@@ -545,6 +547,45 @@ function RouteController($scope, $log, $http, $location, $routeParams)
     $scope.hasWikiImage = function(poi)
     {
         return Object.keys(poi.wikiData).indexOf('imageUrl') > 0;
+    }
+}
+
+
+function TypeaheadCtrl($scope, $http)
+{
+    $scope.foundPlaces = [];
+    
+    $scope.populate = function()
+    {
+        $http(
+        {
+            method : 'GET',
+            url : 'http://nominatim.openstreetmap.org/search/' + $scope.placename + '?format=json&countrycodes=gb'
+        } )
+        .success( function( data, status, headers, config )
+        {
+            var results = [];
+            for ( placeid in data )
+            {
+                var place = data[placeid];
+                // latmin, latmax, lonmin, lonmax
+                // boundingbox=[52.548641204834,52.5488433837891,-1.81612110137939,-1.81592094898224 ]
+                var boundingBox = place.boundingbox
+                
+                results.push( place );
+            }
+            $scope.foundPlaces = results;
+        } );
+        
+        //http://nominatim.openstreetmap.org/search/appleton,%20oxfordshire?format=json
+    }
+    
+    $scope.moveTo = function( boundingbox )
+    {
+        var bounds = new OpenLayers.Bounds();
+        bounds.extend( $scope.mapHolder.toMapProjection( new OpenLayers.LonLat( boundingbox[3], boundingbox[0] ) ) );
+        bounds.extend( $scope.mapHolder.toMapProjection( new OpenLayers.LonLat( boundingbox[2], boundingbox[1] ) ) );
+        $scope.mapHolder.zoomToExtent( bounds );
     }
 }
 
