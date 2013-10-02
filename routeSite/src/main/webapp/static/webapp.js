@@ -187,6 +187,9 @@ function RouteMap( mapId, lon, lat, zoom )
     function zoomToExtent( bounds )
     {
         map.zoomToExtent( bounds );
+        
+        var maxZoom = 15;
+        if ( map.getZoom() > maxZoom ) map.zoomTo(maxZoom);
     }
     this.zoomToExtent = zoomToExtent;
 }
@@ -585,6 +588,7 @@ function TypeaheadCtrl($scope, $http)
         var bounds = new OpenLayers.Bounds();
         bounds.extend( $scope.mapHolder.toMapProjection( new OpenLayers.LonLat( boundingbox[3], boundingbox[0] ) ) );
         bounds.extend( $scope.mapHolder.toMapProjection( new OpenLayers.LonLat( boundingbox[2], boundingbox[1] ) ) );
+        
         $scope.mapHolder.zoomToExtent( bounds );
     }
 }
