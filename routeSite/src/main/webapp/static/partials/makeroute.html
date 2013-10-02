@@ -167,7 +167,7 @@
                     </ul>
                     <ul>
                         <li ng-repeat="pic in section.inboundPics">
-                            <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" ng-src="/geographThumb/{{pic.picIndex}}/{{pic.imgHash}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
+                            <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" ng-src="/geograph/thumb/{{pic.picIndex}}/{{pic.imgHash}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
                         </li>
                     </ul>
                     <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}}</div>

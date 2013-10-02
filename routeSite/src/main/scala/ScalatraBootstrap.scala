@@ -134,6 +134,7 @@ class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEv
     
     override def init(context: ServletContext)
     {
+        context.mount(new org.seacourt.routeSite.GeographImageServlet, "/geograph/*")
         context.mount(new org.seacourt.routeSite.RouteSiteServlet(persistence), "/*")
     }
     

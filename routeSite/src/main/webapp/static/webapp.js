@@ -268,7 +268,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
                     var pic = dataEl.inboundPics[picI];
                     pics.push( {
                         title   : pic.title + ", " + pic.photographer,
-                        imgSrc  : "/geographFull/" + pic.picIndex + "/" + pic.imgHash,
+                        imgSrc  : "/geograph/full/" + pic.picIndex + "/" + pic.imgHash,
                         link    : "http://www.geograph.org.uk/photo/" + pic.picIndex,
                         score   : pic.score
                     } );
