@@ -114,7 +114,7 @@ class RouteGraphHolder
 // http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
 class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     with ScalateSupport
-    with GZipSupport
+    //with GZipSupport
     with FlashMapSupport
     with Logging
 {
@@ -186,6 +186,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         // Now get auth code
         val code = params("code")
         
+        log.info( "Requesting auth code" )
         val authCodeRes = Http.post("https://accounts.google.com/o/oauth2/token")
         	.params(
     	        "code" 			-> code,
@@ -203,6 +204,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     	    }
         
         // Post once again to get user information
+        log.info( "Requesting user information" )
         val accessToken = (authCodeRes \\ "access_token").extract[String]
         val url = "https://www.googleapis.com/oauth2/v1/userinfo?access_token=" + accessToken
         val resJSON = Http(url)
@@ -423,6 +425,9 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         import org.scalatra.util.RicherString._
         
+        templateEngine.allowReload = false
+        templateEngine.allowCaching = true
+        
         contentType="text/html"
             
 		val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
@@ -432,7 +437,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 		        
         val user = getUser
         
-        layoutTemplate("/static/frame.ssp",
+        layoutTemplate("/WEB-INF/templates/views/appframe.ssp",
             "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
             "flash" -> flash,
             "user" -> user
@@ -461,7 +466,10 @@ object JettyLauncher { // this is my entry object as specified in sbt project de
     context setContextPath "/"
     //context.setResourceBase("src/main/webapp")
     val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
+    println( "Resource base: " + resourceBase)
     context.setResourceBase(resourceBase)
+    context.setTempDirectory( new java.io.File("./contexttmp") )
+    context.setExtractWAR( true )
     context.addEventListener(new ScalatraListener)
     context.addServlet(classOf[DefaultServlet], "/")
 
