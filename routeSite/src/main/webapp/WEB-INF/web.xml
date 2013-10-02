@@ -9,7 +9,20 @@ This listener loads a class in the default package called Scalatra.
 That class should implement org.scalatra.LifeCycle. Your app can be
 configured in Scala code there.
 -->
-  <listener>
-    <listener-class>org.scalatra.servlet.ScalatraListener</listener-class>
-  </listener>
+
+    <filter>
+        <filter-name>monitoring</filter-name>
+        <filter-class>net.bull.javamelody.MonitoringFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>monitoring</filter-name>
+            <url-pattern>/*</url-pattern>
+        </filter-mapping>
+    <listener>
+        <listener-class>net.bull.javamelody.SessionListener</listener-class>
+    </listener>
+
+    <listener>
+        <listener-class>org.scalatra.servlet.ScalatraListener</listener-class>
+    </listener>
 </web-app>
