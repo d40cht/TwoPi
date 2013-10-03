@@ -30,6 +30,81 @@ import org.seacourt.osm.route.{RouteResult}
 // > container:start
 // > ~ ;copy-resources;aux-compile
 
+
+class GeographImageServlet extends ScalatraServlet
+{
+    private val geoGraphCache = new java.io.File( "geographCache" )
+    if ( !geoGraphCache.exists() ) geoGraphCache.mkdirs()
+    
+    private def imgUrl( index : Long, hash : String ) : String =
+    {
+        val yz = index / 1000000
+        val ab = (index % 1000000) / 10000
+        val cd = (index % 10000) / 100
+        
+        val fullPath = if ( yz == 0 )
+        {
+            "/photos/%02d/%02d/%06d_%s".format( ab, cd, index, hash )
+        }
+        else
+        {
+            "/geophotos/%02d/%02d/%02d/%06d_%s".format( yz, ab, cd, index, hash )
+        }
+        
+        fullPath
+    }
+    
+    private def cacheToFile( url : String, fileName : java.io.File ) =
+    {
+        import scalaj.http.{Http, HttpOptions}
+        val res = Http(url)
+            .option(HttpOptions.connTimeout(500))
+            .option(HttpOptions.readTimeout(500))
+        { inputStream =>
+        
+            val os = new java.io.FileOutputStream( fileName )
+            try
+            {   
+                org.apache.commons.io.IOUtils.copy( inputStream, os )
+            }
+            finally
+            {
+                os.close
+            }
+        }
+    }
+    
+    get("/thumb/:id/:hash")
+    {
+        contentType = "image/jpeg"
+        
+        val id = params("id").toLong
+        val hash = params("hash")
+        val fullPath = imgUrl( id, hash )
+        
+        val url = "http://s%d.geograph.org.uk%s_213x160.jpg".format( id % 4, fullPath )
+        val fname = new java.io.File( geoGraphCache, "%d_thumb.jpg".format( id ) )
+        cacheToFile( url, fname )
+        
+        fname
+    }
+    
+    get("/full/:id/:hash")
+    {
+        contentType = "image/jpeg"
+        
+        val id = params("id").toLong
+        val hash = params("hash")
+        val fullPath = imgUrl( id, hash )
+        
+        val url = "http://s0.geograph.org.uk%s.jpg".format( fullPath )
+        val fname = new java.io.File( geoGraphCache, "%d.jpg".format( id ) )
+        cacheToFile( url, fname )
+        
+        fname
+    }
+}
+
 class RouteGraphHolder
 {
     val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
@@ -60,48 +135,11 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     private lazy val getRGH = new RouteGraphHolder()
     
-    CacheManager.getInstance().addCache("memoized")
-    CacheManager.getInstance().addCache("sessions")
+    CacheManager.getInstance().addCache("sessions")    
     
-    private val geoGraphCache = new java.io.File( "geographCache" )
-    if ( !geoGraphCache.exists() ) geoGraphCache.mkdirs()
    
-    private def getMemoizedCache = CacheManager.getInstance().getCache("memoized")
     private def getSessionCache = CacheManager.getInstance().getCache("sessions")
-    
-    def cached[T](name : String, args : Any* )( body : => T ) =
-    {
-        import org.seacourt.osm.Utility.shaHash
-        
-        val hash = shaHash( name + "_" + List(args:_*).map( _.toString ).mkString("_") ).toString
-        
-        val cache = CacheManager.getInstance().getCache("memoized")   
-        try
-        {
-            cache.acquireWriteLockOnKey( hash )
-            
-            val el = cache.get(hash)
-            if ( el != null )
-            {
-                log.info( "Cached element found for: " + hash )
-                
-                el.getObjectValue.asInstanceOf[T]
-            }
-            else
-            {
-                log.info( "Cached element not found running function for: " + hash )
-                val result = body
-                
-                cache.put( new Element( hash, result ) )
-                
-                result
-            }
-        }
-        finally
-        {
-            cache.releaseWriteLockOnKey( hash )
-        }
-    }
+
     
     private val trackingCookieName = "routeSite"
     private val oneWeek = 7*24*60*60
@@ -125,7 +163,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     def trackingCookie = cookies.get(trackingCookieName)
     
-    private val googleRedirectURI="http://www.two-pi.co.uk/googleoauth2callback"
+    private val googleRedirectURI="http://www.twopi.co.uk/googleoauth2callback"
 	private val googleClientId = "725550604793.apps.googleusercontent.com"
 	private val googleClientSecret = "mYcfxnq8nrSDe8iCP9qN9TWn"
     
@@ -148,6 +186,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         // Now get auth code
         val code = params("code")
         
+        log.info( "Requesting auth code" )
         val authCodeRes = Http.post("https://accounts.google.com/o/oauth2/token")
         	.params(
     	        "code" 			-> code,
@@ -165,6 +204,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     	    }
         
         // Post once again to get user information
+        log.info( "Requesting user information" )
         val accessToken = (authCodeRes \\ "access_token").extract[String]
         val url = "https://www.googleapis.com/oauth2/v1/userinfo?access_token=" + accessToken
         val resJSON = Http(url)
@@ -385,6 +425,9 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         import org.scalatra.util.RicherString._
         
+        templateEngine.allowReload = false
+        templateEngine.allowCaching = true
+        
         contentType="text/html"
             
 		val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
@@ -394,81 +437,13 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 		        
         val user = getUser
         
-        layoutTemplate("/static/frame.ssp",
+        layoutTemplate("/WEB-INF/templates/views/appframe.ssp",
             "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
             "flash" -> flash,
             "user" -> user
         )
     }
     
-    
-    private def imgUrl( index : Long, hash : String ) : String =
-    {
-        val yz = index / 1000000
-        val ab = (index % 1000000) / 10000
-        val cd = (index % 10000) / 100
-        
-        val fullPath = if ( yz == 0 )
-        {
-            "/photos/%02d/%02d/%06d_%s".format( ab, cd, index, hash )
-        }
-        else
-        {
-            "/geophotos/%02d/%02d/%02d/%06d_%s".format( yz, ab, cd, index, hash )
-        }
-        
-        fullPath
-    }
-    
-    private def cacheToFile( url : String, fileName : java.io.File ) =
-    {
-        import scalaj.http.{Http, HttpOptions}
-        val res = Http(url)
-            .option(HttpOptions.connTimeout(500))
-            .option(HttpOptions.readTimeout(500))
-        { inputStream =>
-        
-            val os = new java.io.FileOutputStream( fileName )
-            try
-            {   
-                org.apache.commons.io.IOUtils.copy( inputStream, os )
-            }
-            finally
-            {
-                os.close
-            }
-        }
-    }
-    
-    get("/geographThumb/:id/:hash")
-    {
-        contentType = "image/jpeg"
-        
-        val id = params("id").toLong
-        val hash = params("hash")
-        val fullPath = imgUrl( id, hash )
-        
-        val url = "http://s%d.geograph.org.uk%s_213x160.jpg".format( id % 4, fullPath )
-        val fname = new java.io.File( geoGraphCache, "%d_thumb.jpg".format( id ) )
-        cacheToFile( url, fname )
-        
-        fname
-    }
-    
-    get("/geographFull/:id/:hash")
-    {
-        contentType = "image/jpeg"
-        
-        val id = params("id").toLong
-        val hash = params("hash")
-        val fullPath = imgUrl( id, hash )
-        
-        val url = "http://s0.geograph.org.uk%s.jpg".format( fullPath )
-        val fname = new java.io.File( geoGraphCache, "%d.jpg".format( id ) )
-        cacheToFile( url, fname )
-        
-        fname
-    }
     
     /*get("/routegpx/:routeId")
     {
@@ -491,7 +466,10 @@ object JettyLauncher { // this is my entry object as specified in sbt project de
     context setContextPath "/"
     //context.setResourceBase("src/main/webapp")
     val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
+    println( "Resource base: " + resourceBase)
     context.setResourceBase(resourceBase)
+    context.setTempDirectory( new java.io.File("./contexttmp") )
+    context.setExtractWAR( true )
     context.addEventListener(new ScalatraListener)
     context.addServlet(classOf[DefaultServlet], "/")
 

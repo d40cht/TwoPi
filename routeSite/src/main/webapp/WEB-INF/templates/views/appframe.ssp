@@ -1,0 +1,99 @@
+<%@ val googleOpenIdLink : String %>
+<%@ val flash : org.scalatra.FlashMap %>
+<%@ val user : Option[org.seacourt.routeSite.User] %>
+
+
+<!doctype html>
+<html lang="en" ng-app="TwoPi">
+    <head>
+        <title>TwoPI.co.uk: Circular walking and cycling routes</title>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        
+        <link rel="stylesheet" href="/css/bootstrap.min.css"/>
+        <link rel="stylesheet" href="/css/bootstrap-theme.min.css"/>
+        <link rel="stylesheet" href="/css/font-awesome.min.css"/>
+        <link rel="stylesheet/less" type="text/css" href="/less/webapp.less"/>
+        
+        <script src="/js/less.min.js"></script>
+        <script src="/js/jquery-1.10.2.min.js"></script>
+        <script src="/js/bootstrap.min.js"></script>
+        <script src="/js/angular.min.js"></script>
+        <script src="/js/OpenLayers.js"></script>
+        <script src="/js/OpenStreetMap.js"></script>
+        <script src="/js/highcharts.js"></script>
+        <!--<script src="https://raw.github.com/angular-ui/bootstrap/gh-pages/ui-bootstrap-tpls-0.6.0.min.js"></script>-->
+        <script src="/js/masonry.pkgd.js"></script>
+        <script src="/js/imagesloaded.pkgd.min.js"></script>
+        
+        <script src="/js/webapp.js"></script>
+        
+        <base href="/app/">
+        
+    </head>
+    
+    <body>
+        <div class="headerAndBody">
+        
+            <!-- Header -->
+            <div class="row header">
+                <div class="col-md-12" style="height:100%">
+                    <div style="float:left">
+                        <h2><a href="/">TwoPi.co.uk</a></h2>
+                    </div>
+                    
+                    <div style="display: table; float:right; height: 100%">
+                        <div style="display:table-cell; vertical-align: middle; height: 100%">
+                            #match (user)
+                            #case(None)
+                                Sign in:
+                                <div style="display: inline">
+                                    <a class="btn" href="${googleOpenIdLink}">
+                                        <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
+                                    </a>
+                                </div>
+                            #otherwise
+                                
+                                <a href="/app/user">${user.get.name}</a> |
+                                <a href="/logout">Logout</a>
+                            #end
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <div id="wrap">
+                <div class="row" style="position: absolute; top : 0px; width: 100%; z-index: 10000">
+                    #if ( flash contains "error" )
+                        <div class="alert alert-error alert-dismissable">
+                            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                            <strong>${flash("error")}</strong>
+                        </div>
+                    #end
+                    
+                    #if ( flash contains "info" )
+                        <div class="alert alert-info alert-dismissable">
+                            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                            <strong>${flash("info")}</strong>
+                        </div>
+                    #end
+                </div>
+                
+                <div ng-view style="height: 100%"></div>
+            </div>
+            
+        </div>
+        
+        <!-- Footer -->
+        <div class="row">
+            <div class="col-md-12 footer">
+                <div class="text-center" style="padding:8px">
+                    <small>Footer</small>
+                </div>
+            </div>
+        </div>
+        
+    </body>
+</html>
+
