@@ -134,11 +134,21 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     private var rghOption : Option[RouteGraphHolder] = None
     
     private lazy val getRGH = new RouteGraphHolder()
-    
-    CacheManager.getInstance().addCache("sessions")    
-    
-   
-    private def getSessionCache = CacheManager.getInstance().getCache("sessions")
+     
+    private def getSessionCache =
+    {
+        var g = CacheManager.getInstance().getCache("sessions")
+        
+        if ( g == null )
+        {
+            CacheManager.getInstance().addCache("sessions")
+            CacheManager.getInstance().getCache("sessions")
+        }
+        else
+        {
+            g
+        }    
+    }     
 
     
     private val trackingCookieName = "routeSite"

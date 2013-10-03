@@ -7,7 +7,6 @@ import javax.servlet.ServletContext
 import com.mchange.v2.c3p0.ComboPooledDataSource
 import org.slf4j.{Logger, LoggerFactory}
 import scala.slick.session.Database
-import org.scalatra._
 import Database.threadLocalSession
 import scala.slick.driver.H2Driver.simple._
 import scala.slick.jdbc.{StaticQuery}

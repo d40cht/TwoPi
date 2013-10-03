@@ -7,6 +7,7 @@ import org.scalatra._
 import Database.threadLocalSession
 import scala.slick.driver.H2Driver.simple._
 import scala.slick.jdbc.{StaticQuery}
+import org.scalatra.test.scalatest._
 
 import org.seacourt.routeSite._
 
@@ -18,6 +19,88 @@ import org.json4s.JsonDSL._
 
 import org.seacourt.osm.{Coord}
 import org.seacourt.osm.route.{RouteResult, RouteDirections, POI, POIType}
+
+import org.scalatest.{ShouldMatchers, BeforeAndAfter, BeforeAndAfterAll, FunSuite}
+import org.eclipse.jetty.server.Server
+import org.eclipse.jetty.webapp.WebAppContext
+import javax.servlet.ServletContext
+import org.openqa.selenium.firefox.FirefoxDriver
+import org.scalatest.selenium._
+import org.scalatest.concurrent.Eventually
+
+trait EmbeddedJetty
+{
+    protected var jetty: Server = null
+    protected var context: ServletContext = null
+    
+    val testPort = 8080
+    val testRootUrl = "http://localhost:" + testPort
+
+    def startJetty()
+    {
+        jetty = new Server(testPort)
+        jetty setHandler prepareContext
+        jetty.start()
+    }
+
+    private def prepareContext() =
+    {
+        val context = new WebAppContext()
+        context setContextPath "/"
+        val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
+        context setResourceBase resourceBase
+        this.context = context.getServletContext
+        context
+    }
+
+
+    def stopJetty() 
+    {
+        jetty.stop()
+    }
+}
+
+
+
+class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiImplicits with EmbeddedJetty with BeforeAndAfterAll with BeforeAndAfter with Eventually with Firefox
+{
+    //implicit val webDriver : WebDriver = new FireFoxDriver
+    
+    override def beforeAll()
+    {
+        sys.props.put("withInMemory", "true")
+        startJetty()
+    }
+
+    override def afterAll()
+    {
+        sys.props.remove("withInMemory")
+        stopJetty()
+    }
+    
+    "A web server" should "appear on port 8080 and be testable" in
+    {
+        val persistence = new MockPersistence
+        
+        go to (testRootUrl + "/app")
+        
+        pageTitle should be ("TwoPI.co.uk: Circular walking and cycling routes")
+        
+        val controlBar = find( className("controlBar") )
+        assert( controlBar.size === 1 )
+        
+        textField("placeSearchInput").value = "Nether wasdale"
+        click on "placeSearchSubmit"
+        
+        eventually
+        {
+            val searchResults = find("placeSearchSubmit").get
+            searchResults.text contains "Cumbria"
+        }
+    }
+    
+}
+
 
 case class FooBarBaz( val a : Int, val b : Double, val c : String )
 
@@ -54,25 +137,12 @@ class LiftJSONTest extends FlatSpec
     
     "Lift JSON" should "serialize RouteResult successfully to and from a string" in
     {
-        /*
-        case class POI(
-            // From OSM
-            val coord : Coord,
-            // From OSM
-            val name : String,
-            // Change to some kind of enum. From OSM largely?
-            val poiType : POIType,
-            val wikiData : Option[WikiLocated] )
-        {
-        }
-        */
-        //case class RouteDirections( val inboundNodes : Array[NodeAndDistance], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float, coord : Coord )
         
         val poi = POI( Coord(5.0, 6.0), "The White Hart", org.seacourt.osm.poi.POITypes.Pub, None )
         
         
         val dir = RouteDirections( Array(), Array(), Array(poi), "test edge", 0.0, 0.0, 0.0, 0.0f, Coord( 3.0, 4.0 ) )
-        val z = RouteResult( Array(dir), 4.0, 103.2 )
+        val z = RouteResult( Array(dir), 4.0, 103.2, Array() )
         
         val ser = swrite(z)
         
@@ -298,3 +368,58 @@ class DatabaseEvolutionsTest extends FlatSpec
         }
     }
 }
+
+class MockPersistence extends Persistence
+{
+    def getUser( extId : String ) = userMap.get(extId)
+    def addUser( extId : String, email : String, name : String ) =
+    {
+        val now = new java.sql.Timestamp( new java.util.Date().getTime )
+        val newUser = User(userMap.size + 1, extId, email, name, 0, now, now )
+        userMap += (extId -> newUser)
+        
+        newUser
+    }
+    def addRoute( routeJSON : String, distance : Double, ascent : Double ) : Int = ???
+    def getRoute( routeId : Int ) : Option[String] = ???
+    def saveRouteToUser( userId : Int, routeId : Int, routeName : String ) = ???
+    def getUserRoutes( userId : Int ) : List[UserRoute] = ???
+    
+    
+    var userMap = Map[String, User]()
+}
+
+
+class WebServicesTest extends FlatSpec with ScalatraSuite
+{
+    val persistence = new MockPersistence
+    addServlet( new RouteSiteServlet(persistence), "/*" )
+    
+    "RouteSiteServlet" should "redirect to the app" in
+    {
+        get("/")
+        {
+            status should equal (302)
+        }
+    }
+     
+    "RouteSiteServlet" should "render the front page with no sign-in" in
+    {   
+        get("/app")
+        {
+            status should equal (200)
+            body should include ("TwoPi.co.uk")
+            body should include ("Sign in")
+        }
+    }
+    
+    // Test logging in and out, adding and removing routes etc
+    
+    // Test that logging in as two seperate users does not result in the ability to access each other's data
+    // etc.
+}
+
+
+
+
+

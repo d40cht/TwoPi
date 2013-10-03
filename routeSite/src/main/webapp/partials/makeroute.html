@@ -25,7 +25,7 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <input type="text" class="form-control" placeholder="Start position" value="{{startCoord}}" readonly>
+                                <input name="startCoord" type="text" class="form-control" placeholder="Start position" value="{{startCoord}}" readonly>
                             </div>
                             <label>Distance (km)</label>
                             <input class="form-control" type="number" name="distance" ng-model="distance" required>
@@ -79,16 +79,16 @@
                     <div class="form-group">
                         <label>Place search</label>
                         <div class="input-group">
-                            <input type="text"  class="form-control"placeholder="Input placename" ng-model="placename"/>
+                            <input id="placeSearchInput" type="text" class="form-control" placeholder="Input placename" ng-model="placename"/>
                             <span class="input-group-btn">
-                                <button type="submit" class="btn btn-default">Search!</button>
+                                <button name="placeSearchSubmit" type="submit" class="btn btn-default">Search!</button>
                             </span>
                         </div>
                     </div>
                 </form>
                 <br>
                 <small>
-                    <ul class="list-group">
+                    <ul class="list-group" id="placeSearchResults">
                         <li class="list-group-item" ng-repeat="place in foundPlaces">
                             <a ng-click="moveTo(place.boundingbox)">{{place.display_name}}</a>
                         </li>
