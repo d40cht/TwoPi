@@ -334,7 +334,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 
                 logout()
                 
-                flashInfo("Goodbye " + u.name)
+                flashInfo("Goodbye: " + u.name)
             }
         }
         

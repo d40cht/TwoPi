@@ -100,7 +100,6 @@ package org.seacourt.routeSite
 class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEvolutionManager
 {
     val logger = LoggerFactory.getLogger(getClass)
-    logger.info( "Stuff" )
     val cpds = new ComboPooledDataSource
     logger.info("Created c3p0 connection pool")
     

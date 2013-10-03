@@ -112,7 +112,22 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     	go to (testRootUrl + "/app")
         
     	click on id("guestLogon")
-    	assert( find(id("flashInfo")).get.text contains "Welcome A. Guest" )
+    	assert( find(id("flashInfo")).get.text contains "Thanks for joining: A guest" )
+    	
+    	reloadPage()
+    	assert( find(id("flashInfo")) === None )
+    	
+    	click on linkText("A guest")
+    	assert( find(id("wrap")).get.text contains "My routes" )
+    	
+    	click on linkText("TwoPi.co.uk")
+    	assert( find( className("controlBar") ) != None )
+    	
+    	click on linkText("Logout")
+    	assert( find(id("flashInfo")).get.text contains "Goodbye: A guest" )
+    	
+    	click on id("guestLogon")
+    	assert( find(id("flashInfo")).get.text contains "Welcome back: A guest" )
     }
     
 }
