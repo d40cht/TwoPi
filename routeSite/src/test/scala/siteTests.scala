@@ -59,6 +59,9 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     {
         sys.props.put("withInMemory", "true")
         startJetty()
+        
+        // Wait a bit for the route graph to load
+        Thread.sleep(2000)
     }
 
     override def afterAll()
@@ -75,6 +78,8 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     	//val persistence = new MockPersistence
         
         go to (testRootUrl + "/app")
+        reloadPage()
+        reloadPage()
         
         pageTitle should be ("TwoPI.co.uk: Circular walking and cycling routes")
         
@@ -85,7 +90,7 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
         click on "placeSearchSubmit"
         
         // Check that place search works
-        eventually( timeout(Span(2, Seconds)) )
+        eventually( timeout(Span(10, Seconds)) )
         {
             val searchResults = find("placeSearchResults").get
             assert( searchResults.text contains "Cumbria" )
@@ -98,17 +103,14 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
         enter( "20" )
         click on "specifiedStartSubmit"
         
-        Thread.sleep(6000)
-        
-        eventually( timeout(Span(6, Seconds)) )
+        eventually( timeout(Span(10, Seconds)) )
         {
             val routePreference = find("routePreference").get
             routePreference.text == "Walking"
         }
         
-        click on id("routeName")
-        enter ("Save should be disallowed")
-        submit()
+        // Setting the route name should be disabled because we are not logged on 
+        //assert( !find(id("routeName")).get.isEnabled )
     }
     
     "A web server" should "allow logging on and off and remember users" in
@@ -132,6 +134,9 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     	
     	click on id("guestLogon")
     	assert( find(id("flashInfo")).get.text contains "Welcome back: A guest" )
+    	
+    	// Setting the route name should be disabled because there is no route
+    	//assert( !find(id("routeName")).get.isEnabled )
     }
     
     "Once logged on it" should "be possible to save routes" in
@@ -150,6 +155,9 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
             val routePreference = find("routePreference").get
             routePreference.text == "Walking"
         }
+        
+        // It should now be possible to set the route name
+        //assert( find(id("routeName")).get.isEnabled )
         
     }
     
