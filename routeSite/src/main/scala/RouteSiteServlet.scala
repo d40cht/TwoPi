@@ -163,7 +163,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     def trackingCookie = cookies.get(trackingCookieName)
     
-    private val googleRedirectURI="http://www.two-pi.co.uk/googleoauth2callback"
+    private val googleRedirectURI="http://www.twopi.co.uk/googleoauth2callback"
 	private val googleClientId = "725550604793.apps.googleusercontent.com"
 	private val googleClientSecret = "mYcfxnq8nrSDe8iCP9qN9TWn"
     
