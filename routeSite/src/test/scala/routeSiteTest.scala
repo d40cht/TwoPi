@@ -74,6 +74,8 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
 
     override def afterAll()
     {
+        // Close the web page
+        close()
         sys.props.remove("withInMemory")
         stopJetty()
     }
@@ -92,11 +94,29 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
         textField("placeSearchInput").value = "Nether wasdale"
         click on "placeSearchSubmit"
         
+        // Check that place search works
         eventually
         {
             val searchResults = find("placeSearchSubmit").get
             searchResults.text contains "Cumbria"
         }
+        
+        // Check that generating a route works
+        click on "startCoord"
+        enter( "-1.312001,51.77463" )
+        click on "distance"
+        enter( "20" )
+        click on "specifiedStartSubmit"
+        
+        Thread.sleep( 50000 )
+        
+        //val routeBar = find( className("routeBar") )
+        eventually
+        {
+            val routePreference = find("routePreference").get
+            routePreference.text == "Walking"
+        }
+        
     }
     
 }

@@ -10,7 +10,7 @@ That class should implement org.scalatra.LifeCycle. Your app can be
 configured in Scala code there.
 -->
 
-    <filter>
+    <!--<filter>
         <filter-name>monitoring</filter-name>
         <filter-class>net.bull.javamelody.MonitoringFilter</filter-class>
     </filter>
@@ -20,7 +20,7 @@ configured in Scala code there.
         </filter-mapping>
     <listener>
         <listener-class>net.bull.javamelody.SessionListener</listener-class>
-    </listener>
+    </listener>-->
 
     <listener>
         <listener-class>org.scalatra.servlet.ScalatraListener</listener-class>
