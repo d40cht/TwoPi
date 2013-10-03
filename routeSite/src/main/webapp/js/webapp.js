@@ -1,5 +1,15 @@
 
-angular.module('TwoPi', [])
+
+angular.module('TwoPi', ['ngCookies'], function($provide)
+    {
+        $provide.factory('UserService', function($cookies) {
+            var sdo =
+            {
+                userName : $cookies['UserName']
+	        };
+	        return sdo;
+        } );
+    } )
     .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider)
     {
         $locationProvider.html5Mode(true);
@@ -331,12 +341,14 @@ function PosterController($scope, $routeParams, $http, $timeout)
 }
 
 
-function RouteController($scope, $log, $http, $location, $routeParams)
+function RouteController($scope, $log, $http, $location, $routeParams, UserService)
 {   
     // TODO: Record start and end coords into localStorage
     $scope.routingPreferences = ["Walking"];
     $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
     $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
+    
+    $scope.userName = UserService.userName;
     
     var mapLon = Number(localStorageGetOrElse("mapLon", -5.208 ));
     var mapLat = Number(localStorageGetOrElse("mapLat", 54.387 ));

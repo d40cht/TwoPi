@@ -118,12 +118,14 @@
             <h2>Route details</h2>
             
             <form ng-submit="saveRoute()">
-                <div class="input-group">
-                    <input type="text" class="form-control" placeholder="Enter route name" name="routeName" ng-model="routeName">
-                    <span class="input-group-btn">
-                        <button class="btn btn-default" type="submit">Save route</button>
-                    </span>
-                </div>
+                <fieldset ng-disabled="(routeData == null) || (userName == null)">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Enter route name" id="routeName" ng-model="routeName">
+                        <span class="input-group-btn">
+                            <button class="btn btn-default" type="submit">Save route</button>
+                        </span>
+                    </div>
+                </fieldset>
             </form>
             <br>
             

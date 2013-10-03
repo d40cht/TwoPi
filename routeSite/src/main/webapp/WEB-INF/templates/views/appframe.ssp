@@ -19,6 +19,7 @@
         <script src="/js/jquery-1.10.2.min.js"></script>
         <script src="/js/bootstrap.min.js"></script>
         <script src="/js/angular.min.js"></script>
+        <script src="/js/angular-cookies.min.js"></script>
         <script src="/js/OpenLayers.js"></script>
         <script src="/js/OpenStreetMap.js"></script>
         <script src="/js/highcharts.js"></script>
@@ -55,10 +56,13 @@
                                         <span class="glyphicon glyphicon-user"></span>
                                     </a>
                                 </div>
+                                <script> var loggedIn = false; </script>
                             #otherwise
                                 
                                 <a href="/app/user">${user.get.name}</a> |
                                 <a href="/logout">Logout</a>
+                                
+                                <script> var loggedIn = true; </script>
                             #end
                         </div>
                     </div>

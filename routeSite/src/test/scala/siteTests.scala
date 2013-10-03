@@ -105,6 +105,10 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
             val routePreference = find("routePreference").get
             routePreference.text == "Walking"
         }
+        
+        click on id("routeName")
+        enter ("Save should be disallowed")
+        submit()
     }
     
     "A web server" should "allow logging on and off and remember users" in
@@ -128,6 +132,25 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     	
     	click on id("guestLogon")
     	assert( find(id("flashInfo")).get.text contains "Welcome back: A guest" )
+    }
+    
+    "Once logged on it" should "be possible to save routes" in
+    {
+        go to (testRootUrl + "/app")
+        click on "startCoord"
+        enter( "-1.312001,51.77463" )
+        click on "distance"
+        enter( "20" )
+        click on "specifiedStartSubmit"
+        
+        Thread.sleep(6000)
+        
+        eventually( timeout(Span(6, Seconds)) )
+        {
+            val routePreference = find("routePreference").get
+            routePreference.text == "Walking"
+        }
+        
     }
     
 }

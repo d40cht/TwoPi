@@ -148,7 +148,6 @@ trait AuthenticationSupport
     
     def trackingCookie = cookies.get("JSESSIONID")
     
-    
     protected def getUser : Option[User] =
     {
         trackingCookie.flatMap
@@ -324,6 +323,14 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         Coord( els(0), els(1) )
     }
 
+    before()
+    {
+        getUser match
+        {
+            case Some(u) 	=> cookies += ("UserName" -> u.name)
+            case None		=> cookies.delete("UserName")
+        }
+    }
     
     get("/logout")
     {
