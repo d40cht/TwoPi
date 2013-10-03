@@ -1,0 +1,32 @@
+<div class="row">         
+    <!-- Left bar -->
+    <div class="col-md-12">
+        <h3>My routes</h3>
+        
+        <ul>
+            <table class="table">
+                <thead>
+                    <th>Name</th>
+                    <th>Distance</th>
+                    <th>Ascent</th>
+                    <th>Actions</th>
+                    <th>Images</th>
+                </thead>
+                <tr ng-repeat="route in myroutes">
+                    <td><a href="/app/route/{{route.id}}">{{route.name}}</a></td>
+                    <td>{{route.distance.toFixed(1)}}km</td>
+                    <td>{{route.ascent.toFixed(0)}}m</td>
+                    <td>
+                        <span class="glyphicon glyphicon-trash"></span>
+                        <span class="glyphicon glyphicon-floppy-save"></span>
+                    </td>
+                    <td>
+                        Nothing to see here yet
+                    </td>
+                </tr>
+            </table>
+        </ul>
+    </div>
+</div>
+
+
