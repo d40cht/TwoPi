@@ -23,7 +23,15 @@ import org.json4s.JsonDSL._
 import scala.slick.session.Database
 import Database.threadLocalSession
 
+// EH Cache support
+import net.sf.ehcache.{CacheManager, Element}
+
+
 import org.seacourt.osm.route.{RouteResult}
+
+import org.json4s.native.Serialization.{read => sread, write => swrite}
+
+
 
 // In sbt:
 //
@@ -58,8 +66,8 @@ class GeographImageServlet extends ScalatraServlet
     {
         import scalaj.http.{Http, HttpOptions}
         val res = Http(url)
-            .option(HttpOptions.connTimeout(500))
-            .option(HttpOptions.readTimeout(500))
+            .option(HttpOptions.connTimeout(1500))
+            .option(HttpOptions.readTimeout(1500))
         { inputStream =>
         
             val os = new java.io.FileOutputStream( fileName )
@@ -105,80 +113,82 @@ class GeographImageServlet extends ScalatraServlet
     }
 }
 
-class RouteGraphHolder
+ 
+case class GoogleUserInfo(
+    val id 			: String,
+    val email 		: String,
+    val name 		: String,
+    val givenName 	: Option[String],
+    val familyName 	: Option[String],
+    val profileLink	: Option[String],
+    val gender		: Option[String] )
+
+
+trait AuthenticationSupport
 {
-    val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
-}
-
-// Weird cost:
-// http://localhost:8080/displayroute?lon=-3.261151337280192&lat=54.45527013007099&distance=30.0&seed=1
-class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
-    with ScalateSupport
-    //with GZipSupport
-    with FlashMapSupport
-    with Logging
-{
-    import net.sf.ehcache.{CacheManager, Element}
-    import org.json4s.native.Serialization.{read => sread, write => swrite}
-    implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
-    
-    private val loginExpirySeconds = 60*60*24*10
-
-    def flashError( message : String )  { flash("error") = message }
-    def flashInfo( message : String )   { flash("info") = message }
-    
-    //implicit val formats = DefaultFormats
-    
-    Logging.configureDefaultLogging()
-
-    private var rghOption : Option[RouteGraphHolder] = None
-    
-    private lazy val getRGH = new RouteGraphHolder()
-     
+    self : ScalatraServlet with FlashMapSupport with Logging =>
+	
+    def persistence : Persistence
+        
+    private final val loginExpirySeconds = 10 * 24 * 60 * 60
+    private final val sessionCacheName = "sessions"
+	    
     private def getSessionCache =
     {
-        var g = CacheManager.getInstance().getCache("sessions")
-        
-        if ( g == null )
+        CacheManager.getInstance().getCache(sessionCacheName) match
         {
-            CacheManager.getInstance().addCache("sessions")
-            CacheManager.getInstance().getCache("sessions")
-        }
-        else
-        {
-            g
+            case null 			=>
+            {
+            	CacheManager.getInstance().addCache(sessionCacheName)
+                CacheManager.getInstance().getCache(sessionCacheName)
+            }
+            case existingCache	=> existingCache
         }    
     }     
-
     
-    private val trackingCookieName = "routeSite"
-    private val oneWeek = 7*24*60*60
+    def trackingCookie = cookies.get("JSESSIONID")
     
-    before()
+    
+    protected def getUser : Option[User] =
     {
-        // If there is no tracking cookie, add one so we can handle
-        // persistent sessions, oath etc
-    	if ( !cookies.get(trackingCookieName).isDefined )
-    	{
-    		val currTrackingId = Some(java.util.UUID.randomUUID.toString)
-    		//log.info( "Setting tracking cookie to: " + currTrackingId )
-    	    response.addHeader("Set-Cookie",
-    	    	Cookie(trackingCookieName, currTrackingId.get)(CookieOptions(secure=false, maxAge=oneWeek)).toCookieString)
-    	}
-    	/*else
-    	{
-    	    log.info( "Found tracking cookie id: " + cookies.get(trackingCookieName).get)
-    	}*/
+        trackingCookie.flatMap
+        { tc =>
+            
+            val userData = getSessionCache.get(tc)
+            if ( userData == null ) None
+            else
+            {
+            	Some( userData.getObjectValue.asInstanceOf[User] )
+            }
+        }
     }
     
-    def trackingCookie = cookies.get(trackingCookieName)
+    protected def logout()
+    {
+        trackingCookie.foreach { tc => getSessionCache.remove(tc) }
+    }
     
-    private val googleRedirectURI="http://www.twopi.co.uk/googleoauth2callback"
-	private val googleClientId = "725550604793.apps.googleusercontent.com"
-	private val googleClientSecret = "mYcfxnq8nrSDe8iCP9qN9TWn"
+    protected def login( userDetails : User )
+    {
+        trackingCookie.foreach { tc => getSessionCache.put( new Element(tc, userDetails, loginExpirySeconds, loginExpirySeconds) ) }
+    }
     
-    // http://www.jaredarmstrong.name/2011/08/scalatra-an-example-authentication-app/ and 
-    // http://www.jaredarmstrong.name/2011/08/scalatra-form-authentication-with-remember-me/
+}
+
+trait GoogleAuthenticationSupport
+{
+	self : AuthenticationSupport with ScalatraServlet with FlashMapSupport with Logging =>
+    
+    private final val googleRedirectURI="http://www.twopi.co.uk/googleoauth2callback"
+	private final val googleClientId = "725550604793.apps.googleusercontent.com"
+	private final val googleClientSecret = "mYcfxnq8nrSDe8iCP9qN9TWn"
+
+        
+    def googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
+	    "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+	        googleClientId,
+	        googleRedirectURI )
+	        
     get("/googleoauth2callback")
     {
         // From: https://developers.google.com/accounts/docs/OAuth2WebServer
@@ -217,29 +227,24 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         log.info( "Requesting user information" )
         val accessToken = (authCodeRes \\ "access_token").extract[String]
         val url = "https://www.googleapis.com/oauth2/v1/userinfo?access_token=" + accessToken
-        val resJSON = Http(url)
+        val userInfo = Http(url)
             .option(HttpOptions.connTimeout(500))
             .option(HttpOptions.readTimeout(500))
         { inputStream =>
         
+            implicit val formats = org.json4s.native.Serialization.formats(NoTypeHints)
+            
             val writer = new java.io.StringWriter()
             org.apache.commons.io.IOUtils.copy( inputStream, writer )
             val res = writer.toString()
-        	JsonParser.parse( res )
+            
+        	sread[GoogleUserInfo]( res )
         }
+       
+            
+        log.info( "Google user info: " + userInfo.toString )
         
-        val id 			= (resJSON \\ "id").extract[String]
-        val email 		= (resJSON \\ "email").extract[String]
-        val name 		= (resJSON \\ "name").extract[String]
-        /*val givenName 	= (resJSON \\ "given_name").extract[String]
-        val familyName	= (resJSON \\ "family_name").extract[String]
-        val profileLink	= (resJSON \\ "link").extract[String]
-        val gender		= (resJSON \\ "gender").extract[String]
-        
-        log.info( "Google user info: " + (id, email, name, givenName, familyName, profileLink, gender).toString )*/
-        log.info( "Google user info: " + (id, email, name).toString )
-        
-        val extId = "google_" + id
+        val extId = "google_" + userInfo.id
 
         val existingUserOption = persistence.getUser(extId)
         val userDetails = existingUserOption match
@@ -251,31 +256,67 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             }
             case None           =>
             {
-                val newUser = persistence.addUser( extId, email, name )
+                val newUser = persistence.addUser( extId, userInfo.email, userInfo.name )
                 flash("info") = "Thanks for joining: " + newUser.name
                 newUser
             }
         }
         
-        trackingCookie.foreach
-        { tc =>
+        login( userDetails )
+        
+        redirect("/")
+    }
+    
+    get("/guestLogin")
+    {
+        val extId = "guest"
             
-            getSessionCache.put( new Element(tc, userDetails, loginExpirySeconds, loginExpirySeconds) )
+        val existingUserOption = persistence.getUser(extId)
+        val userDetails = existingUserOption match
+        {
+            case Some( user )   =>
+            {
+                flash("info") = "Welcome back: " + user.name
+                user
+            }
+            case None           =>
+            {
+                val newUser = persistence.addUser( extId, "guest@guest.com", "A guest" )
+                flash("info") = "Thanks for joining: " + newUser.name
+                newUser
+            }
         }
+        
+        login( userDetails )
         
         redirect("/")
     }
     
     
+}
+
+
+class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
+	with AuthenticationSupport
+	with GoogleAuthenticationSupport
+    with ScalateSupport
+    //with GZipSupport
+    with FlashMapSupport
+    with Logging
+{
+    implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
     
-    def routeFilePath( routeId : String ) = new java.io.File("routes/route_%s.xml".format(routeId)).getAbsoluteFile
+    private val loginExpirySeconds = 60*60*24*10
+
+    def flashError( message : String )  { flash("error") = message }
+    def flashInfo( message : String )   { flash("info") = message }
     
-    def messageDigest( s : String ) = java.security.MessageDigest
-        .getInstance("MD5")
-        .digest(s.getBytes)
-        .map("%02X".format(_))
-        .mkString
+    //implicit val formats = DefaultFormats
     
+    Logging.configureDefaultLogging()
+
+    val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
+     
     
     private def parseCoordPair( s : String ) =
     {
@@ -283,19 +324,6 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         Coord( els(0), els(1) )
     }
 
-    private def getUser : Option[User] =
-    {
-        trackingCookie.flatMap
-        { tc =>
-            
-            val userData = getSessionCache.get(tc)
-            if ( userData == null ) None
-            else
-            {
-            	Some( userData.getObjectValue.asInstanceOf[User] )
-            }
-        }
-    }
     
     get("/logout")
     {
@@ -304,7 +332,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             trackingCookie.foreach
             { tc =>
                 
-                getSessionCache.remove(tc)
+                logout()
                 
                 flashInfo("Goodbye " + u.name)
             }
@@ -324,10 +352,10 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         log.info( "Request requestroute: %s, %s, %.2f".format( startCoord, midCoordOption, distInKm ) )
         
-        val startNode = getRGH.rg.getClosest( startCoord )
-        val midNodeOption = midCoordOption.map { mc => getRGH.rg.getClosest( mc ) }
+        val startNode = rg.getClosest( startCoord )
+        val midNodeOption = midCoordOption.map { mc => rg.getClosest( mc ) }
         
-        getRGH.rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
+        rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
         {
             case Some( route : RouteResult )  =>
             {
@@ -439,13 +467,10 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         templateEngine.allowCaching = true
         
         contentType="text/html"
-            
-		val googleOpenIdLink="https://accounts.google.com/o/oauth2/auth?response_type=code&scope=%s&client_id=%s&redirect_uri=%s&access_type=online".format(
-		    "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
-		        googleClientId,
-		        googleRedirectURI )
 		        
         val user = getUser
+
+        log.info( "User: " + user )
         
         layoutTemplate("/WEB-INF/templates/views/appframe.ssp",
             "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
@@ -453,40 +478,30 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             "user" -> user
         )
     }
-    
-    
-    /*get("/routegpx/:routeId")
-    {
-        contentType="text/xml"
-        
-        val routeId = params("routeId")
-        val routeXML = scala.xml.XML.loadFile( routeFilePath( routeId ) )
-        
-        // Extract only the trk bit (the rest isn't valid gpx)
-        routeXML \ "gpx"
-    }*/
 }
 
-object JettyLauncher { // this is my entry object as specified in sbt project definition
-  def main(args: Array[String]) {
-    val port = if(System.getenv("PORT") != null) System.getenv("PORT").toInt else 8080
+object JettyLauncher
+{
+	def main(args: Array[String])
+	{
+		val port = if(System.getenv("PORT") != null) System.getenv("PORT").toInt else 8080
+		val server = new Server(port)
+		val context = new WebAppContext()
+		context.setInitParameter("org.mortbay.jetty.servlet.SessionURL", "none")
+		context setContextPath "/"
 
-    val server = new Server(port)
-    val context = new WebAppContext()
-    context setContextPath "/"
-    //context.setResourceBase("src/main/webapp")
-    val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
-    println( "Resource base: " + resourceBase)
-    context.setResourceBase(resourceBase)
-    context.setTempDirectory( new java.io.File("./contexttmp") )
-    context.setExtractWAR( true )
-    context.addEventListener(new ScalatraListener)
-    context.addServlet(classOf[DefaultServlet], "/")
+		val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
+		println( "Resource base: " + resourceBase)
+		context.setResourceBase(resourceBase)
+		context.setTempDirectory( new java.io.File("./contexttmp") )
+		context.setExtractWAR( true )
+		context.addEventListener(new ScalatraListener)
+		context.addServlet(classOf[DefaultServlet], "/")
 
-    server.setHandler(context)
-
-    server.start
-    server.join
-  }
+	    server.setHandler(context)
+	
+	    server.start
+	    server.join
+	}
 }
 
