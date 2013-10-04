@@ -54,6 +54,8 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     //implicit val webDriver : WebDriver = new FireFoxDriver
     
     
+    private def shortEventually( fn : => Unit ) = eventually( timeout(Span(2, Seconds) ) )(fn)
+    private def longEventually( fn : => Unit ) = eventually( timeout(Span(10, Seconds) ) )(fn)
     
     override def beforeAll()
     {
@@ -72,7 +74,9 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
         stopJetty()
     }
     
-    "A web server" should "appear on port 8080 and be testable" in
+    val summerTownCoords = "-1.2657,51.777"
+    
+    "A web server" should "appear on port 8080 be testable, including dynamic content" in
     {
         // TODO: Must use mock persistence
     	//val persistence = new MockPersistence
@@ -83,42 +87,24 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
         
         pageTitle should be ("TwoPI.co.uk: Circular walking and cycling routes")
         
-        val controlBar = find( className("controlBar") )
-        assert( controlBar.size === 1 )
-        
-        textField("placeSearchInput").value = "Nether wasdale"
-        click on "placeSearchSubmit"
-        
-        // Check that place search works
-        eventually( timeout(Span(10, Seconds)) )
+        shortEventually
         {
-            val searchResults = find("placeSearchResults").get
-            assert( searchResults.text contains "Cumbria" )
+            val controlBar = find( className("controlBar") )
+            assert( controlBar.size === 1 )
         }
-        
-        // Check that generating a route works
-        click on "startCoord"
-        enter( "-1.312001,51.77463" )
-        click on "distance"
-        enter( "20" )
-        click on "specifiedStartSubmit"
-        
-        eventually( timeout(Span(10, Seconds)) )
-        {
-            val routePreference = find("routePreference").get
-            routePreference.text == "Walking"
-        }
-        
-        // Setting the route name should be disabled because we are not logged on 
-        //assert( !find(id("routeName")).get.isEnabled )
     }
+    
+    
     
     "A web server" should "allow logging on and off and remember users" in
     {
     	go to (testRootUrl + "/app")
         
     	click on id("guestLogon")
-    	assert( find(id("flashInfo")).get.text contains "Thanks for joining: A guest" )
+    	shortEventually
+    	{
+    	    assert( find(id("flashInfo")).get.text contains "Thanks for joining: A guest" )
+        }
     	
     	reloadPage()
     	assert( find(id("flashInfo")) === None )
@@ -127,40 +113,93 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
     	assert( find(id("wrap")).get.text contains "My routes" )
     	
     	click on linkText("TwoPi.co.uk")
-    	assert( find( className("controlBar") ) != None )
+    	
+    	shortEventually
+    	{
+    	    assert( find( className("controlBar") ) != None )
+        }
     	
     	click on linkText("Logout")
-    	assert( find(id("flashInfo")).get.text contains "Goodbye: A guest" )
+    	shortEventually
+    	{
+    	    assert( find(id("flashInfo")).get.text contains "Goodbye: A guest" )
+        }
     	
     	click on id("guestLogon")
-    	assert( find(id("flashInfo")).get.text contains "Welcome back: A guest" )
+    	shortEventually
+    	{
+    	    assert( find(id("flashInfo")).get.text contains "Welcome back: A guest" )
+        }
     	
     	// Setting the route name should be disabled because there is no route
-    	//assert( !find(id("routeName")).get.isEnabled )
+    	assert( !find(id("routeName")).get.isEnabled )
+    }
+    
+    "The server" should "provide async place search functionality" in
+    {
+        
+        textField("placeSearchInput").value = "Nether wasdale"
+        click on "placeSearchSubmit"
+        
+        Thread.sleep(1000)
+        
+        // Check that place search works
+        longEventually
+        {
+            val searchResults = find("placeSearchResults").get
+            assert( searchResults.text contains "Cumbria" )
+        }
+    }
+    
+    "The server" should "support route generation without failing" in
+    {      
+        // Check that generating a route works
+        click on "startCoord"
+        enter( summerTownCoords )
+        click on "distance"
+        enter( "20" )
+        
+        click on "specifiedStartSubmit"
+        Thread.sleep(2000)
+        
+        // Wait for the route to arrive
+        longEventually
+        {
+            val routePreference = find("routePreference").get
+            assert( routePreference.text === "Walking" )
+        }
+    }
+
+    "The server" should "render and update the UI appropriately" in
+    {
+        longEventually
+        {
+            val routePreference = find("routePreference").get
+            assert( routePreference.text === "Walking" )
+        }
+        
+        // Setting the route name should be disabled because we are not logged on 
+        assert( !find(id("routeName")).get.isEnabled )
     }
     
     "Once logged on it" should "be possible to save routes" in
     {
         go to (testRootUrl + "/app")
         click on "startCoord"
-        enter( "-1.312001,51.77463" )
+        enter( summerTownCoords )
         click on "distance"
         enter( "20" )
         click on "specifiedStartSubmit"
         
-        Thread.sleep(6000)
-        
-        eventually( timeout(Span(6, Seconds)) )
-        {
-            val routePreference = find("routePreference").get
-            routePreference.text == "Walking"
-        }
+        Thread.sleep(2000)
         
         // It should now be possible to set the route name
-        //assert( find(id("routeName")).get.isEnabled )
+        longEventually
+        {
+            assert( find(id("routeName")).get.isEnabled )
+        }
         
     }
-    
 }
 
 
@@ -225,5 +264,7 @@ class WebServicesTest extends FlatSpec with ScalatraSuite
         }
     }
 }
+
+
 
 

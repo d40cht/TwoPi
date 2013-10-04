@@ -336,7 +336,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
         } )
         .error( function(data, status, headers, config )
         {
-            alert( "Failure: " + data );
+            alert( "Failure in PosterController data fetch: " + status );
         } );
 }
 
@@ -508,7 +508,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         } )
         .error( function(data, status, headers, config )
         {
-            alert( "Failure: " + data );
+            alert( "Failure in setRoute: " + status );
         } );
     }
     
@@ -561,7 +561,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         } )
         .error( function(data, status, headers, config )
         {
-            alert( "Failure: " + data );
+            alert( "Failure in request route: " + status );
         } );
     };
     
