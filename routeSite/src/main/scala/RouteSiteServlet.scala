@@ -299,7 +299,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 	with AuthenticationSupport
 	with GoogleAuthenticationSupport
     with ScalateSupport
-    //with GZipSupport
+    with GZipSupport
     with FlashMapSupport
     with Logging
 {
