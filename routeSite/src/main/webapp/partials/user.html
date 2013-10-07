@@ -9,6 +9,7 @@
                     <th>Name</th>
                     <th>Distance</th>
                     <th>Ascent</th>
+                    <th>Time added</th>
                     <th>Actions</th>
                     <th>Images</th>
                 </thead>
@@ -16,6 +17,7 @@
                     <td><a href="/app/route/{{route.id}}">{{route.name}}</a></td>
                     <td>{{route.distance.toFixed(1)}}km</td>
                     <td>{{route.ascent.toFixed(0)}}m</td>
+                    <td>{{route.timeAdded}}</td>
                     <td>
                         <span class="glyphicon glyphicon-trash"></span>
                         <span class="glyphicon glyphicon-floppy-save"></span>

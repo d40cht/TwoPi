@@ -4,8 +4,10 @@ import scala.slick.session.Database
 import Database.threadLocalSession
 import scala.slick.driver.H2Driver.simple._
 
-case class User( id : Int, extId : String, name : String, email : String, numLogins : Int, firstLogin : java.sql.Timestamp, lastLogin : java.sql.Timestamp )
-case class UserRoute( id : Int, name : String, distance : Double, ascent : Double )
+import java.sql.{Timestamp}
+
+case class User( id : Int, extId : String, name : String, email : String, numLogins : Int, firstLogin : Timestamp, lastLogin : Timestamp )
+case class UserRoute( id : Int, name : String, distance : Double, ascent : Double, timeAdded : Timestamp )
 
 private object UserTable extends Table[User]("Users")
 {
@@ -14,30 +16,33 @@ private object UserTable extends Table[User]("Users")
     def name        = column[String]("name")
     def email       = column[String]("email")
     def numLogins   = column[Int]("numLogins")
-    def firstLogin  = column[java.sql.Timestamp]("firstLogin")
-    def lastLogin   = column[java.sql.Timestamp]("lastLogin")
+    def firstLogin  = column[Timestamp]("firstLogin")
+    def lastLogin   = column[Timestamp]("lastLogin")
 
     def * = id ~ extId ~ name ~ email ~ numLogins ~ firstLogin ~ lastLogin <> (User, User.unapply _)
 }
 
-private object RouteTable extends Table[(Int, String, Double, Double)]("Routes")
+private object RouteTable extends Table[(Int, String, Double, Double, Timestamp)]("Routes")
 {
     def id          = column[Int]("id", O.PrimaryKey, O.AutoInc)
     def routeData   = column[String]("routeData")
     def distance    = column[Double]("distance")
     def ascent      = column[Double]("ascent")
+    def timeAdded   = column[Timestamp]("timeAdded")
     
-    def * = id ~ routeData ~ distance ~ ascent
+    def * = id ~ routeData ~ distance ~ ascent ~ timeAdded
     def autoInc = (routeData ~ distance ~ ascent) returning id
 }
 
-private object UserRouteTable extends Table[(Int, Int, String)]("UserRoutes")
+private object UserRouteTable extends Table[(Int, Int, String, Timestamp)]("UserRoutes")
 {
     def routeId     = column[Int]("routeId")
     def userId      = column[Int]("userId")
     def routeName   = column[String]("routeName")
+    def timeAdded   = column[Timestamp]("timeAdded")
     
-    def * = routeId ~ userId ~ routeName
+    def * = routeId ~ userId ~ routeName ~ timeAdded
+    def insCols = routeId ~ userId ~ routeName
 }
 
 trait Persistence
@@ -112,7 +117,7 @@ class DbPersistence( val db : Database ) extends Persistence
     {
         db withSession
         {
-            UserRouteTable.insert( (routeId, userId, routeName) )
+            UserRouteTable.insCols.insert( (routeId, userId, routeName) )
         }
     }
     
@@ -124,9 +129,9 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 ur  <- UserRouteTable
                 r   <- RouteTable if ur.routeId === r.id
-            } yield ( ur.routeId, ur.routeName, r.distance, r.ascent )
+            } yield ( ur.routeId, ur.routeName, r.distance, r.ascent, r.timeAdded )
             
-            routes.list.map( r => UserRoute( r._1, r._2, r._3, r._4 ) )
+            routes.list.map( r => UserRoute( r._1, r._2, r._3, r._4, r._5 ) )
         }
     }
 }

@@ -124,6 +124,9 @@ class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEv
                 org.apache.commons.io.IOUtils.copy( istream, writer, "utf-8")
                 (version, writer.toString)
             }
+            .toSeq
+            
+        logger.info( "Most recent evolution in JAR: " + evolutionsFromJar.last.toString )
             
         evolveDb( evolutionsFromJar )
     }

@@ -14,7 +14,7 @@ import org.eclipse.jetty.webapp.WebAppContext
 import org.scalatra.servlet.ScalatraListener
 
 
-// JSON handling support from Scalatra
+// JSON handling support
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.JsonDSL._
@@ -455,7 +455,11 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             {
                 val routes = persistence.getUserRoutes( user.id )
                 
-                swrite(routes)
+                val res = swrite(routes)
+                println( routes )
+                println( res )
+                
+                res
             }
             case None       => "fail"
         }
