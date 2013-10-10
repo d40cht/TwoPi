@@ -6,7 +6,7 @@ import org.scalatra._
 import scalate.ScalateSupport
 
 import org.seacourt.osm.{OSMMap, Node, Coord, Logging}
-import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RTreeIndex, ScenicPoint, POIType}
+import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RouteEdge, RTreeIndex, ScenicPoint, POIType}
 
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
@@ -362,7 +362,9 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val startNode = rg.getClosest( startCoord )
         val midNodeOption = midCoordOption.map { mc => rg.getClosest( mc ) }
         
-        rg.buildRoute( startNode, midNodeOption, distInKm * 1000.0 ) match
+        //val costModel = RouteEdge.walkingCost _
+        val costModel = RouteEdge.cyclingCost _
+        rg.buildRoute( costModel, startNode, midNodeOption, distInKm * 1000.0 ) match
         {
             case Some( route : RouteResult )  =>
             {

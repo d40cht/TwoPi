@@ -109,6 +109,8 @@ object RoutableGraphBuilder extends Logging
     }
     
     
+    
+    
     def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], poiMap : RTreeIndex[POI] ) =
     {
         // Find all nodes which belong to more than one way
@@ -145,169 +147,113 @@ object RoutableGraphBuilder extends Logging
         // Build the route graph
         var allSPs = mutable.HashSet[ScenicPoint]()
         
+        val routeNodeMap = mutable.Map[Int, RouteNode]()
+        
+        val numWays = osmMap.ways.size
+        var nextEdgeId = 0
+        for ( (w, i) <- osmMap.ways.zipWithIndex )
         {
-            val routeNodeMap = mutable.Map[Int, RouteNode]()
+            if ( (i % 10000) == 0 ) log.info( "Processing way %d of %d".format( i, numWays ) )
             
-            val numWays = osmMap.ways.size
-            var nextEdgeId = 0
-            for ( (w, i) <- osmMap.ways.zipWithIndex )
+            val tagMap = w.tags.map( t => (t.key, t.value) ).toMap
+            
+            
+            val name = RouteEdge.name( tagMap )
+            
+            var dist = 0.0
+            var absHeightDelta = 0.0
+            var lastNode : Option[Node] = None
+            var lastRouteNode : Option[RouteNode] = None
+            var nodes = mutable.ArrayBuffer[Node]()
+            var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
+            var pois = Map[POI, Float]()
+            for ( nid <- w.nodeIds )
             {
-                if ( (i % 10000) == 0 ) log.info( "Processing way %d of %d".format( i, numWays ) )
+                val isRouteNode = routeNodeIds contains nid
+                val node = osmMap.nodes(nid)
                 
-                val tagMap = w.tags.map( t => (t.key, t.value) ).toMap
+                val nearestScenicPoint = scenicMap.nearest(node.coord).get
+                nodes.append( node )
                 
-                val highwayAnnotation : Option[String] = tagMap.get("highway")
-                val junctionAnnotation : Option[String] = tagMap.get("junction")
-                val bridgeAnnotation : Option[String] = tagMap.get("bridge")
-                val nameAnnotation : Option[String] = tagMap.get("name")
-                val refAnnotation : Option[String] = tagMap.get("ref")
-                val footAnnotation : Option[String] = tagMap.get("foot")
-                    
-                // Other important things:
-                // ford: yes - In the case of Duxford Ford, this is not fordable.
-                var costMultiplierOption = highwayAnnotation match
+                if ( nearestScenicPoint.coord.distFrom(node.coord) < maxDistForLocale )
                 {
-                     case Some( valueString ) =>
-                     {
-                        //if ( valueString.startsWith( "motorway" ) ) Some( 10.0 )
-                        if ( valueString.startsWith( "trunk" ) ) Some( 20.0 )
-                        else if ( valueString.startsWith( "primary" ) ) Some( 10.0 )
-                        // Not yet classified, so be conservative
-                        else if ( valueString.startsWith( "road" ) ) Some( 1.4 )
-                        else if ( valueString.startsWith( "secondary" ) ) Some( 1.4 )
-                        else if ( valueString.startsWith( "tertiary" ) ) Some( 1.3 )
-                        else if ( valueString.startsWith( "unclassified" ) ) Some( 1.3 )
-                        else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
-                        else if ( valueString.startsWith( "residential" ) ) Some( 1.1 )
-                        else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
-                        else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) ) Some( 0.7 )
-                        else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
-                        else if ( valueString.startsWith( "footway" ) ) Some( 0.6 )
-                        else if ( valueString.startsWith( "footpath" ) ) Some( 0.6 )
-                        else None
-                     }
-                     case None => None
+                    scenicPoints.append( nearestScenicPoint )
+                    allSPs.add( nearestScenicPoint )
                 }
-
                 
-                costMultiplierOption.foreach
-                { costMultiplierPre =>
-                
-                    val name = if ( !nameAnnotation.isEmpty ) nameAnnotation.get
-                    else if ( !refAnnotation.isEmpty ) refAnnotation.get
-                    else if ( !junctionAnnotation.isEmpty ) junctionAnnotation.get
-                    else if ( !bridgeAnnotation.isEmpty ) "bridge"
-                    else "Unnamed " + highwayAnnotation.get
-                    
-                    var costMultiplier = costMultiplierPre
-                    refAnnotation.foreach
-                    { n =>
-                        if (n.matches("A[0-9]+"))
-                        {
-                            costMultiplier *= 1.5
-                        }
-                    }
-                    
-                    
-                    var dist = 0.0
-                    var absHeightDelta = 0.0
-                    var lastNode : Option[Node] = None
-                    var lastRouteNode : Option[RouteNode] = None
-                    var nodes = mutable.ArrayBuffer[Node]()
-                    var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
-                    var pois = Map[POI, Float]()
-                    for ( nid <- w.nodeIds )
+                val nearestPOIs = poiMap.nearest(node.coord, 10)
+                for ( nearestPOI <- nearestPOIs )
+                {
+                    val poiDist = nearestPOI.coord.distFrom(node.coord).toFloat
+                    if ( poiDist < maxDistForLocale )
                     {
-                        val isRouteNode = routeNodeIds contains nid
-                        val node = osmMap.nodes(nid)
-                        
-                        val nearestScenicPoint = scenicMap.nearest(node.coord).get
-                        nodes.append( node )
-                        
-                        if ( nearestScenicPoint.coord.distFrom(node.coord) < maxDistForLocale )
+                        if ( !pois.contains( nearestPOI ) || pois(nearestPOI) > poiDist )
                         {
-                            scenicPoints.append( nearestScenicPoint )
-                            allSPs.add( nearestScenicPoint )
+                            pois += (nearestPOI -> poiDist)
                         }
-                        
-                        val nearestPOIs = poiMap.nearest(node.coord, 10)
-                        for ( nearestPOI <- nearestPOIs )
-                        {
-                            val poiDist = nearestPOI.coord.distFrom(node.coord).toFloat
-                            if ( poiDist < maxDistForLocale )
-                            {
-                                if ( !pois.contains( nearestPOI ) || pois(nearestPOI) > poiDist )
-                                {
-                                    pois += (nearestPOI -> poiDist)
-                                }
-                            }
-                        }
-                        
-                        // Update cumulative way distance
-                        lastNode.foreach
-                        { ln =>
-                        
-                            dist += ln.coord.distFrom( node.coord )
-                            
-                            val prevHeight = node.height;//heightMap.elevation( node.coord.lon, node.coord.lat )
-                            val thisHeight = ln.height;//heightMap.elevation( ln.coord.lon, ln.coord.lat )
-                            
-                            absHeightDelta += prevHeight - thisHeight
-                        }
-                        
-                        if ( isRouteNode )
-                        {
-                            val scenicScore = if ( !scenicPoints.isEmpty )
-                            {
-                                val scenicValue = scenicPoints.map( _.score ).sum / scenicPoints.size.toDouble
-                                (1.0 + (0.5-scenicValue))
-                            }
-                            else
-                            {
-                                1.0
-                            }
-                            
-                            val inclineScore = 1.0 - ((absHeightDelta / dist)*5.0)
-                            
-                            val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node) )
-                            
-                            
-                            
-                            lastRouteNode.foreach
-                            { lrn =>
-                            
-                                // If oneway=yes/true/1. forward oneway. If oneway=-1/reverse, backward oneway
-                                val edge = new RouteEdge(
-                                    nextEdgeId,
-                                    dist,
-                                    dist * costMultiplier * scenicScore * inclineScore,
-                                    name,
-                                    scenicPoints.distinct.toArray,
-                                    pois.map { case (poi, dist) => NearbyPOI( dist, poi ) }.toArray,
-                                    nodes.toArray )
-                                    
-                                rn.addEdge( lrn, edge )
-                                lrn.addEdge( rn, edge )
-                                nextEdgeId += 1
-                            }
-                            
-                            lastRouteNode = Some(rn)
-                            scenicPoints.clear()
-                            nodes.clear()
-                            pois = Map()
-                            dist = 0.0
-                            absHeightDelta = 0.0
-                        }
-                        
-                        lastNode = Some(node)
                     }
                 }
+                
+                // Update cumulative way distance
+                lastNode.foreach
+                { ln =>
+                
+                    dist += ln.coord.distFrom( node.coord )
+                    
+                    val prevHeight = node.height
+                    val thisHeight = ln.height
+                    
+                    absHeightDelta += prevHeight - thisHeight
+                }
+                
+                
+                if ( isRouteNode )
+                {    
+                    val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node) )
+                    
+                    lastRouteNode.foreach
+                    { lrn =>
+                    
+                        // If oneway=yes/true/1. forward oneway. If oneway=-1/reverse, backward oneway
+                        
+                    	val (forward, backward) = tagMap.get("highway") match
+                    	{
+                    	    case Some("yes") | Some("true") | Some("1")	=> (true, false)
+                    	    case Some("reverse") | Some("-1")			=> (false, true)
+                    	    case _										=> (true, true)
+                    	}
+                        
+                        val edge = new RouteEdge(
+                            wayTags = tagMap,
+                            edgeId = nextEdgeId,
+                            dist = dist,
+                            absHeightDelta = absHeightDelta,
+                            name = name,
+                            scenicPoints = scenicPoints.distinct.toArray,
+                            pois = pois.map { case (poi, dist) => NearbyPOI( dist, poi ) }.toArray,
+                            nodes = nodes.toArray )
+                          
+                        // Conditionally add based on forward/backward determined above
+                        rn.addEdge( lrn, edge )
+                        lrn.addEdge( rn, edge )
+                        nextEdgeId += 1
+                    }
+                    
+                    lastRouteNode = Some(rn)
+                    scenicPoints.clear()
+                    nodes.clear()
+                    pois = Map()
+                    dist = 0.0
+                    absHeightDelta = 0.0
+                }
+                
+                lastNode = Some(node)
             }
-            
-            log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, nextEdgeId ) )
-            
-            new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
         }
+        
+        log.info( "Number of osm nodes: %d, number of route nodes: %d and edges: %d".format( osmMap.nodes.size, routeNodeMap.size, nextEdgeId ) )
+        
+        new RoutableGraph( routeNodeMap.map { _._2 }.toArray, allSPs.toArray )
     }
 }
 

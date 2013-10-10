@@ -38,7 +38,7 @@ class BridgeFindingTest extends FunSuite
         
         def makeEdge( first : RouteNode, second : RouteNode ) : RouteEdge =
         {
-            val e = RouteEdge( nextEdgeId, 0.0, 0.0, "", Array(), Array(), Array() )
+            val e = RouteEdge( Map(), nextEdgeId, 0.0, 0.0, "", Array(), Array(), Array() )
             first.addEdge( second, e )
             second.addEdge( first, e )
             nextEdgeId += 1
@@ -80,7 +80,8 @@ class BridgeFindingTest extends FunSuite
             }
         }
         
-        // For each node, for each unlabelled edge, follow it away using DFS
+        // For each node, for each unlabelled edge, follow it away from the tree
+        // using DFS to generate the chain decomposition.
         var visitedEdges = Set[Int]()
         var visitedNodes = Set[Int]()
         visitOrder.foreach
