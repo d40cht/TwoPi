@@ -96,7 +96,7 @@ function localStorageWatch( scope, name )
     } );
 }
 
-function createPlaceMarker( lonLat, imgUrl, zindex, width, height )
+function createPlaceMarker( lonLat, imgUrl, title, zindex, width, height )
 {
     var icon = L.icon( {
         iconUrl : imgUrl,
@@ -104,12 +104,12 @@ function createPlaceMarker( lonLat, imgUrl, zindex, width, height )
         iconAnchor : [width/2, height]
     } ); 
     
-    var marker = new L.marker( lonLat, { icon: icon, zIndexOffset: zindex } );
+    var marker = new L.marker( lonLat, { icon: icon, zIndexOffset: zindex, title: title } );
     
     return marker;
 }
 
-function ManagedMarker( map, imgUrl, zindex, width, height )
+function ManagedMarker( map, imgUrl, title, zindex, width, height )
 {   
     var marker = null;
     
@@ -131,7 +131,7 @@ function ManagedMarker( map, imgUrl, zindex, width, height )
         }
         else
         {
-            marker = createPlaceMarker( newLonLat, imgUrl, zindex, width, height );
+            marker = createPlaceMarker( newLonLat, imgUrl, title, zindex, width, height );
             marker.addTo(map);
         }
     };
@@ -365,9 +365,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     var eg = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
     
-    var startMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerS.png", 1, 20, 34 );
-    var midMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerE.png", 1, 20, 34 );
-    var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", 1, 20, 34 );
+    var startMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
+    var midMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
+    var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", "", 1, 20, 34 );
     
     $scope.mapHolder = mapHolder;
     
@@ -477,13 +477,13 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             
             mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
             
-            /*for ( dbi in routeData.debugPoints )
+            for ( dbi in routeData.debugPoints )
             {
                 var db = routeData.debugPoints[dbi];
                 
-                var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", 1, 20.0 * 0.7, 34.0 * 0.7 );
+                var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", db.title, 1, 20.0 * 0.7, 34.0 * 0.7 );
                 nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lon ) );
-            }*/
+            }
             
             eg.setData( seriesData, function( lonLat )
             {

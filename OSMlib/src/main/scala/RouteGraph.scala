@@ -257,7 +257,7 @@ case class NodeAndDistance( val node : Node, val distance : Double )
 
 case class RouteDirections( val inboundNodes : Array[NodeAndDistance], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float, coord : Coord )
 
-case class DebugPoint( coord : Coord, name : String )
+case class DebugPoint( coord : Coord, name : String, title : String )
 
 case class RouteResult(
     directions : Array[RouteDirections],
@@ -619,10 +619,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 .toIndexedSeq
                 
             val debugPoints =
-                candidateDestinations.map( x => DebugPoint(x._2.routeNode.coord, "yellow_MarkerM") ).toSeq ++
-                possibleQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerQ") ).toSeq ++
-                trimmedQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerT") ).toSeq :+
-                DebugPoint(midPoint.routeNode.coord, "blue_MarkerM") :+ DebugPoint(startNode.coord, "S")
+                candidateDestinations.map( x => DebugPoint(x._2.routeNode.coord, "yellow_MarkerM", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq ++
+                possibleQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerQ", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq ++
+                trimmedQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerT", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq :+
+                DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", "") :+ DebugPoint(startNode.coord, "S", "")
             
             val possibleRoutes = (0 until 5).map
             { _ =>
