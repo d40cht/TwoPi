@@ -62,147 +62,107 @@ function localStorageWatch( scope, name )
     } );
 }
 
-function createPlaceMarker( lonLat, imgUrl, url, zindex, width, height )
+function createPlaceMarker( lonLat, imgUrl, zindex, width, height )
 {
-    var size = new OpenLayers.Size(width, height);
-    var feature = new OpenLayers.Feature.Vector(
-        new OpenLayers.Geometry.Point( lonLat.lon, lonLat.lat ),
-        {some:'data'},
-        {externalGraphic: imgUrl, graphicHeight: size.h, graphicWidth: size.w, graphicXOffset: (-size.w/2), graphicYOffset: -size.h, graphicZIndex : zindex}
-    );
+    var icon = L.icon( {
+        iconUrl : imgUrl,
+        iconSize : [width, height],
+        iconAnchor : [width/2, height]
+    } ); 
     
-    feature.attributes = { url : url };
+    var marker = new L.marker( lonLat, { icon: icon, zIndexOffset: zindex } );
     
-    return feature;
+    return marker;
 }
 
-function ManagedMarker( map, layer, imgUrl, url, zindex, width, height )
+function ManagedMarker( map, imgUrl, zindex, width, height )
 {   
-    this.marker = null;
+    var marker = null;
+    
     
     this.removeMarker = function()
     {
-        if ( this.marker != null )
+        if ( marker != null )
         {
-            layer.removeFeatures([this.marker]);
-            this.marker = null;
+            marker.removeFrom(map);
+            marker = null;
         }
     };
     
     this.moveMarker = function( newLonLat )
     {
-        var ll = newLonLat.clone();
-        ll.transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-        this.removeMarker();
-        this.marker = createPlaceMarker( ll, imgUrl, url, zindex, width, height );
-        layer.addFeatures([this.marker]);
+        if ( marker != null )
+        {
+            marker.setLatLng( newLonLat );
+        }
+        else
+        {
+            marker = createPlaceMarker( newLonLat, imgUrl, zindex, width, height );
+            marker.addTo(map);
+        }
     };
 }
 
-function RouteMap( mapId, lon, lat, zoom )
+function RouteMap( mapId, lng, lat, zoom )
 {
-    var mousePosition = new OpenLayers.Control.MousePosition();
-    var map = new OpenLayers.Map( mapId, {
-        controls: [
-            new OpenLayers.Control.Navigation(),
-            new OpenLayers.Control.PanZoomBar(),
-            new OpenLayers.Control.LayerSwitcher(),
-            new OpenLayers.Control.Attribution(),
-            mousePosition],
-        projection: new OpenLayers.Projection("EPSG:4326"),
-        displayProjection: new OpenLayers.Projection("EPSG:4326")
-    } );
+    var map = L.map(mapId).setView( [lat, lng], zoom );
     
-    OpenLayers.Events.prototype.includeXY = true;
-
-    // Define the map layer
-    // Here we use a predefined layer that will be kept up to date with URL changes
-    
-    layerMapnik = new OpenLayers.Layer.OSM.Mapnik("Mapnik");
-    map.addLayer(layerMapnik);
-    layerCycleMap = new OpenLayers.Layer.OSM.CycleMap("CycleMap");
-    map.addLayer(layerCycleMap);
-    
-    var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-    map.setCenter(lonLat, zoom);
-    
-    
-    
-    map.events.register("moveend", map, function()
+    this.getMap = function()
     {
-        var lonLat = map.getCenter().clone();
+        return map;
+    }
     
-        lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
-        var lon = lonLat.lon;
-        var lat = lonLat.lat;
+    // add an OpenStreetMap tile layer
+    L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+    
+    map.on("moveend", function(e)
+    {
+        var lonLat = map.getCenter();
         var zoom = map.getZoom();
         
-        localStorage.setItem( "mapLon", lon );
+        localStorage.setItem( "mapLon", lng );
         localStorage.setItem( "mapLat", lat );
         localStorage.setItem( "mapZoom", zoom );
     } );
     
-    var markerLayer = new OpenLayers.Layer.Vector("Markers");
-    map.addLayer(markerLayer);
-    map.setLayerIndex(markerLayer, MARKER_LAYER_INDEX);
-    
+   
     var clickCallback = null;
-    
-    function setClickCallback(fn)
+    this.setClickCallback = function(fn)
     {
         clickCallback = fn;
-    }
-    this.setClickCallback = setClickCallback;
+    };
     
-
-    function clickHandler(e)
+    
+    map.on("click", function(e)
     {
         if ( clickCallback != null )
         {
-            var lonLat = map.getLonLatFromPixel(e.xy);
-            lonLat.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
-            
-            clickCallback( lonLat );
+            clickCallback( e.latlng );
         }
-    }
+    } );
     
-    function toMapProjection( lonLat )
+    var currentRoute = null;
+    this.setRoute = function( newRoute )
     {
-        var llc = lonLat.clone();
-        llc.transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-        return llc;
-    }
-    
-    this.toMapProjection = toMapProjection;
-    
-    // Add a click handler
-    map.events.register("click", map, clickHandler);
-    
-    this.map = map;
-    this.markerLayer = markerLayer;
-    
-    var trackLayer = null;
-    function setTrackLayer( newTrackLayer )
-    {
-        if ( trackLayer != null )
+        if ( currentRoute != null )
         {
-            map.removeLayer( trackLayer );
+            currentRoute = null;
+            currentRoute.removeFrom(map);
         }
-        trackLayer = newTrackLayer;
-        map.addLayer(trackLayer);
-        map.setLayerIndex(trackLayer, TRACK_LAYER_INDEX);
-    }
-    this.setTrackLayer = setTrackLayer;
+        currentRoute = newRoute;
+        currentRoute.addTo(map);
+        map.fitBounds( newRoute.getBounds() );
+    };
     
-    function zoomToExtent( bounds )
+    
+    this.zoomToExtent = function( bounds )
     {
-        map.zoomToExtent( bounds );
-        
+        fitBounds( bounds );
         var maxZoom = 15;
         if ( map.getZoom() > maxZoom ) map.zoomTo(maxZoom);
-    }
-    this.zoomToExtent = zoomToExtent;
+    };
 }
+
 
 function ElevationGraph( divId )
 {
@@ -228,7 +188,7 @@ function ElevationGraph( divId )
                         {
                             if ( crossLinkFn != null )
                             {
-                                var lonLat = new OpenLayers.LonLat(this.lon, this.lat);
+                                var lonLat = new OpenLayers.LonLat(this.lng, this.lat);
                                 crossLinkFn( lonLat );
                             }
                         }
@@ -365,9 +325,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     var eg = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
     
-    var startMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
-    var midMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
-    var elevationCrossLinkMarker = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/red_MarkerE.png", "End", 1, 20, 34 );
+    var startMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerS.png", 1, 20, 34 );
+    var midMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerE.png", 1, 20, 34 );
+    var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", 1, 20, 34 );
     
     $scope.mapHolder = mapHolder;
     
@@ -376,7 +336,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         mapHolder.setClickCallback( function(lonLat)
         {
             startMarker.moveMarker( lonLat );
-            $scope.startCoord = lonLat.lon.toFixed(6) + "," + lonLat.lat.toFixed(5);
+            $scope.startCoord = lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
             $scope.$apply();
         } );
     };
@@ -386,7 +346,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         mapHolder.setClickCallback( function(lonLat)
         {
             midMarker.moveMarker( lonLat );
-            $scope.midCoord = lonLat.lon.toFixed(6) + "," + lonLat.lat.toFixed(5);
+            $scope.midCoord = lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
             $scope.$apply();
         } );
     };
@@ -443,18 +403,12 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             $scope.routeData = routeData;
             
             // Update the map and elevation graph
-            var trackLayer = new OpenLayers.Layer.PointTrack("Track", {
-                style: {strokeColor: "blue", strokeWidth: 6, strokeOpacity: 0.5},
-                projection: new OpenLayers.Projection("EPSG:4326"),
-                hover : true });
-            
             var seriesData = [];
             var lastNode = null;
-            var lastPF = null;
             var ascent = 0.0;
             var totalDistance = 0.0;
             
-            var bounds = new OpenLayers.Bounds();
+            var routePoints = [];
             for ( rd in routeData.directions )
             {
                 var dataEl = routeData.directions[rd];
@@ -466,36 +420,27 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                     
                     seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
                     
-                    var rawPos = new OpenLayers.LonLat( node.coord.lon, node.coord.lat );
-                    var tn = mapHolder.toMapProjection( rawPos );
-                    var pf = new OpenLayers.Feature.Vector( new OpenLayers.Geometry.Point( tn.lon, tn.lat ) );
-                    bounds.extend( new OpenLayers.LonLat( tn.lon, tn.lat ) );
+                    routePoints.push( new L.LatLng( node.coord.lat, node.coord.lon ) );
                     
-                    if ( lastPF != null )
+                    if ( lastNode != null )
                     {
                         heightDelta = node.height - lastNode.height;
                         if ( heightDelta > 0.0 ) ascent += heightDelta;
-                        trackLayer.addNodes( [lastPF, pf] );
                     }
-                    lastPF = pf;
                     lastNode = node;
                     totalDistance = distance;
                 }
             }
             
+            mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
+            
             for ( dbi in routeData.debugPoints )
             {
                 var db = routeData.debugPoints[dbi];
                 
-                var nm = new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/" + db.name + ".png", db.name, 1, 20, 34 );
-                nm.moveMarker( new OpenLayers.LonLat( db.coord.lon, db.coord.lat ) );
+                var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", 1, 20, 34 );
+                nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lng ) );
             }
-            
-            mapHolder.setTrackLayer( trackLayer, TRACK_LAYER_INDEX );
-            mapHolder.zoomToExtent( bounds );
-            
-            
-            //new ManagedMarker( mapHolder.map, mapHolder.markerLayer, "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
             
             eg.setData( seriesData, function( lonLat )
             {
@@ -512,9 +457,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         } );
     }
     
-    $scope.moveMarker = function( lon, lat )
+    $scope.moveMarker = function( lng, lat )
     {
-        elevationCrossLinkMarker.moveMarker( new OpenLayers.LonLat( lon, lat ) );
+        elevationCrossLinkMarker.moveMarker( new OpenLayers.LonLat( lng, lat ) );
     };
     
     var cr = $routeParams['routeId'];
