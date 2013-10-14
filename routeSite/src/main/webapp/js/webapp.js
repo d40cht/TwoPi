@@ -157,7 +157,7 @@ function RouteMap( mapId, lng, lat, zoom )
     
     this.zoomToExtent = function( bounds )
     {
-        fitBounds( bounds );
+        map.fitBounds( bounds );
         var maxZoom = 15;
         if ( map.getZoom() > maxZoom ) map.zoomTo(maxZoom);
     };
@@ -188,7 +188,7 @@ function ElevationGraph( divId )
                         {
                             if ( crossLinkFn != null )
                             {
-                                var lonLat = new OpenLayers.LonLat(this.lng, this.lat);
+                                var lonLat = new L.LatLng( this.lat, this.lng );
                                 crossLinkFn( lonLat );
                             }
                         }
@@ -418,7 +418,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                     var distance = nodeAndDist.distance / 1000.0;
                     var node = nodeAndDist.node;
                     
-                    seriesData.push( { x : distance, y : node.height, lon : node.coord.lon, lat : node.coord.lat } );
+                    seriesData.push( { x : distance, y : node.height, lng : node.coord.lon, lat : node.coord.lat } );
                     
                     routePoints.push( new L.LatLng( node.coord.lat, node.coord.lon ) );
                     
@@ -438,8 +438,8 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             {
                 var db = routeData.debugPoints[dbi];
                 
-                var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", 1, 20, 34 );
-                nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lng ) );
+                var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", 1, 20.0 * 0.7, 34.0 * 0.7 );
+                nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lon ) );
             }
             
             eg.setData( seriesData, function( lonLat )
@@ -459,7 +459,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     
     $scope.moveMarker = function( lng, lat )
     {
-        elevationCrossLinkMarker.moveMarker( new OpenLayers.LonLat( lng, lat ) );
+        elevationCrossLinkMarker.moveMarker( new L.LatLng( lat, lng ) );
     };
     
     var cr = $routeParams['routeId'];
@@ -553,9 +553,9 @@ function TypeaheadCtrl($scope, $http)
     
     $scope.moveTo = function( boundingbox )
     {
-        var bounds = new OpenLayers.Bounds();
-        bounds.extend( $scope.mapHolder.toMapProjection( new OpenLayers.LonLat( boundingbox[3], boundingbox[0] ) ) );
-        bounds.extend( $scope.mapHolder.toMapProjection( new OpenLayers.LonLat( boundingbox[2], boundingbox[1] ) ) );
+        var southWest = new L.LatLng( boundingbox[0], boundingbox[3] );
+        var northEast = new L.LatLng( boundingbox[1], boundingbox[2] );
+        var bounds = new L.LatLngBounds(southWest, northEast);
         
         $scope.mapHolder.zoomToExtent( bounds );
     }
