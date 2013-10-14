@@ -146,13 +146,10 @@ object RouteEdge
 	        1.0
 	    }
 	    
-	    val inclineScore = 1.0 - ((re.absHeightDelta / re.dist)*5.0)
-	    
-	    
-	    re.dist * costMultiplier * scenicScore * inclineScore
+	    re.dist * costMultiplier * scenicScore
 	}
 	
-	def cyclingCost( re : RouteEdge ) : Double =
+	def cyclingCost( re : RouteEdge, bumpy : Boolean ) : Double =
 	{
     	val tagMap = re.wayTags
     	
@@ -213,7 +210,7 @@ object RouteEdge
 	        1.0
 	    }
 	    
-	    val inclineScore = 1.0 - ((re.absHeightDelta / re.dist)*5.0)
+	    val inclineScore = if ( bumpy ) 1.0 - ((re.absHeightDelta / re.dist)*5.0) else 1.0
 	    
 	    
 	    re.dist * costMultiplier * scenicScore * inclineScore
@@ -531,7 +528,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
 
         val allDestinationsRaw = startPointAnnotationMap
-            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.1 && annot.cumulativeDistance < targetDist * 0.5 }
+            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.1 && annot.cumulativeDistance < targetDist * 0.3 }
             .toSeq
             .sortBy { case (nid, annot) => annot.cumulativeCost/annot.cumulativeDistance }
             
@@ -627,7 +624,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 trimmedQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerT") ).toSeq :+
                 DebugPoint(midPoint.routeNode.coord, "blue_MarkerM") :+ DebugPoint(startNode.coord, "S")
             
-            val possibleRoutes = (0 until 20).map
+            val possibleRoutes = (0 until 5).map
             { _ =>
                 
                 val qp1 = trimmedQuarterPoints( random.nextInt( trimmedQuarterPoints.size ) )._2.routeNode
@@ -645,6 +642,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 
                 val totalDist = section1.last.ra.cumulativeDistance + section2.last.ra.cumulativeDistance + section3.last.ra.cumulativeDistance
                 val totalCost = section1.last.ra.cumulativeCost + section2.last.ra.cumulativeCost + section3.last.ra.cumulativeCost
+                
+                log.info( "Possible distance: " + totalDist )
                 
                 (totalDist, totalCost / totalDist, section1 ++ section2 ++ section3)
             }

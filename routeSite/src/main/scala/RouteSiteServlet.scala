@@ -348,6 +348,20 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         redirect("/")
     }
     
+    private val allCostModels = Map[String, RouteEdge => Double](
+        "Walking"			-> (RouteEdge.walkingCost _),
+        "Cycling"			-> (RouteEdge.cyclingCost( _, true ))
+        //"Cycling (flat)"	-> (RouteEdge.cyclingCost( _, false )),
+        //"Cycling (hilly)"	-> (RouteEdge.cyclingCost( _, true))
+    )
+    
+    get("/costModels")
+    {
+        contentType = "application/json"
+        
+        swrite( allCostModels.map( _._1 ) )
+    }
+    
     post("/requestroute")
     {
         //contentType = "application/json"
@@ -356,14 +370,14 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val startCoord = parseCoordPair( params("start") )
         val midCoordOption = params.get("mid").map( parseCoordPair )
         val distInKm = params("distance").toDouble
+        val costModelName = params("model")
         
-        log.info( "Request requestroute: %s, %s, %.2f".format( startCoord, midCoordOption, distInKm ) )
+        log.info( "Request requestroute: %s, %s, %.2f, %s".format( startCoord, midCoordOption, distInKm, costModelName ) )
         
         val startNode = rg.getClosest( startCoord )
         val midNodeOption = midCoordOption.map { mc => rg.getClosest( mc ) }
         
-        //val costModel = RouteEdge.walkingCost _
-        val costModel = RouteEdge.cyclingCost _
+        val costModel = allCostModels( costModelName )
         rg.buildRoute( costModel, startNode, midNodeOption, distInKm * 1000.0 ) match
         {
             case Some( route : RouteResult )  =>

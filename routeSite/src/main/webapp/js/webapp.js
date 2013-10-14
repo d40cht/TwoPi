@@ -2,12 +2,46 @@
 
 angular.module('TwoPi', ['ngCookies'], function($provide)
     {
-        $provide.factory('UserService', function($cookies) {
+        $provide.factory( 'UserService', function($cookies) {
             var sdo =
             {
                 userName : $cookies['UserName']
 	        };
 	        return sdo;
+        } );
+        
+        $provide.factory('RouteStateService', function() {
+            var routeStateKey = 'routeState';
+            
+            var state = null;
+            var ls = localStorage.getItem( routeStateKey );
+            if ( ls == null )
+            {
+                state =
+                {
+                };
+                
+                localStorage.setItem( routeStateKey, JSON.stringify(state) );
+            }
+            else
+            {
+                state = JSON.parse(ls);
+            }
+            
+            var sdo =
+            {
+                getState : function()
+                {
+                    return state;
+                },
+                
+                saveState : function()
+                {
+                    localStorage.setItem( routeStateKey, JSON.stringify(state) );
+                }
+            };
+            
+            return sdo;
         } );
     } )
     .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider)
@@ -218,6 +252,7 @@ function UserController($scope, $routeParams, $http)
         } );
 }
 
+
 function PosterController($scope, $routeParams, $http, $timeout)
 {
     $scope.routeId = $routeParams.routeId
@@ -303,8 +338,18 @@ function PosterController($scope, $routeParams, $http, $timeout)
 
 function RouteController($scope, $log, $http, $location, $routeParams, UserService)
 {   
-    // TODO: Record start and end coords into localStorage
-    $scope.routingPreferences = ["Walking"];
+    // Pull possible routing preferences from the server
+    $scope.routingPreferences = [];
+    $http( {
+            method  : "GET",
+            url     : "/costModels"
+    } )
+    .success( function(data, status, headers, config )
+    {
+        $scope.routingPreferences = data;
+    } );    
+   
+    
     $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
     $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
     
@@ -317,11 +362,6 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     localStorageWatch( $scope, 'distance' );
     localStorageWatch( $scope, 'routingPreference' );
     
-    
-    $scope.startCoord = "";
-    $scope.midCoord = "";
-    
-    
     var eg = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
     
@@ -330,6 +370,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", 1, 20, 34 );
     
     $scope.mapHolder = mapHolder;
+    
+    $scope.startCoord = "";
+    $scope.midCoord = "";
     
     $scope.setStart = function()
     {
@@ -434,13 +477,13 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             
             mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
             
-            for ( dbi in routeData.debugPoints )
+            /*for ( dbi in routeData.debugPoints )
             {
                 var db = routeData.debugPoints[dbi];
                 
                 var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", 1, 20.0 * 0.7, 34.0 * 0.7 );
                 nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lon ) );
-            }
+            }*/
             
             eg.setData( seriesData, function( lonLat )
             {
@@ -478,7 +521,8 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             params = $.param(
             {
                 distance : dist,
-                start : start
+                start : start,
+                model : $scope.routingPreference
             } );
         }
         else
@@ -487,7 +531,8 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             {
                 distance : dist,
                 start : start,
-                mid : $scope.midCoord
+                mid : $scope.midCoord,
+                model : $scope.routingPreference
             } );
         };
         
