@@ -111,7 +111,7 @@ object RouteEdge
                     else if ( valueString.startsWith( "tertiary" ) ) Some( 1.3 )
                     else if ( valueString.startsWith( "unclassified" ) ) Some( 1.3 )
                     else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
-                    else if ( valueString.startsWith( "residential" ) ) Some( 1.1 )
+                    else if ( valueString.startsWith( "residential" ) ) Some( 1.3 )
                     else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
                     else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) ) Some( 0.7 )
                     else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
@@ -175,7 +175,7 @@ object RouteEdge
                     else if ( valueString.startsWith( "tertiary" ) ) Some( 0.9 )
                     else if ( valueString.startsWith( "unclassified" ) ) Some( 0.8 )
                     else if ( valueString.startsWith( "cycleway" ) ) Some( 0.7 )
-                    else if ( valueString.startsWith( "residential" ) ) Some( 0.9 )
+                    else if ( valueString.startsWith( "residential" ) ) Some( 1.4 )
                     /*else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
                     else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) ) Some( 0.7 )
                     else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
@@ -521,7 +521,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         .toSeq
         .distinct
         
-        allEdges.map( e => DebugLine( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) ) ).toArray
+        allEdges.map( e => DebugLine( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) / e.dist ) )
+        	.filter(e => e.score != Double.PositiveInfinity && e.score != Double.NegativeInfinity)
+        	.toArray
     }
     
     // *************** The main mechanics of route finding happens here ***************

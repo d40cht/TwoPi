@@ -511,11 +511,57 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         setRoute( cr );
     }
     
+    $scope.routeDebug = function()
+    {
+        var dist = Number($scope.distance);
+        var start = $scope.startCoord;
+        $http( {
+            method: "GET",
+            url : "/debugroute",
+            params :
+            {
+                distance : dist,
+                start : start,
+                model : $scope.routingPreference
+            }
+        } )
+        .success( function(data, status, headers, config)
+        {
+            for ( rdi in data )
+            {
+                var rd = data[rdi];
+                var score = rd.score;
+                var nscore = Math.max( Math.min( score / 2.0, 1.0 ), 0.0 );
+                var red = Math.floor(nscore*255).toString(16);
+                var blue = Math.floor(255 - (nscore*255)).toString(16);
+
+                while ( blue.length < 2 ) blue = "0" + blue;
+                while ( red.length < 2 ) red = "0" + red;
+                var lineColor = '#' + red + '00' + blue;
+                
+                var routePoints = [];
+                for ( ci in rd.coords )
+                {
+                    var coord = rd.coords[ci];
+                    routePoints.push( new L.LatLng( coord.lat, coord.lon ) );
+                }
+                
+                var nr = L.polyline( routePoints, {color: lineColor} );
+                nr.addTo(mapHolder.getMap());
+            }
+        } )
+        .error( function(data, status, headers, config)
+        {
+            alert( "Failure in route debug: " + status + ", " + data );
+        } );
+    }
+    
     $scope.requestRoute = function()
     {
         var dist = Number($scope.distance);
         var start = $scope.startCoord;
        
+        var params = null;
         if ( $scope.midCoord == "" )
         {
             params = $.param(
@@ -542,14 +588,14 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             data : params
         } )
-        .success( function(data, status, headers, config )
+        .success( function(data, status, headers, config)
         {
             var hash = data;
             localStorage.setItem( 'currentRoute', hash );
             $location.path( "/route/" + hash );
             setRoute( hash );
         } )
-        .error( function(data, status, headers, config )
+        .error( function(data, status, headers, config)
         {
             alert( "Failure in request route: " + status );
         } );

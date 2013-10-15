@@ -242,6 +242,7 @@ object RoutableGraphBuilder extends Logging
                     lastRouteNode = Some(rn)
                     scenicPoints.clear()
                     nodes.clear()
+                    nodes.append( node )
                     pois = Map()
                     dist = 0.0
                     absHeightDelta = 0.0

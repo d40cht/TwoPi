@@ -399,8 +399,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     get("/debugroute")
     {
-        contentType = "text/plain"
-        
+        contentType = "application/json"
+            
         val startCoord = parseCoordPair( params("start") )
         val distInKm = params("distance").toDouble
         val costModelName = params("model")
@@ -408,11 +408,13 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         log.info( "Request requestroute: %s, %.2f, %s".format( startCoord, distInKm, costModelName ) )
         
         val startNode = rg.getClosest( startCoord )
-        
         val costModel = allCostModels( costModelName )
         val res = rg.debugRoute( costModel, startNode, distInKm * 1000.0 )
         
-        swrite(res)
+        for ( r <- res.take(20) ) println( r.score )
+        
+        val serialised = swrite(res)
+        serialised
     }
     
     get("/getroute/:routeId")
