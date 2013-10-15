@@ -394,9 +394,25 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 log.error( "No route found" );
                 "Error"
             }
-        }
+        }  
+    }
+    
+    get("/debugroute")
+    {
+        contentType = "text/plain"
         
+        val startCoord = parseCoordPair( params("start") )
+        val distInKm = params("distance").toDouble
+        val costModelName = params("model")
         
+        log.info( "Request requestroute: %s, %.2f, %s".format( startCoord, distInKm, costModelName ) )
+        
+        val startNode = rg.getClosest( startCoord )
+        
+        val costModel = allCostModels( costModelName )
+        val res = rg.debugRoute( costModel, startNode, distInKm * 1000.0 )
+        
+        swrite(res)
     }
     
     get("/getroute/:routeId")

@@ -507,6 +507,23 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     type QuarterPointPair = (QuarterPoint, QuarterPoint)
     
     
+    case class DebugLine( coords : Array[Coord], score : Double )
+    
+    def debugRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, targetDist : Double ) : Array[DebugLine] =
+    {
+        val startPointAnnotationMap = runDijkstra( edgeCostFn, startNode, targetDist, Map() )
+        
+        val allEdges = startPointAnnotationMap.flatMap
+        { case (id, an) =>
+        
+            an.routeNode.destinations.map( _.edge )
+        }
+        .toSeq
+        .distinct
+        
+        allEdges.map( e => DebugLine( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) ) ).toArray
+    }
+    
     // *************** The main mechanics of route finding happens here ***************
     
     case class FoundRoute( val path : Seq[PathElement], val debugPoints : Seq[DebugPoint] )
