@@ -530,6 +530,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             for ( rdi in data )
             {
                 var rd = data[rdi];
+                //var score = rd.scenicScore;
                 var score = rd.score;
                 var nscore = Math.max( Math.min( score / 2.0, 1.0 ), 0.0 );
                 var red = Math.floor(nscore*255).toString(16);

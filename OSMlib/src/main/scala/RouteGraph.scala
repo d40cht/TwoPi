@@ -84,6 +84,19 @@ object RouteEdge
         else if ( !bridgeAnnotation.isEmpty ) "bridge"
         else "Unnamed " + highwayAnnotation.get
     }
+    
+    def scenicScore( re : RouteEdge ) : Double =
+    {
+    	if ( !re.scenicPoints.isEmpty )
+	    {
+	        val scenicValue = re.scenicPoints.map( _.score ).sum / re.scenicPoints.size.toDouble
+	        (1.0 + (0.5-scenicValue))
+	    }
+	    else
+	    {
+	        1.0
+	    }
+    }
 	
 	def walkingCost( re : RouteEdge ) : Double =
 	{
@@ -136,17 +149,9 @@ object RouteEdge
         
         val costMultiplier = costMultiplierOption.getOrElse( Double.PositiveInfinity )
     
-	    val scenicScore = if ( !re.scenicPoints.isEmpty )
-	    {
-	        val scenicValue = re.scenicPoints.map( _.score ).sum / re.scenicPoints.size.toDouble
-	        (1.0 + (0.5-scenicValue))
-	    }
-	    else
-	    {
-	        1.0
-	    }
+	    val sc = scenicScore( re )
 	    
-	    re.dist * costMultiplier * scenicScore
+	    re.dist * costMultiplier * sc
 	}
 	
 	def cyclingCost( re : RouteEdge, bumpy : Boolean ) : Double =
@@ -200,20 +205,12 @@ object RouteEdge
         
         val costMultiplier = costMultiplierOption.getOrElse( Double.PositiveInfinity )
     
-	    val scenicScore = if ( !re.scenicPoints.isEmpty )
-	    {
-	        val scenicValue = re.scenicPoints.map( _.score ).sum / re.scenicPoints.size.toDouble
-	        (1.0 + (0.5-scenicValue))
-	    }
-	    else
-	    {
-	        1.0
-	    }
+	    val sc = scenicScore( re )
 	    
 	    val inclineScore = if ( bumpy ) 1.0 - ((re.absHeightDelta / re.dist)*5.0) else 1.0
 	    
 	    
-	    re.dist * costMultiplier * scenicScore * inclineScore
+	    re.dist * costMultiplier * sc * inclineScore
 	}
 }
 
@@ -507,7 +504,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     type QuarterPointPair = (QuarterPoint, QuarterPoint)
     
     
-    case class DebugLine( coords : Array[Coord], score : Double )
+    case class DebugLine( coords : Array[Coord], score : Double, scenicScore : Double )
     
     def debugRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, targetDist : Double ) : Array[DebugLine] =
     {
@@ -521,7 +518,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         .toSeq
         .distinct
         
-        allEdges.map( e => DebugLine( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) / e.dist ) )
+        allEdges.map( e => DebugLine( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) / e.dist, RouteEdge.scenicScore(e)) )
         	.filter(e => e.score != Double.PositiveInfinity && e.score != Double.NegativeInfinity)
         	.toArray
     }
