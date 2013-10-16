@@ -557,13 +557,16 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                 nr.addTo(mapHolder.getMap());
             }
             
-            var dests = data.dests;
+            //var dests = data.dests;
+            //var dests = data.scenicPoints;
+            var dests = data.pois;
             for ( di in dests )
             {
                 var d = dests[di];
                 
-                var color = colorFromScore( d.score );
+                var color = 'red';//colorFromScore( d.score );
                 var circle = L.circle( [d.coord.lat, d.coord.lon], 40, { color : color, fillColor: color, fillOpacity: 0.8 } );
+                circle.bindPopup( d.name );
                 circle.addTo( mapHolder.getMap() );
             }
         } )
