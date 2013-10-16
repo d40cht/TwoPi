@@ -323,6 +323,10 @@ class CoordSpacingManager( val spacing : Double )
     }
 }
 
+case class DebugWay( coords : Array[Coord], score : Double, scenicScore : Double )
+case class DebugDest( coord : Coord, score : Double )
+case class DebugData( ways : Array[DebugWay], dests : Array[DebugDest], pois : Array[POI], scenicPoints : Array[ScenicPoint] )
+
 class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
     val treeMap = new RTreeIndex[RouteNode]()
@@ -504,9 +508,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     type QuarterPointPair = (QuarterPoint, QuarterPoint)
     
     
-    case class DebugLine( coords : Array[Coord], score : Double, scenicScore : Double )
-    
-    def debugRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, targetDist : Double ) : Array[DebugLine] =
+    def debugRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, targetDist : Double ) : DebugData =
     {
         val startPointAnnotationMap = runDijkstra( edgeCostFn, startNode, targetDist, Map() )
         
@@ -518,9 +520,62 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         .toSeq
         .distinct
         
-        allEdges.map( e => DebugLine( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) / e.dist, RouteEdge.scenicScore(e)) )
+        log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
+
+        val allDestinationsRaw = startPointAnnotationMap
+            .filter { case (nid, annot) => annot.cumulativeDistance > 0.0 && annot.cumulativeDistance <= targetDist }
+            .toSeq
+            .sortBy { case (nid, annot) => annot.cumulativeCost/annot.cumulativeDistance }
+            
+        
+        val csm = new CoordSpacingManager( targetDist / 10.0 )
+        val candidateDestinations = allDestinationsRaw.iterator.flatMap
+        { ra =>
+            val theRA = ra._2
+            if ( theRA.routeNode.destinations.size > 2 && csm.valid(theRA.routeNode.coord) )
+            {
+                Some( ra )
+            }
+            else None
+        }
+        .toVector
+        
+        val pois = allDestinationsRaw.flatMap
+        { case (id, an) =>
+        
+            	an.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ) )
+        }
+        .distinct
+        .toArray
+        
+        val scenicPoints = allDestinationsRaw.flatMap
+        { case (id, an) =>
+        
+            	an.routeNode.destinations.flatMap( _.edge.scenicPoints )
+        }
+        .distinct
+        .toArray
+        
+        log.info( "Number of possible destination points: " + candidateDestinations.size )
+        
+        val allWays = allEdges.map( e => DebugWay( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) / e.dist, RouteEdge.scenicScore(e)) )
         	.filter(e => e.score != Double.PositiveInfinity && e.score != Double.NegativeInfinity)
         	.toArray
+        	
+        val cds = candidateDestinations.flatMap
+        { cd =>
+            
+            var cost = cd._2.cumulativeCost / cd._2.cumulativeDistance
+            if ( cost != Double.PositiveInfinity && cost != Double.NegativeInfinity )
+            {
+            	Some( DebugDest( cd._2.routeNode.coord, cost ) )
+            }
+            else None
+        }
+        .toArray
+        
+        log.info( "Debug data computed" )
+        DebugData( allWays, cds, pois, scenicPoints )
     }
     
     // *************** The main mechanics of route finding happens here ***************

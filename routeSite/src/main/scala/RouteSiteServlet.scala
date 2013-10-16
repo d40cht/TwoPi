@@ -411,9 +411,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val costModel = allCostModels( costModelName )
         val res = rg.debugRoute( costModel, startNode, distInKm * 1000.0 )
         
-        for ( r <- res.take(20) ) println( r.score )
-        
         val serialised = swrite(res)
+        log.info( "Debug size: %.2fMb".format( serialised.size.toDouble / (1024.0 * 1024.0) ) )
         serialised
     }
     
