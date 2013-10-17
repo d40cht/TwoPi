@@ -61,6 +61,7 @@ object POITypes
         def icon = new File("img/poiIcons/tourist_archaeological2.glow.20.png")
     }
     
+    
     case object Memorial extends POIType
     {
         def name = "Memorial"
@@ -84,6 +85,7 @@ object POITypes
         def name = "Museum"
         def icon = new File("img/poiIcons/tourist_museum.glow.20.png")
     }
+    
     
     case object Historic extends POIType
     {
@@ -300,7 +302,7 @@ object POIBuilder extends App with Logging
         
         tags.get("place") match
         {
-            case Some(_)                    => return POITypes.Place
+            case Some("town") | Some("village") | Some("hamlet") | Some("suburb") | Some("neighbourhood") => return POITypes.Place
             case _                          =>
         }
         

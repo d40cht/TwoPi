@@ -1,6 +1,7 @@
 package org.seacourt.osm.route
 
 import org.seacourt.osm._
+import org.seacourt.osm.poi.POITypes._
 
 import scala.collection.{mutable, immutable}
 
@@ -507,6 +508,15 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     type QuarterPoint = (Int, RouteAnnotation, RouteAnnotation)
     type QuarterPointPair = (QuarterPoint, QuarterPoint)
     
+    private def isDestinationPoint( poi : POI ) : Boolean =
+    {
+		poi.poiType match
+        {
+            case Cafe | Pub | SurveyPoint | Peak | Cave | Archaeological | Memorial | Ruins | Monument | Museum | Historic | Viewpoint | Place | Natural => true
+            case _ => false
+        }
+    }
+    
     
     def debugRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, targetDist : Double ) : DebugData =
     {
@@ -543,7 +553,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val pois = allDestinationsRaw.flatMap
         { case (id, an) =>
         
-            	an.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ) )
+        	an.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ).filter { isDestinationPoint _ } )
         }
         .distinct
         .toArray
@@ -551,7 +561,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val scenicPoints = allDestinationsRaw.flatMap
         { case (id, an) =>
         
-            	an.routeNode.destinations.flatMap( _.edge.scenicPoints )
+        	an.routeNode.destinations.flatMap( _.edge.scenicPoints )
         }
         .distinct
         .toArray
@@ -608,7 +618,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val candidateDestinations = allDestinationsRaw.iterator.flatMap
         { ra =>
             val theRA = ra._2
-            if ( csm.valid(theRA.routeNode.coord) )
+            
+            val isDestNode = theRA.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
+            
+            if ( isDestNode && csm.valid(theRA.routeNode.coord) )
             {
                 Some( ra )
             }
@@ -671,8 +684,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     }
                     
                     val deadEnd = annot1.routeNode.destinations.size == 1
+                    val isDestNode = annot1.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
                     
-                    withinDistance && !deadEnd//!retraceFootsteps
+                    withinDistance && !deadEnd && isDestNode//!retraceFootsteps
                 }
                 .toSeq
                 .sortBy { case (nid, annot1, annot2) => (annot1.cumulativeCost + annot2.cumulativeCost)/(annot1.cumulativeDistance + annot2.cumulativeDistance) }
