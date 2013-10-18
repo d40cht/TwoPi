@@ -178,9 +178,9 @@ object RouteEdge
         {
             case Some( valueString ) =>
             {
-                if ( refAnnotation.isDefined && refAnnotation.get.matches("A[0-9]+") )  Some( Score(0.05) )
-                else if ( valueString.startsWith( "trunk" ) )                           Some( Score(0.05) )
-                else if ( valueString.startsWith( "primary" ) )                         Some( Score(0.1) )
+                if ( refAnnotation.isDefined && refAnnotation.get.matches("A[0-9]+") )  Some( Score(0.2) )
+                else if ( valueString.startsWith( "trunk" ) )                           Some( Score(0.2) )
+                else if ( valueString.startsWith( "primary" ) )                         Some( Score(0.3) )
                 else if ( valueString.startsWith( "residential" ) )                     Some( Score(0.4) )
                 else if ( valueString.startsWith( "road" ) )                            Some( Score(0.6) )
                 else if ( valueString.startsWith( "secondary" ) )                       Some( Score(0.7) )
@@ -449,8 +449,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             startNode,
             Ordering.fromLessThan( (ra1 : RouteAnnotation, ra2 : RouteAnnotation) =>
             {
-                val r1dist = ra1.cumulativeCost + ra1.routeNode.coord.distFrom( endNode.coord )/2.0
-                val r2dist = ra2.cumulativeCost + ra2.routeNode.coord.distFrom( endNode.coord )/2.0
+                val r1dist = ra1.cumulativeCost + ra1.routeNode.coord.distFrom( endNode.coord )
+                val r2dist = ra2.cumulativeCost + ra2.routeNode.coord.distFrom( endNode.coord )
                 if ( r1dist != r2dist ) r1dist < r2dist
                 else ra1.routeNode.nodeId < ra2.routeNode.nodeId
             } ),
@@ -524,9 +524,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         }
     }
     
-    private def spacingRatio( dist : Double ) = dist / 20.0
+    private def spacingRatio( dist : Double ) = dist / 30.0
     
-    private def atRandomProportionalSelect( options : IndexedSeq[Double] ) : Int =
+    private def atRandomProportionalSelect( options : immutable.IndexedSeq[Double] ) : Int =
     {
         val cum = options.map
         {
@@ -544,6 +544,12 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val point = util.Random.nextDouble * max
         
         options.indexWhere( _ > point )
+    }
+    
+    private def chooseDest( dests : immutable.IndexedSeq[(Double, RouteAnnotation)] ) =
+    {
+        val elementIndex = util.Random.nextInt( dests.size )
+        dests(elementIndex)
     }
     
     def debugRoute( edgeCostFn : RouteEdge => Score, startNode : RouteNode, targetDist : Double ) : DebugData =
@@ -672,7 +678,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             }
             case None       => targetDistHint
         }
-        val random = util.Random
         val startPointAnnotationMap = runDijkstra( edgeCostFn, startNode, targetDist, Map() )
         
         log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
@@ -683,9 +688,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             .toSeq
             
         
-        val candidateDestinations = filterDestinations( edgeCostFn, allDestinationsRaw, spacingRatio(targetDist) )
+        val candidateDestinations = filterDestinations( edgeCostFn, allDestinationsRaw, spacingRatio(targetDist) ).toIndexedSeq
         
         log.info( "Number of possible destination points: " + candidateDestinations.size )
+        
+        
             
         // Have several attempts at destinations before finally giving up
         val possibleMidPoints = midNodeOption match
@@ -699,10 +706,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     // Choose randomly from the top 25% by cost to get a mid-point
                     if ( !candidateDestinations.isEmpty )
                     {
-                        val elementIndex = random.nextInt( candidateDestinations.size )
-                        //val elementIndex = atRandomProportionalSelect( candidateDestinations.map( _._1 ) )
-                        
-                        Some( candidateDestinations(elementIndex)._2 )
+                        Some( chooseDest(candidateDestinations)._2 )
                     }
                     else None
                 }.flatten
@@ -720,22 +724,18 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             val midPointAnnotationMap = runDijkstra( edgeCostFn, midPoint.routeNode, targetDist, Map() )
             
             log.info( "Computing possible quarterpoints" )
-            val possibleQuarterPoints = midPointAnnotationMap
-                // Add distance annotation from the start node
-                .filter { case (nid, annot) => startPointAnnotationMap contains nid }
-                .map { case (nid, annot) => (nid, startPointAnnotationMap(nid), annot ) }
-                .filter
-                { case (nid, annot1, annot2) =>
-                    
-                    val isViableDest = candidateDestinationIds contains annot1.routeNode.nodeId
-                    
-                    // Must be within threshold distance as a feasible midpoint
-                    val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < targetDist
-                    
-                    withinDistance && isViableDest
-                }
-                .toSeq
+            val possibleQuarterPoints = candidateDestinations.filter
+            { case (cost, annot) =>
+            
+                val annot1 = midPointAnnotationMap(annot.routeNode.nodeId)
+                val annot2 = startPointAnnotationMap(annot.routeNode.nodeId)
                 
+                val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < targetDist
+                    
+                withinDistance
+            }
+            .toIndexedSeq
+            
             log.info( "Possible quarter points: " + possibleQuarterPoints.size )
            
             /*val debugPoints =
@@ -746,7 +746,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             val possibleRoutes = (0 until 5).map
             { _ =>
                 
-                val qp1 = possibleQuarterPoints( random.nextInt( possibleQuarterPoints.size ) )._2.routeNode
+                val qp1 = chooseDest( possibleQuarterPoints )._2.routeNode
                 
                 var alreadySeenUpweight = immutable.Map[Int, Double]()
                 val section1 = aStarShortestPath( edgeCostFn, startNode, qp1, alreadySeenUpweight )
