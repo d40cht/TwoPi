@@ -127,13 +127,24 @@ case class RouteAnnotation( val routeNode : RouteNode, var cumulativeCost : Doub
 
 case class NodeAndDistance( val node : Node, val distance : Double )
 
-case class RouteDirections( val inboundNodes : Array[NodeAndDistance], val inboundPics : Array[ScenicPoint], val inboundPOIs : Array[POI], val edgeName : String, val dist : Double, val cumulativeDistance : Double, val elevation : Double, bearing : Float, coord : Coord )
+case class RouteDirections(
+	val inboundNodes : Array[NodeAndDistance], 
+	val inboundPics : Array[ScenicPoint],
+	val inboundPOIs : Array[POI],
+	val edgeName : String,
+	val dist : Double,
+	val cumulativeDistance : Double,
+	val cumulativeTime : Double,
+	val elevation : Double,
+	bearing : Float,
+	coord : Coord )
 
 case class DebugPoint( coord : Coord, name : String, title : String )
 
 case class RouteResult(
     directions : Array[RouteDirections],
     distance : Double,
+    time : Double,
     ascent : Double,
     debugPoints : Array[DebugPoint] )
 
@@ -623,6 +634,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         
             var lastEdgeName = ""
             var cumulativeDistance = 0.0
+            var cumulativeTime = 0.0
             var cumulativeAscent = 0.0
             
             var lastEdge : Option[EdgeAndBearing] = None
@@ -659,7 +671,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                                 {
                                     val heightDelta = n.height - lastNode.height
                                     if ( heightDelta > 0.0 ) cumulativeAscent += heightDelta
-                                    cumulativeDistance += n.coord.distFrom( lastNode.coord )
+                                    val thisDist = n.coord.distFrom( lastNode.coord )
+                                    cumulativeDistance += thisDist
+                                    cumulativeTime += routeType.speed( e ).timeToCover(thisDist)
                                 }
                                 case _ =>
                             }
@@ -684,7 +698,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                                 
                         if ( lastName != e.name )
                         {
-                            truncatedRoute.append( new RouteDirections( recentNodeDists.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDistance / 1000.0, destAnnotNode.routeNode.height, bearingDelta, recentNodeDists.last.node.coord ) )
+                            truncatedRoute.append( new RouteDirections( recentNodeDists.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDistance / 1000.0, cumulativeTime, destAnnotNode.routeNode.height, bearingDelta, recentNodeDists.last.node.coord ) )
                             recentNodeDists.clear()
                             recentPics.clear()
                             recentPOIs.clear()
@@ -697,6 +711,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             new RouteResult(
                 truncatedRoute.toArray,
                 cumulativeDistance / 1000.0,
+                cumulativeTime,
                 cumulativeAscent,
                 fullRoute.debugPoints.toArray )
         }

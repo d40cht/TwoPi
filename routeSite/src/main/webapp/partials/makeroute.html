@@ -132,6 +132,7 @@
             
             <table class="table table-condensed">
                 <tr><td>Route type</td><td id="routePreference">{{routingPreference}}</td></tr>
+                <tr><td>Estimated time</td><td>{{(routeData.time/60.0).toFixed(1)}} minutes</td></tr>
                 <tr><td>Distance</td><td>{{routeData.distance.toFixed(1)}}km</td></tr>
                 <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>
             </table>

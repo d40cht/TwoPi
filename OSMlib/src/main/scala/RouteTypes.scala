@@ -16,6 +16,14 @@ case class Score( val value : Double )
 }
 
 case class Speed( val kph : Double )
+{
+    def timeToCover( distMeters : Double ) =
+    {
+        assert( kph > 0.0, "Invalid speed: " + kph)
+        val mps = kph / (3600.0 / 1000.0)
+        distMeters / mps
+    }
+}
 
 trait RouteType
 {
@@ -69,7 +77,6 @@ class DrivingRoute extends RouteType
                 else if ( valueString.startsWith( "primary" ) )         				Some( Score(0.9) )
                 else if ( valueString.startsWith( "road" ) )            				Some( Score(0.6) )
                 else if ( valueString.startsWith( "secondary" ) )       				Some( Score(0.8) )
-                // Because they're really boring
                 else if ( valueString.startsWith( "residential" ) )     				Some( Score(0.4) )
                 else if ( valueString.startsWith( "tertiary" ) )        				Some( Score(0.5) )
                 else None
@@ -103,8 +110,8 @@ class DrivingRoute extends RouteType
                 else if ( valueString.startsWith( "trunk" ) )           Speed(115.0)
                 else if ( valueString.startsWith( "primary" ) )         Speed(100.0)
                 else if ( valueString.startsWith( "road" ) )            Speed(30.0)
+                else if ( valueString.startsWith( "unclassified" ) )    Speed(30.0)
                 else if ( valueString.startsWith( "secondary" ) )       Speed(80.0)
-                // Because they're really boring
                 else if ( valueString.startsWith( "residential" ) )		Speed(30.0)
                 else if ( valueString.startsWith( "tertiary" ) )       	Speed(40.0)
                 else Speed(0.0)
