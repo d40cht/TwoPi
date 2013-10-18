@@ -39,8 +39,8 @@ class BridgeFindingTest extends FunSuite
         def makeEdge( first : RouteNode, second : RouteNode ) : RouteEdge =
         {
             val e = RouteEdge( Map(), nextEdgeId, 0.0, 0.0, "", Array(), Array(), Array() )
-            first.addEdge( second, e )
-            second.addEdge( first, e )
+            first.addEdge( second, e, false )
+            second.addEdge( first, e, false )
             nextEdgeId += 1
             e
         }
