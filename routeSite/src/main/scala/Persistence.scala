@@ -128,7 +128,7 @@ class DbPersistence( val db : Database ) extends Persistence
             val routes = for
             {
                 ur  <- UserRouteTable
-                r   <- RouteTable if ur.routeId === r.id
+                r   <- RouteTable if ur.routeId === r.id && ur.userId === userId
             } yield ( ur.routeId, ur.routeName, r.distance, r.ascent, r.timeAdded )
             
             routes.list.map( r => UserRoute( r._1, r._2, r._3, r._4, r._5 ) )

@@ -730,7 +730,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 val annot1 = midPointAnnotationMap(annot.routeNode.nodeId)
                 val annot2 = startPointAnnotationMap(annot.routeNode.nodeId)
                 
-                val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < targetDist
+                val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < (targetDist*1.2)
                     
                 withinDistance
             }
@@ -738,10 +738,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             log.info( "Possible quarter points: " + possibleQuarterPoints.size )
            
-            /*val debugPoints =
-                candidateDestinations.map( x => DebugPoint(x._2.routeNode.coord, "yellow_MarkerM", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq ++
-                possibleQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerQ", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq :+
-                DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", "") :+ DebugPoint(startNode.coord, "S", "")*/
             
             val possibleRoutes = (0 until 5).map
             { _ =>
