@@ -557,9 +557,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                 nr.addTo(mapHolder.getMap());
             }
             
-            //var dests = data.dests;
+            var dests = data.dests;
             //var dests = data.scenicPoints;
-            var dests = data.pois;
+            //var dests = data.pois;
             for ( di in dests )
             {
                 var d = dests[di];

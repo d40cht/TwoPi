@@ -512,7 +512,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     {
 		poi.poiType match
         {
-            case Cafe | Pub | SurveyPoint | Peak | Cave | Archaeological | Memorial | Ruins | Monument | Museum | Historic | Viewpoint | Place | Natural => true
+            //case Cafe | Pub | SurveyPoint | Peak | Cave | Archaeological | Memorial | Ruins | Monument | Museum | Historic | Viewpoint | Place | Natural => true
+            case SurveyPoint | Peak | Cave | Archaeological | Memorial | Ruins | Monument | Museum | Historic | Viewpoint | Place | Natural => true
             case _ => false
         }
     }
@@ -534,11 +535,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
 
         val allDestinationsRaw = startPointAnnotationMap
             .filter { case (nid, annot) => annot.cumulativeDistance > 0.0 && annot.cumulativeDistance <= targetDist }
+            .map( _._2 )
             .toSeq
-            .sortBy { case (nid, annot) => annot.cumulativeCost/annot.cumulativeDistance }
             
         
-        val csm = new CoordSpacingManager( targetDist / 10.0 )
+        /*val csm = new CoordSpacingManager( targetDist / 10.0 )
         val candidateDestinations = allDestinationsRaw.iterator.flatMap
         { ra =>
             val theRA = ra._2
@@ -548,10 +549,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             }
             else None
         }
-        .toVector
+        .toVector*/
+        val candidateDestinations = filterDestinations( edgeCostFn, allDestinationsRaw, targetDist / 10.0 )
         
         val pois = allDestinationsRaw.flatMap
-        { case (id, an) =>
+        { an =>
         
         	an.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ).filter { isDestinationPoint _ } )
         }
@@ -559,7 +561,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         .toArray
         
         val scenicPoints = allDestinationsRaw.flatMap
-        { case (id, an) =>
+        { an =>
         
         	an.routeNode.destinations.flatMap( _.edge.scenicPoints )
         }
@@ -573,12 +575,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         	.toArray
         	
         val cds = candidateDestinations.flatMap
-        { cd =>
+        { case (cost, an) =>
             
-            var cost = cd._2.cumulativeCost / cd._2.cumulativeDistance
             if ( cost != Double.PositiveInfinity && cost != Double.NegativeInfinity )
             {
-            	Some( DebugDest( cd._2.routeNode.coord, cost ) )
+            	Some( DebugDest( an.routeNode.coord, cost ) )
             }
             else None
         }
@@ -591,6 +592,59 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     // *************** The main mechanics of route finding happens here ***************
     
     case class FoundRoute( val path : Seq[PathElement], val debugPoints : Seq[DebugPoint] )
+    
+    private def filterDestinations( edgeCostFn : RouteEdge => Double, annotations : Seq[RouteAnnotation],  minSpacing : Double ) : Seq[(Double, RouteAnnotation)] =
+    {
+        val csm = new CoordSpacingManager( minSpacing )
+        
+        // Filter out points which have only one destination, then order by the nice-ness of
+        // the adjacent edges 
+        val orderedPoints = annotations
+            .filter
+            { annot =>
+            
+                val dests = annot.routeNode.destinations.filter( de => edgeCostFn(de.edge) != Double.PositiveInfinity )
+                dests.size > 2
+            }
+            .map
+            { annot =>
+            
+                val dests = annot.routeNode.destinations.filter( ed => edgeCostFn(ed.edge) != Double.PositiveInfinity ).toSeq
+                val cost = dests.map( ed => edgeCostFn(ed.edge) / ed.edge.dist ).sum / dests.size
+                
+                (cost, annot)
+            }
+            .sortBy( _._1 )
+        
+        // Choose feature points first
+        val featurePoints = orderedPoints.flatMap
+        { case (cost, annot) =>
+        
+            val dests = annot.routeNode.destinations
+            val isDestNode = dests.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
+            
+            if ( isDestNode && csm.valid(annot.routeNode.coord) )
+            {
+                Some( (cost, annot) )
+            }
+            else None
+        }
+        
+        // Then choose fill-in points
+        val fillInPoints = orderedPoints.flatMap
+        { case (cost, annot) =>
+        
+            val dests = annot.routeNode.destinations
+            
+            if ( csm.valid(annot.routeNode.coord) )
+            {
+                Some( (cost, annot) )
+            }
+            else None
+        }
+        
+        featurePoints ++ fillInPoints
+    }
      
     private def findRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, midNodeOption : Option[RouteNode], targetDistHint : Double ) : Option[FoundRoute] =
     {
@@ -619,7 +673,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         { ra =>
             val theRA = ra._2
             
-            val isDestNode = theRA.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
+            val dests = theRA.routeNode.destinations
+            val isDestNode = dests.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
             
             if ( isDestNode && csm.valid(theRA.routeNode.coord) )
             {
