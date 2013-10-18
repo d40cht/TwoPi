@@ -68,6 +68,15 @@ case class NearbyPOI( val dist : Float, val poi : POI )
 {
 }
 
+// 1.0 represents as good as possible, 0.0 represents as bad as possible
+case class Score( val value : Double )
+{
+    assert( value >= 0.0 && value <= 1.0, "Value outside range: " + value )
+    
+    def *( other : Score ) = new Score( value * other.value )
+    def isZero = value == 0.0
+}
+
 object RouteEdge
 {
     def name( tagMap : Map[String, String] ) : String =
@@ -86,20 +95,28 @@ object RouteEdge
         else "Unnamed " + highwayAnnotation.get
     }
     
-    def scenicScore( re : RouteEdge ) : Double =
+    def scenicScore( re : RouteEdge ) : Score =
     {
     	if ( !re.scenicPoints.isEmpty )
 	    {
-	        val scenicValue = re.scenicPoints.map( _.score ).sum / re.scenicPoints.size.toDouble
-	        (1.0 + (0.5-scenicValue))
+	        // 1 or 2 are rubbish, 8 or 9 are exceptional, but 4 can be quite nice
+	        val maxScore = re.scenicPoints.map( _.score ).max
+	        
+	        if ( maxScore < 1 )         Score(0.3)
+	        else if ( maxScore < 2 )    Score(0.4)
+	        else if ( maxScore < 4 )    Score(0.6)
+	        else if ( maxScore < 5 )    Score(0.7)
+	        else if ( maxScore < 6 )    Score(0.8)
+	        else if ( maxScore < 7 )    Score(0.9)
+	        else                        Score(1.0)
 	    }
 	    else
 	    {
-	        1.0
+	        Score(0.5)
 	    }
     }
 	
-	def walkingCost( re : RouteEdge ) : Double =
+	def walkingCost( re : RouteEdge ) : Score =
 	{
     	val tagMap = re.wayTags
     	
@@ -112,50 +129,39 @@ object RouteEdge
     
         // Other important things:
         // ford: yes - In the case of Duxford Ford, this is not fordable.
-        val costMultiplierOption =
+        val costMultiplierOption = highwayAnnotation match
         {
-             val baseMultiplierOption = highwayAnnotation match
-             {
-                 case Some( valueString ) =>
-                 {
-                    if ( valueString.startsWith( "trunk" ) ) Some( 20.0 )
-                    else if ( valueString.startsWith( "primary" ) ) Some( 10.0 )
-                    else if ( valueString.startsWith( "road" ) ) Some( 1.4 )
-                    else if ( valueString.startsWith( "secondary" ) ) Some( 1.4 )
-                    else if ( valueString.startsWith( "tertiary" ) ) Some( 1.3 )
-                    else if ( valueString.startsWith( "unclassified" ) ) Some( 1.3 )
-                    else if ( valueString.startsWith( "cycleway" ) ) Some( 1.2 )
-                    else if ( valueString.startsWith( "residential" ) ) Some( 1.3 )
-                    else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
-                    else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) ) Some( 0.7 )
-                    else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
-                    else if ( valueString.startsWith( "footway" ) ) Some( 0.6 )
-                    else if ( valueString.startsWith( "footpath" ) ) Some( 0.6 )
-                    else None
-                 }
-                 case None => None
-             }
-        	
-             
-             baseMultiplierOption map
-             { bm =>
-                 
-                 refAnnotation match
-                 {
-                     case Some(n) if n.matches("A[0-9]+")	=> bm * 1.5
-                     case _									=> bm
-                 }
-             }
+            case Some( valueString ) =>
+            {
+                if ( refAnnotation.isDefined && refAnnotation.get.matches("A[0-9]+") ) Some( Score(0.05) )
+                else if ( valueString.startsWith( "trunk" ) )                Some( Score(0.05) )
+                else if ( valueString.startsWith( "primary" ) )         Some( Score(0.1) )
+                else if ( valueString.startsWith( "road" ) )            Some( Score(0.4) )
+                else if ( valueString.startsWith( "secondary" ) )       Some( Score(0.4) )
+                // Because they're really boring
+                else if ( valueString.startsWith( "residential" ) )     Some( Score(0.4) )
+                else if ( valueString.startsWith( "cycleway" ) )        Some( Score(0.5) )
+                else if ( valueString.startsWith( "tertiary" ) )        Some( Score(0.6) )
+                else if ( valueString.startsWith( "unclassified" ) )    Some( Score(0.6) )
+                else if ( valueString.startsWith( "track" ) )           Some( Score(0.9) )
+                else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) )
+                                                                        Some( Score(0.9) )
+                else if ( valueString.startsWith( "bridleway" ) )       Some( Score(1.0) )
+                else if ( valueString.startsWith( "footway" ) )         Some( Score(1.0) )
+                else if ( valueString.startsWith( "footpath" ) )        Some( Score(1.0) )
+                else None
+            }
+            case None => None
         }
         
-        val costMultiplier = costMultiplierOption.getOrElse( Double.PositiveInfinity )
+        val costMultiplier = costMultiplierOption.getOrElse( Score(0.0) )
     
 	    val sc = scenicScore( re )
 	    
-	    re.dist * costMultiplier * sc
+	    costMultiplier * sc
 	}
 	
-	def cyclingCost( re : RouteEdge, bumpy : Boolean ) : Double =
+	def cyclingCost( re : RouteEdge, bumpy : Boolean ) : Score =
 	{
     	val tagMap = re.wayTags
     	
@@ -168,50 +174,39 @@ object RouteEdge
     
         // Other important things:
         // ford: yes - In the case of Duxford Ford, this is not fordable.
-        val costMultiplierOption =
+        val costMultiplierOption = highwayAnnotation match
         {
-             val baseMultiplierOption = highwayAnnotation match
-             {
-                 case Some( valueString ) =>
-                 {
-                    if ( valueString.startsWith( "trunk" ) ) Some( 20.0 )
-                    else if ( valueString.startsWith( "primary" ) ) Some( 10.0 )
-                    else if ( valueString.startsWith( "road" ) ) Some( 1.4 )
-                    else if ( valueString.startsWith( "secondary" ) ) Some( 1.1 )
-                    else if ( valueString.startsWith( "tertiary" ) ) Some( 0.9 )
-                    else if ( valueString.startsWith( "unclassified" ) ) Some( 0.8 )
-                    else if ( valueString.startsWith( "cycleway" ) ) Some( 0.7 )
-                    else if ( valueString.startsWith( "residential" ) ) Some( 1.4 )
-                    /*else if ( valueString.startsWith( "track" ) ) Some( 0.7 )
-                    else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) ) Some( 0.7 )
-                    else if ( valueString.startsWith( "bridleway" ) ) Some( 0.6 )
-                    else if ( valueString.startsWith( "footway" ) ) Some( 0.6 )
-                    else if ( valueString.startsWith( "footpath" ) ) Some( 0.6 )*/
-                    else None
-                 }
-                 case None => None
-             }
-        	
-             
-             baseMultiplierOption map
-             { bm =>
-                 
-                 refAnnotation match
-                 {
-                     case Some(n) if n.matches("A[0-9]+")	=> bm * 1.5
-                     case _									=> bm
-                 }
-             }
+            case Some( valueString ) =>
+            {
+                if ( refAnnotation.isDefined && refAnnotation.get.matches("A[0-9]+") )  Some( Score(0.05) )
+                else if ( valueString.startsWith( "trunk" ) )                           Some( Score(0.05) )
+                else if ( valueString.startsWith( "primary" ) )                         Some( Score(0.1) )
+                else if ( valueString.startsWith( "residential" ) )                     Some( Score(0.4) )
+                else if ( valueString.startsWith( "road" ) )                            Some( Score(0.6) )
+                else if ( valueString.startsWith( "secondary" ) )                       Some( Score(0.7) )
+                else if ( valueString.startsWith( "tertiary" ) )                        Some( Score(0.8) )
+                else if ( valueString.startsWith( "unclassified" ) )                    Some( Score(0.9) )
+                else if ( valueString.startsWith( "cycleway" ) )                        Some( Score(1.0) )
+                else None
+            }
+            case None => None
         }
         
-        val costMultiplier = costMultiplierOption.getOrElse( Double.PositiveInfinity )
+        val costMultiplier : Score = costMultiplierOption.getOrElse( Score(0.0) )
     
 	    val sc = scenicScore( re )
 	    
-	    val inclineScore = if ( bumpy ) 1.0 - ((re.absHeightDelta / re.dist)*5.0) else 1.0
+	    val inclineScore = if ( bumpy )
+	    {
+	        Score(0.5 + (((re.absHeightDelta / re.dist)*5.0) min 0.5))
+	    }
+	    else
+	    {
+	        Score(1.0)
+        }
 	    
 	    
-	    re.dist * costMultiplier * sc * inclineScore
+	    costMultiplier * sc * inclineScore
 	}
 }
 
@@ -336,7 +331,18 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     nodes.foreach( n => treeMap.add( n.coord, n ) )
     log.info( "... complete." )
     
-    def getClosest( coord : Coord ) : RouteNode = treeMap.nearest( coord ).get
+    def getClosest( edgeCostFn : RouteEdge => Score, coord : Coord ) : RouteNode =
+    {
+        val all = treeMap.nearest( coord, 50 )
+        
+        val valid = all.filter
+        { rn =>
+        
+            rn.destinations.exists( ed => !edgeCostFn(ed.edge).isZero )
+        }
+
+        valid.head
+    }
 
     type AnnotationMap = mutable.HashMap[Int, RouteAnnotation]
     
@@ -370,7 +376,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     }
     
     private def runDFS(
-    	edgeCostFn : RouteEdge => Double,
+    	edgeCostFn : RouteEdge => Score,
     	startNode : RouteNode,
         queueOrdering : Ordering[RouteAnnotation],
         maxDist : Double,
@@ -401,7 +407,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     if ( !visited.contains(node.nodeId) )
                     {
                         val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue, Double.MaxValue ) )
-                        val thisCost = minEl.cumulativeCost + edgeCostFn(edge) * temporaryEdgeWeights.getOrElse( edge.edgeId, 1.0 )
+                        val thisCost = minEl.cumulativeCost + edge.dist / edgeCostFn(edge).value * temporaryEdgeWeights.getOrElse( edge.edgeId, 1.0 )
                         val thisDist = minEl.cumulativeDistance + edge.dist
                         
                         if ( nodeAnnot.cumulativeCost > thisCost && thisDist < maxDist )
@@ -424,7 +430,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         annotations
     }
     
-    private def runDijkstra( edgeCostFn : RouteEdge => Double, startNode : RouteNode, maxDist : Double, temporaryEdgeWeights : Map[Int, Double] ) : AnnotationMap = runDFS(
+    private def runDijkstra( edgeCostFn : RouteEdge => Score, startNode : RouteNode, maxDist : Double, temporaryEdgeWeights : Map[Int, Double] ) : AnnotationMap = runDFS(
         edgeCostFn,
         startNode,
         Ordering.fromLessThan( (ra1 : RouteAnnotation, ra2 : RouteAnnotation) =>
@@ -436,7 +442,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         None,
         temporaryEdgeWeights )
         
-    private def runAStar( edgeCostFn : RouteEdge => Double, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : AnnotationMap =
+    private def runAStar( edgeCostFn : RouteEdge => Score, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : AnnotationMap =
     {
         runDFS(
             edgeCostFn,
@@ -453,7 +459,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             temporaryEdgeWeights )
     }
         
-    private def aStarShortestPath( edgeCostFn : RouteEdge => Double, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : Seq[PathElement] =
+    private def aStarShortestPath( edgeCostFn : RouteEdge => Score, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : Seq[PathElement] =
     {
         val annot = runAStar( edgeCostFn, startNode, endNode, temporaryEdgeWeights )
             
@@ -500,7 +506,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         
     }
     
-    private def aStarRoutePath( edgeCostFn : RouteEdge => Double, nodes : Seq[RouteNode] ) : Seq[PathElement] =
+    private def aStarRoutePath( edgeCostFn : RouteEdge => Score, nodes : Seq[RouteNode] ) : Seq[PathElement] =
     {
         nodes.sliding(2).flatMap { case Seq( from, to ) => aStarShortestPath( edgeCostFn, from, to, Map() ) }.toSeq
     }
@@ -518,8 +524,29 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         }
     }
     
+    private def spacingRatio( dist : Double ) = dist / 20.0
     
-    def debugRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, targetDist : Double ) : DebugData =
+    private def atRandomProportionalSelect( options : IndexedSeq[Double] ) : Int =
+    {
+        val cum = options.map
+        {
+            var acc = 0.0;
+            v =>
+            {
+                assert( v >= 0.0, "Value cannot be negative" )
+                acc += v
+                acc
+            }
+        }
+        
+        var max = cum.last
+        
+        val point = util.Random.nextDouble * max
+        
+        options.indexWhere( _ > point )
+    }
+    
+    def debugRoute( edgeCostFn : RouteEdge => Score, startNode : RouteNode, targetDist : Double ) : DebugData =
     {
         val startPointAnnotationMap = runDijkstra( edgeCostFn, startNode, targetDist, Map() )
         
@@ -538,19 +565,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             .map( _._2 )
             .toSeq
             
-        
-        /*val csm = new CoordSpacingManager( targetDist / 10.0 )
-        val candidateDestinations = allDestinationsRaw.iterator.flatMap
-        { ra =>
-            val theRA = ra._2
-            if ( theRA.routeNode.destinations.size > 2 && csm.valid(theRA.routeNode.coord) )
-            {
-                Some( ra )
-            }
-            else None
-        }
-        .toVector*/
-        val candidateDestinations = filterDestinations( edgeCostFn, allDestinationsRaw, targetDist / 10.0 )
+        val candidateDestinations = filterDestinations( edgeCostFn, allDestinationsRaw, spacingRatio(targetDist) )
         
         val pois = allDestinationsRaw.flatMap
         { an =>
@@ -570,14 +585,14 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         
         log.info( "Number of possible destination points: " + candidateDestinations.size )
         
-        val allWays = allEdges.map( e => DebugWay( e.nodes.map( _.coord ).toArray, edgeCostFn( e ) / e.dist, RouteEdge.scenicScore(e)) )
-        	.filter(e => e.score != Double.PositiveInfinity && e.score != Double.NegativeInfinity)
+        val allWays = allEdges.map( e => DebugWay( e.nodes.map( _.coord ).toArray, edgeCostFn( e ).value, RouteEdge.scenicScore(e).value) )
+        	.filter(e => e.score != 0.0 )
         	.toArray
         	
         val cds = candidateDestinations.flatMap
         { case (cost, an) =>
             
-            if ( cost != Double.PositiveInfinity && cost != Double.NegativeInfinity )
+            if ( cost != 0.0 )
             {
             	Some( DebugDest( an.routeNode.coord, cost ) )
             }
@@ -593,7 +608,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     
     case class FoundRoute( val path : Seq[PathElement], val debugPoints : Seq[DebugPoint] )
     
-    private def filterDestinations( edgeCostFn : RouteEdge => Double, annotations : Seq[RouteAnnotation],  minSpacing : Double ) : Seq[(Double, RouteAnnotation)] =
+    private def filterDestinations( edgeCostFn : RouteEdge => Score, annotations : Seq[RouteAnnotation],  minSpacing : Double ) : Seq[(Double, RouteAnnotation)] =
     {
         val csm = new CoordSpacingManager( minSpacing )
         
@@ -603,18 +618,18 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             .filter
             { annot =>
             
-                val dests = annot.routeNode.destinations.filter( de => edgeCostFn(de.edge) != Double.PositiveInfinity )
+                val dests = annot.routeNode.destinations.filter( de => !edgeCostFn(de.edge).isZero )
                 dests.size > 2
             }
             .map
             { annot =>
             
-                val dests = annot.routeNode.destinations.filter( ed => edgeCostFn(ed.edge) != Double.PositiveInfinity ).toSeq
-                val cost = dests.map( ed => edgeCostFn(ed.edge) / ed.edge.dist ).sum / dests.size
+                val dests = annot.routeNode.destinations.filter( de => !edgeCostFn(de.edge).isZero ).toSeq
+                val cost = dests.map( de => edgeCostFn(de.edge).value ).max
                 
                 (cost, annot)
             }
-            .sortBy( _._1 )
+            .sortBy( -_._1 )
         
         // Choose feature points first
         val featurePoints = orderedPoints.flatMap
@@ -646,7 +661,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         featurePoints ++ fillInPoints
     }
      
-    private def findRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, midNodeOption : Option[RouteNode], targetDistHint : Double ) : Option[FoundRoute] =
+    private def findRoute( edgeCostFn : RouteEdge => Score, startNode : RouteNode, midNodeOption : Option[RouteNode], targetDistHint : Double ) : Option[FoundRoute] =
     {
         val trimEnd = midNodeOption.isEmpty
         val targetDist = midNodeOption match
@@ -663,28 +678,14 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
 
         val allDestinationsRaw = startPointAnnotationMap
-            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.1 && annot.cumulativeDistance < targetDist * 0.3 }
+            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.05 && annot.cumulativeDistance < targetDist * 0.4 }
+            .map( _._2 )
             .toSeq
-            .sortBy { case (nid, annot) => annot.cumulativeCost/annot.cumulativeDistance }
             
         
-        val csm = new CoordSpacingManager( targetDist / 50.0 )
-        val candidateDestinations = allDestinationsRaw.iterator.flatMap
-        { ra =>
-            val theRA = ra._2
-            
-            val dests = theRA.routeNode.destinations
-            val isDestNode = dests.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
-            
-            if ( isDestNode && csm.valid(theRA.routeNode.coord) )
-            {
-                Some( ra )
-            }
-            else None
-        }
-        .toVector
+        val candidateDestinations = filterDestinations( edgeCostFn, allDestinationsRaw, spacingRatio(targetDist) )
         
-        log.info( "Number of possible mid points: " + candidateDestinations.size )
+        log.info( "Number of possible destination points: " + candidateDestinations.size )
             
         // Have several attempts at destinations before finally giving up
         val possibleMidPoints = midNodeOption match
@@ -699,6 +700,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     if ( !candidateDestinations.isEmpty )
                     {
                         val elementIndex = random.nextInt( candidateDestinations.size )
+                        //val elementIndex = atRandomProportionalSelect( candidateDestinations.map( _._1 ) )
                         
                         Some( candidateDestinations(elementIndex)._2 )
                     }
@@ -706,6 +708,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 }.flatten
             }
         }
+        
+        val candidateDestinationIds = candidateDestinations.map( _._2.routeNode.nodeId ).toSet
         
         val possibleRoutes = possibleMidPoints.map
         { midPoint =>
@@ -716,7 +720,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             val midPointAnnotationMap = runDijkstra( edgeCostFn, midPoint.routeNode, targetDist, Map() )
             
             log.info( "Computing possible quarterpoints" )
-            val csmQuarters = new CoordSpacingManager( targetDist / 100.0 )
             val possibleQuarterPoints = midPointAnnotationMap
                 // Add distance annotation from the start node
                 .filter { case (nid, annot) => startPointAnnotationMap contains nid }
@@ -724,50 +727,26 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 .filter
                 { case (nid, annot1, annot2) =>
                     
+                    val isViableDest = candidateDestinationIds contains annot1.routeNode.nodeId
+                    
                     // Must be within threshold distance as a feasible midpoint
                     val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < targetDist
                     
-                    // Must not share the same parent in both graphs, otherwise the path in
-                    // will be the same as the path out. This is a rather aggressive filter
-                    val retraceFootsteps =
-                    {
-                        (annot1.parent, annot2.parent) match
-                        {
-                            case (Some(p1), Some(p2))   => p1.ra.routeNode == p2.ra.routeNode
-                            case _                      => false
-                        }
-                    }
-                    
-                    val deadEnd = annot1.routeNode.destinations.size == 1
-                    val isDestNode = annot1.routeNode.destinations.flatMap( _.edge.pois.map( _.poi ) ).exists( isDestinationPoint _  )
-                    
-                    withinDistance && !deadEnd && isDestNode//!retraceFootsteps
-                }
-                .toSeq
-                .sortBy { case (nid, annot1, annot2) => (annot1.cumulativeCost + annot2.cumulativeCost)/(annot1.cumulativeDistance + annot2.cumulativeDistance) }
-                .filter
-                { case (nid, annot1, annot2) =>
-
-                    // Note that valid has a side-effect of updating the Rtree in csmQuarters
-                    csmQuarters.valid( annot1.routeNode.coord )
+                    withinDistance && isViableDest
                 }
                 .toSeq
                 
             log.info( "Possible quarter points: " + possibleQuarterPoints.size )
-            val trimmedQuarterPoints = possibleQuarterPoints
-                .take( possibleQuarterPoints.size / 4 )
-                .toIndexedSeq
-                
-            val debugPoints =
+           
+            /*val debugPoints =
                 candidateDestinations.map( x => DebugPoint(x._2.routeNode.coord, "yellow_MarkerM", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq ++
-                possibleQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerQ", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq ++
-                trimmedQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerT", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq :+
-                DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", "") :+ DebugPoint(startNode.coord, "S", "")
+                possibleQuarterPoints.map( x => DebugPoint(x._2.routeNode.coord, "blue_MarkerQ", (x._2.cumulativeCost / x._2.cumulativeDistance).toString) ).toSeq :+
+                DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", "") :+ DebugPoint(startNode.coord, "S", "")*/
             
             val possibleRoutes = (0 until 5).map
             { _ =>
                 
-                val qp1 = trimmedQuarterPoints( random.nextInt( trimmedQuarterPoints.size ) )._2.routeNode
+                val qp1 = possibleQuarterPoints( random.nextInt( possibleQuarterPoints.size ) )._2.routeNode
                 
                 var alreadySeenUpweight = immutable.Map[Int, Double]()
                 val section1 = aStarShortestPath( edgeCostFn, startNode, qp1, alreadySeenUpweight )
@@ -785,10 +764,15 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 
                 log.info( "Possible distance: " + totalDist )
                 
-                (totalDist, totalCost / totalDist, section1 ++ section2 ++ section3)
+                val dps = Seq(
+                    DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", ""),
+                    DebugPoint(startNode.coord, "blue_MarkerS", ""),
+                    DebugPoint(qp1.coord, "blue_MarkerQ", "") )
+                
+                (totalDist, totalCost / totalDist, section1 ++ section2 ++ section3, dps)
             }
             .filter
-            { case (dist, costRatio, route) => 
+            { case (dist, costRatio, route, dps) => 
                 
                 (dist > (targetDist * 0.8)) && (dist < (targetDist * 1.2))
             }
@@ -797,7 +781,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
                 
             possibleRoutes.map
-            { case (dist, costRatio, route) =>
+            { case (dist, costRatio, route, debugPoints) =>
                 
                 FoundRoute( route, debugPoints )
                 
@@ -813,7 +797,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         else None
     }
     
-    def buildRoute( edgeCostFn : RouteEdge => Double, startNode : RouteNode, midNodeOption : Option[RouteNode], targetDist : Double ) : Option[RouteResult] =
+    def buildRoute( edgeCostFn : RouteEdge => Score, startNode : RouteNode, midNodeOption : Option[RouteNode], targetDist : Double ) : Option[RouteResult] =
     {
         findRoute( edgeCostFn, startNode, midNodeOption, targetDist ).map
         { fullRoute =>

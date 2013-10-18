@@ -477,13 +477,13 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             
             mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
             
-            /*for ( dbi in routeData.debugPoints )
+            for ( dbi in routeData.debugPoints )
             {
                 var db = routeData.debugPoints[dbi];
                 
                 var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", db.title, 1, 20.0 * 0.7, 34.0 * 0.7 );
                 nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lon ) );
-            }*/
+            }
             
             eg.setData( seriesData, function( lonLat )
             {
@@ -513,9 +513,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     
     var colorFromScore = function( score )
     {
-        var nscore = Math.max( Math.min( score / 2.0, 1.0 ), 0.0 );
-        var red = Math.floor(nscore*255).toString(16);
-        var blue = Math.floor(255 - (nscore*255)).toString(16);
+        var nscore = score;
+        var red = Math.floor(255 - (nscore*255)).toString(16);
+        var blue = Math.floor(nscore*255).toString(16);
 
         while ( blue.length < 2 ) blue = "0" + blue;
         while ( red.length < 2 ) red = "0" + red;
@@ -564,7 +564,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             {
                 var d = dests[di];
                 
-                var color = 'red';//colorFromScore( d.score );
+                var color = colorFromScore( d.score );
                 var circle = L.circle( [d.coord.lat, d.coord.lon], 40, { color : color, fillColor: color, fillOpacity: 0.8 } );
                 circle.bindPopup( d.name );
                 circle.addTo( mapHolder.getMap() );

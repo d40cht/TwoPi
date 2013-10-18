@@ -203,7 +203,7 @@ object RoutableGraphBuilder extends Logging
                     val prevHeight = node.height
                     val thisHeight = ln.height
                     
-                    absHeightDelta += prevHeight - thisHeight
+                    absHeightDelta += Math.abs(prevHeight - thisHeight)
                 }
                 
                 
