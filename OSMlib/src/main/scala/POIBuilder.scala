@@ -1,7 +1,6 @@
 package org.seacourt.osm.poi
 
 import org.seacourt.osm._
-import org.seacourt.osm.route.{RTreeIndex}
 
 import scala.collection.{mutable, immutable}
 

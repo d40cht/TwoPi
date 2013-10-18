@@ -5,8 +5,8 @@ import scala.collection.{mutable, immutable}
 import org.scalatra._
 import scalate.ScalateSupport
 
-import org.seacourt.osm.{OSMMap, Node, Coord, Logging}
-import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RouteEdge, RTreeIndex, ScenicPoint, POIType, Score}
+import org.seacourt.osm.{OSMMap, Node, Coord, Logging, RTreeIndex}
+import org.seacourt.osm.route.{RoutableGraph, RoutableGraphBuilder, RouteNode, RouteEdge, ScenicPoint, POIType, Score, RouteType}
 
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
@@ -361,18 +361,12 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         redirect("/")
     }
     
-    private val allCostModels = Map[String, RouteEdge => Score](
-        "Walking"			-> (RouteEdge.walkingCost _),
-        "Cycling"			-> (RouteEdge.cyclingCost( _, true ))
-        //"Cycling (flat)"	-> (RouteEdge.cyclingCost( _, false )),
-        //"Cycling (hilly)"	-> (RouteEdge.cyclingCost( _, true))
-    )
     
     get("/costModels")
     {
         contentType = "application/json"
         
-        swrite( allCostModels.map( _._1 ) )
+        swrite( RouteType.allTypes.map( _._1 ) )
     }
     
     post("/requestroute")
@@ -387,12 +381,12 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         log.info( "Request requestroute: %s, %s, %.2f, %s".format( startCoord, midCoordOption, distInKm, costModelName ) )
         
-        val costModel = allCostModels( costModelName )
-        val startNode = rg.getClosest( costModel, startCoord )
-        val midNodeOption = midCoordOption.map { mc => rg.getClosest( costModel, mc ) }
+        val routeType = RouteType.allTypes( costModelName )
+        val startNode = rg.getClosest( routeType, startCoord )
+        val midNodeOption = midCoordOption.map { mc => rg.getClosest( routeType, mc ) }
         
         
-        rg.buildRoute( costModel, startNode, midNodeOption, distInKm * 1000.0 ) match
+        rg.buildRoute( routeType, startNode, midNodeOption, distInKm * 1000.0 ) match
         {
             case Some( route : RouteResult )  =>
             {
@@ -421,9 +415,9 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         log.info( "Request requestroute: %s, %.2f, %s".format( startCoord, distInKm, costModelName ) )
         
-        val costModel = allCostModels( costModelName )
-        val startNode = rg.getClosest( costModel, startCoord )
-        val res = rg.debugRoute( costModel, startNode, distInKm * 1000.0 )
+        val routeType = RouteType.allTypes( costModelName )
+        val startNode = rg.getClosest( routeType, startCoord )
+        val res = rg.debugRoute( routeType, startNode, distInKm * 1000.0 )
         
         val serialised = swrite(res)
         log.info( "Debug size: %.2fMb".format( serialised.size.toDouble / (1024.0 * 1024.0) ) )
