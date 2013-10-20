@@ -465,7 +465,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             { annot =>
             
                 val dests = annot.routeNode.destinations.filter( de => !routeType.score(de.edge).isZero ).toSeq
-                val cost = dests.map( de => routeType.score(de.edge).value ).max
+                val cost = dests.map( de => routeType.score(de.edge).value ).min
                 
                 (cost, annot)
             }
