@@ -59,8 +59,8 @@ class LiftJSONTest extends FlatSpec
         val poi = POI( Coord(5.0, 6.0), "The White Hart", org.seacourt.osm.poi.POITypes.Pub, None )
         
         
-        val dir = RouteDirections( Array(), Array(), Array(poi), "test edge", 0.0, 0.0, 0.0, 0.0f, Coord( 3.0, 4.0 ) )
-        val z = RouteResult( Array(dir), 4.0, 103.2, Array() )
+        val dir = RouteDirections( Array(), Array(), Array(poi), "test edge", 0.0, 0.0, 0.0, 0.0, 0.0f, Coord( 3.0, 4.0 ) )
+        val z = RouteResult( Array(dir), 4.0, 6.0, 103.2, Array() )
         
         val ser = swrite(z)
         

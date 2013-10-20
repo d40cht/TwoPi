@@ -90,6 +90,8 @@ case class Coord( val lon : Double, val lat : Double )
     // Returns metres
     def distFrom( other : Coord ) : Double = 
     {
+        // Haversine formula. Decent accuracy. Lots of trig required so
+        // quite slow
         val (lat1, lng1) = (lat, lon)
         val (lat2, lng2) = (other.lat, other.lon)
         
@@ -102,6 +104,20 @@ case class Coord( val lon : Double, val lat : Double )
         val dist = Coord.earthRadius * c
 
         dist * 1000.0
+    }
+    
+    def approxDistFrom( other : Coord ) : Double =
+    {
+        // Equirectangular approximation. Less accurate than Haversine, but faster to compute.
+        // Use where accuracy matters less, for instance as part of the heuristic when running A*.
+        val (lat1, lng1) = (lat, lon)
+        val (lat2, lng2) = (other.lat, other.lon)
+        
+        val x = Math.toRadians(lng2-lng1) * Math.cos(Math.toRadians(lat1+lat2)/2)
+        val y = Math.toRadians(lat2-lat1)
+        val d = Math.sqrt(x*x + y*y) * Coord.earthRadius
+        
+        d * 1000.0
     }
     
     // Bearing is in degrees, +/- 180.0
