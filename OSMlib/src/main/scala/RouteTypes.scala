@@ -88,7 +88,7 @@ class DrivingRoute extends RouteType
     
 	    val sc = scenicScore( re )
 	    
-	    costMultiplier * sc
+	    costMultiplier * sc * Score(re.landCoverScore)
 	}
     
     override def speed( re : RouteEdge ) =
@@ -166,7 +166,7 @@ class WalkingRoute extends RouteType
     
 	    val sc = scenicScore( re )
 	    
-	    costMultiplier * sc
+	    costMultiplier * sc * Score(re.landCoverScore)
 	}
     
     override def speed( re : RouteEdge ) = Speed(kph=4)
@@ -201,7 +201,9 @@ trait BaseCycleRouting extends RouteType
                 else if ( valueString.startsWith( "secondary" ) )                       Some( Score(0.7) )
                 else if ( valueString.startsWith( "tertiary" ) )                        Some( Score(0.8) )
                 else if ( valueString.startsWith( "unclassified" ) )                    Some( Score(0.9) )
-                else if ( valueString.startsWith( "cycleway" ) )                        Some( Score(1.0) )
+                
+                // Cycleways are normally urban and along a road, or short and dull. So score low
+                else if ( valueString.startsWith( "cycleway" ) )                        Some( Score(0.4) )
                 else None
             }
             case None => None
@@ -212,7 +214,7 @@ trait BaseCycleRouting extends RouteType
 	    val sc = scenicScore( re )
 	    
 	    
-	    costMultiplier * sc * inclineScore( re )
+	    costMultiplier * sc * inclineScore( re ) * Score(re.landCoverScore)
 	}
     
     // TODO: Modify according to incline

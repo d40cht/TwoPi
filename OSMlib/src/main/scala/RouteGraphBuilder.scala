@@ -25,13 +25,15 @@ object RoutableGraphBuilder extends Logging
         {
             kryo.writeObject( output, rg.nodeId )
             kryo.writeObject( output, rg.node )
+            kryo.writeObject( output, rg.landCoverScore )
         }
         
         def read( kryo : Kryo, input : Input, ct : java.lang.Class[RouteNode] ) : RouteNode =
         {
             new RouteNode(
                 kryo.readObject( input, classOf[Int] ),
-                kryo.readObject( input, classOf[Node] ) )
+                kryo.readObject( input, classOf[Node] ),
+                kryo.readObject( input, classOf[Float] ) )
         }
     }
 
@@ -111,7 +113,7 @@ object RoutableGraphBuilder extends Logging
     
     
     
-    def apply( osmMap : OSMMap, scenicMap : RTreeIndex[ScenicPoint], poiMap : RTreeIndex[POI] ) =
+    def apply( osmMap : OSMMap, landCoverData : LandCoverData, scenicMap : RTreeIndex[ScenicPoint], poiMap : RTreeIndex[POI] ) =
     {
         // Find all nodes which belong to more than one way
         val routeNodeIds =
@@ -166,6 +168,7 @@ object RoutableGraphBuilder extends Logging
             var lastRouteNode : Option[RouteNode] = None
             var nodes = mutable.ArrayBuffer[Node]()
             var scenicPoints = mutable.ArrayBuffer[ScenicPoint]()
+            var landCoverScores = mutable.ArrayBuffer[Score]()
             var pois = Map[POI, Float]()
             for ( nid <- w.nodeIds )
             {
@@ -207,9 +210,12 @@ object RoutableGraphBuilder extends Logging
                 }
                 
                 
+                val landCoverScore = landCoverData.score( node.coord )
+                landCoverScores.append( landCoverScore )
+                
                 if ( isRouteNode )
                 {    
-                    val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node) )
+                    val rn = routeNodeMap.getOrElseUpdate( nid, new RouteNode(nid, node, landCoverScore.value.toFloat) )
                     
                     lastRouteNode.foreach
                     { lrn =>
@@ -232,6 +238,7 @@ object RoutableGraphBuilder extends Logging
                             name = name,
                             scenicPoints = scenicPoints.distinct.toArray,
                             pois = pois.map { case (poi, dist) => NearbyPOI( dist, poi ) }.toArray,
+                            landCoverScore=(landCoverScores.map(_.value).sum / landCoverScores.size.toDouble).toFloat,
                             nodes = nodes.toArray )
                           
                         // Conditionally add based on forward/backward determined above
@@ -243,6 +250,7 @@ object RoutableGraphBuilder extends Logging
                     lastRouteNode = Some(rn)
                     scenicPoints.clear()
                     nodes.clear()
+                    landCoverScores.clear()
                     nodes.append( node )
                     pois = Map()
                     dist = 0.0
@@ -259,6 +267,18 @@ object RoutableGraphBuilder extends Logging
     }
 }
 
+
+class LandCoverData( val data : ArcInfoAsciiInMemoryTile )
+{
+    def score( coord : Coord ) : Score =
+    {
+        import LandCoverType._
+        
+        val landType = LandCoverType.typeMap( data.nearest( coord.lon, coord.lat ).get )
+        
+        Score(landType.score) 
+    }
+}
 
 object GenerateRouteGraph extends App with Logging
 {
@@ -325,6 +345,9 @@ object GenerateRouteGraph extends App with Logging
         
         val map = OSMMap.load( mapFile )
         
+        log.info( "Reading land cover data" )
+        val landCoverData = new LandCoverData( ArcInfoAsciiInMemoryTile( new java.io.File("data/CorineLandCover100m_uk_EPSG4326.asc") ) )
+        
         log.info( "Building scenic map" )
         val scenicMap = buildScenicMap()
         
@@ -335,7 +358,7 @@ object GenerateRouteGraph extends App with Logging
         
         val rgFile = new java.io.File(mapFile + ".rg")
         log.info( "Building RoutableGraph" )
-        val rgi = RoutableGraphBuilder( map, scenicMap, poiMap )
+        val rgi = RoutableGraphBuilder( map, landCoverData, scenicMap, poiMap )
         
         log.info( "Saving graph to: " + rgFile.toString )
         RoutableGraphBuilder.save( rgi, rgFile )

@@ -9,12 +9,12 @@ class SRTMTest extends FunSuite
     
     test("Interpolation etc")
     {
-        val t = new SRTMInMemoryTile( 1.0, 2.0, 2, 2, 1.0, Array[Short]( 1, 2, 3, 4 ) )
+        val t = new ArcInfoAsciiInMemoryTile( 1.0, 2.0, 2, 2, 1.0, Array[Short]( 1, 2, 3, 4 ) )
         
-        assert( t.elevation( 1.0, 2.0 ) === Some(3.0) )
-        assert( t.elevation( 1.5, 2.0 ) === Some(2.0) )
-        assert( t.elevation( 1.0, 2.5 ) === Some(3.5) )
-        assert( t.elevation( 1.5, 2.5 ) === Some(2.5) )
+        assert( t.interpolate( 1.0, 2.0 ) === Some(3.0) )
+        assert( t.interpolate( 1.5, 2.0 ) === Some(2.0) )
+        assert( t.interpolate( 1.0, 2.5 ) === Some(3.5) )
+        assert( t.interpolate( 1.5, 2.5 ) === Some(2.5) )
     }
 }
 
@@ -31,16 +31,16 @@ class BridgeFindingTest extends FunSuite
         def makeNode() : RouteNode =
         {
             val osmn = Node( Coord(0.0, 0.0), 0.0f, Array() )
-            val nn = RouteNode( nextNodeId, osmn )
+            val nn = RouteNode( nextNodeId, osmn, 0.0f )
             nextNodeId += 1
             nn
         }
         
         def makeEdge( first : RouteNode, second : RouteNode ) : RouteEdge =
         {
-            val e = RouteEdge( Map(), nextEdgeId, 0.0, 0.0, "", Array(), Array(), Array() )
-            first.addEdge( second, e )
-            second.addEdge( first, e )
+            val e = RouteEdge( Map(), nextEdgeId, 0.0, 0.0, "", Array(), Array(), 0.0f, Array() )
+            first.addEdge( second, e, false )
+            second.addEdge( first, e, false )
             nextEdgeId += 1
             e
         }

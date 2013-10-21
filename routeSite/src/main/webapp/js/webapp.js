@@ -566,7 +566,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                 
                 var color = colorFromScore( d.score );
                 var circle = L.circle( [d.coord.lat, d.coord.lon], 40, { color : color, fillColor: color, fillOpacity: 0.8 } );
-                circle.bindPopup( d.name );
+                circle.bindPopup( d.title );
                 circle.addTo( mapHolder.getMap() );
             }
         } )

@@ -46,7 +46,7 @@ case class EdgeDest( val node : RouteNode, val edge : RouteEdge, val oneWayViola
 {
 }
 
-case class RouteNode( val nodeId : Int, val node : Node )
+case class RouteNode( val nodeId : Int, val node : Node, val landCoverScore : Float )
 {
     def coord = node.coord
     def height = node.height
@@ -97,6 +97,7 @@ case class RouteEdge(
     val name : String,
     val scenicPoints : Array[ScenicPoint],
     val pois : Array[NearbyPOI],
+    val landCoverScore : Float,
     val nodes : Array[Node] )
 {
 }
@@ -154,7 +155,7 @@ case class RouteSegment( val edgeName : String, val pathElements : Seq[PathEleme
 
 
 case class DebugWay( coords : Array[Coord], score : Double, scenicScore : Double )
-case class DebugDest( coord : Coord, score : Double )
+case class DebugDest( coord : Coord, score : Double, title : String )
 case class DebugData( ways : Array[DebugWay], dests : Array[DebugDest], pois : Array[POI], scenicPoints : Array[ScenicPoint] )
 
 class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
@@ -358,7 +359,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         }
     }
     
-    private def spacingRatio( dist : Double ) = dist / 30.0
+    // Distance is in metres
+    private def spacingRatio( dist : Double ) = (dist / 30.0) max 300.0
     
     private def atRandomProportionalSelect( options : immutable.IndexedSeq[Double] ) : Int =
     {
@@ -434,7 +436,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             if ( cost != 0.0 )
             {
-            	Some( DebugDest( an.routeNode.coord, cost ) )
+            	Some( DebugDest( an.routeNode.coord, cost, an.routeNode.landCoverScore.toString ) )
             }
             else None
         }
@@ -467,7 +469,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 val dests = annot.routeNode.destinations.filter( de => !routeType.score(de.edge).isZero ).toSeq
                 val cost = dests.map( de => routeType.score(de.edge).value ).max
                 
-                (cost, annot)
+                (cost * annot.routeNode.landCoverScore, annot)
             }
             .sortBy( -_._1 )
         
