@@ -26,3 +26,8 @@ using the command:
 The resultant jar will be assembled as:
 
 ./routeSite/target/scala-2.10/routeSite-assembly-0.0.1.jar
+
+Notes
+=====
+
+* gdal_translate is very handy for transforming input datasets between various gis formats.
