@@ -26,3 +26,13 @@ using the command:
 The resultant jar will be assembled as:
 
 ./routeSite/target/scala-2.10/routeSite-assembly-0.0.1.jar
+
+Notes
+=====
+
+* gdal_translate is very handy for transforming input datasets between various gis formats.
+
+
+* Warp to WGS 84 (EPSG4326) using nearest-neighbour resampling: gdalwarp g100_06.tif -t_srs EPSG:4326 g100_06_EPSG4326.tif
+
+* Extract to ASC: gdal_translate -projwin -15.0 64.0 5.0 48.0 g100_06_EPSG4326.tif -of AAIGrid g100_06_uk_EPSG4326.as

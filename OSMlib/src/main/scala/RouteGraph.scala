@@ -252,7 +252,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             nodeAnnot.cumulativeCost = thisCost
                             nodeAnnot.cumulativeDistance = minEl.cumulativeDistance + edge.dist
                             
-                            val bearing = minEl.routeNode.coord.bearing( node.coord ).toFloat
+                            val bearing = 0.0f//minEl.routeNode.coord.bearing( node.coord ).toFloat
                             nodeAnnot.parent = Some( PathElement(minEl, Some(EdgeAndBearing(edge, bearing))) )
                             
                             q += nodeAnnot
@@ -284,8 +284,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             startNode,
             Ordering.fromLessThan( (ra1 : RouteAnnotation, ra2 : RouteAnnotation) =>
             {
-                val r1dist = ra1.cumulativeCost + ra1.routeNode.coord.distFrom( endNode.coord )
-                val r2dist = ra2.cumulativeCost + ra2.routeNode.coord.distFrom( endNode.coord )
+                val r1dist = ra1.cumulativeCost + ra1.routeNode.coord.approxDistFrom( endNode.coord )
+                val r2dist = ra2.cumulativeCost + ra2.routeNode.coord.approxDistFrom( endNode.coord )
                 if ( r1dist != r2dist ) r1dist < r2dist
                 else ra1.routeNode.nodeId < ra2.routeNode.nodeId
             } ),
@@ -467,7 +467,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             { annot =>
             
                 val dests = annot.routeNode.destinations.filter( de => !routeType.score(de.edge).isZero ).toSeq
-                val cost = dests.map( de => routeType.score(de.edge).value ).max
+                val cost = dests.map( de => routeType.score(de.edge).value ).min
                 
                 (cost * annot.routeNode.landCoverScore, annot)
             }

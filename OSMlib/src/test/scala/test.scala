@@ -1,7 +1,25 @@
 package org.seacourt.osm.test
 
 import org.scalatest.{FunSuite}
+import org.scalatest.matchers.ShouldMatchers
 import scala.collection.{mutable, immutable}
+
+class CoordTest extends FunSuite with ShouldMatchers
+{
+    import org.seacourt.osm._
+    
+    test("Haversine and equirectangular distance")
+    {
+    	val appleton = Coord( -1.36184, 51.70928 )
+    	val wytham = Coord( -1.31186, 51.77466 )
+    	
+    	val d1 = appleton.distFrom(wytham)
+    	val d2 = appleton.approxDistFrom(wytham)
+    	
+    	d1 should be (d2 plusOrMinus 1e-2)
+    }
+}
+
 
 class SRTMTest extends FunSuite
 {
