@@ -488,17 +488,18 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         }
         
         // Then choose fill-in points
-        val fillInPoints = orderedPoints.flatMap
-        { case (cost, annot) =>
-        
-            val dests = annot.routeNode.destinations
-            
-            if ( csm.valid(annot.routeNode.coord) )
-            {
-                Some( (cost, annot) )
-            }
-            else None
-        }
+        val fillInPoints = orderedPoints
+	        .flatMap
+	        { case (cost, annot) =>
+	        
+	            val dests = annot.routeNode.destinations
+	            
+	            if ( csm.valid(annot.routeNode.coord) )
+	            {
+	                Some( (cost, annot) )
+	            }
+	            else None
+	        }
         
         featurePoints ++ fillInPoints
     }
@@ -519,7 +520,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
 
         val allDestinationsRaw = startPointAnnotationMap
-            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.05 && annot.cumulativeDistance < targetDist * 0.4 }
+            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.1 && annot.cumulativeDistance < targetDist * 0.3 }
             .map( _._2 )
             .toSeq
             
@@ -567,8 +568,25 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 val annot2 = startPointAnnotationMap(annot.routeNode.nodeId)
                 
                 val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < (targetDist*1.2)
+                
+                /*
+                val bearings = Seq(
+                    startNode.coord.bearing(midPoint.routeNode.coord),
+                    midPoint.routeNode.coord.bearing(annot.routeNode.coord),
+                    annot.routeNode.coord.bearing(startNode.coord) )
+                    .map( Math.abs _ )
                     
-                withinDistance
+                val minBearing = bearings.min
+                val maxBearing = bearings.max
+                
+                
+                // Equilateral is best in terms of routes (so smaller is better) 
+                val shapeCost = maxBearing / minBearing
+                
+                log.info( "%.2f (%s)".format( shapeCost, bearings.mkString(",")) )*/
+                    
+                // Within distance and filter out very squashed triangles
+                withinDistance //&& (shapeCost < 2.0)
             }
             .toIndexedSeq
             
@@ -600,8 +618,13 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", ""),
                     DebugPoint(startNode.coord, "blue_MarkerS", ""),
                     DebugPoint(qp1.coord, "blue_MarkerQ", "") )
+                    
                 
-                (totalDist, totalCost / totalDist, section1 ++ section2 ++ section3, dps)
+                
+                // Smaller is better
+                val costRatio = (totalCost / totalDist)
+                
+                (totalDist, costRatio, section1 ++ section2 ++ section3, dps)
             }
             .filter
             { case (dist, costRatio, route, dps) => 

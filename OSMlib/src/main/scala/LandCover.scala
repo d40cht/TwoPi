@@ -119,6 +119,8 @@ object LandCoverType
         data.append( (42 -> CoastalLagoons) )
         data.append( (43 -> Estuaries) )
         data.append( (44 -> SeaAndOcean) )
+        
+        data.append( (0 -> NoData) )
         data.append( (48 -> NoData) )
         data.append( (49 -> UnclassifiedLandSurface) )
         data.append( (50 -> UnclassifiedWaterBodies) )

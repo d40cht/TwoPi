@@ -62,7 +62,7 @@ case class ArcInfoAsciiInMemoryTile( val lonMin : Double, val latMin : Double, v
     
     
     // Interpolated elevation, bilinear from: http://en.wikipedia.org/wiki/Bilinear_interpolation
-    def interpolate( lon : Double, lat : Double ) : Option[Double] =
+    def interpolate( lon : Double, lat : Double, transform : Short => Double = x => x.toDouble ) : Option[Double] =
     {
         if ( inRange( lon, lat ) )
         {
@@ -81,7 +81,7 @@ case class ArcInfoAsciiInMemoryTile( val lonMin : Double, val latMin : Double, v
                     val xFrac = (lon - lonMin) - (x1*cellSize)
                     val yFrac = (lat - latMin) - (y1*cellSize)
                     
-                    Some( bilinearInterpolation( q11.toDouble, q21.toDouble, q12.toDouble, q22.toDouble, xFrac, yFrac ) )
+                    Some( bilinearInterpolation( transform(q11), transform(q21), transform(q12), transform(q22), xFrac, yFrac ) )
                 }
                 
                 case _ => None

@@ -274,9 +274,11 @@ class LandCoverData( val data : ArcInfoAsciiInMemoryTile )
     {
         import LandCoverType._
         
-        val landType = LandCoverType.typeMap( data.nearest( coord.lon, coord.lat ).get )
+        //val landType = LandCoverType.typeMap( data.nearest( coord.lon, coord.lat ).get )
         
-        Score(landType.score) 
+        //Score(landType.score)
+        val score = data.interpolate( coord.lon, coord.lat, tv => LandCoverType.typeMap(tv.toInt).score ).get
+        Score(score)
     }
 }
 
