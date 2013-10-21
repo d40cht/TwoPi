@@ -26,7 +26,7 @@ case class SRTMInMemoryTiles( files : Seq[File] )
 // Mapping tested manually using: http://www.daftlogic.com/sandbox-google-maps-find-altitude.htm
 case class ArcInfoAsciiInMemoryTile( val lonMin : Double, val latMin : Double, val nRows : Int, val nCols : Int, val cellSize : Double, val allData : Array[Short] )
 {
-    assert( allData.size == nRows * nCols )
+    assert( allData.size == nRows * nCols, "%d * %d (%d) != %d".format( nRows, nCols, nRows * nCols, allData.size ) )
     
     val lonMax = lonMin + ((nCols-1).toDouble * cellSize)
     val latMax = latMin + ((nRows-1).toDouble * cellSize)
