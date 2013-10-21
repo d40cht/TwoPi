@@ -45,7 +45,7 @@ object RoutableGraphBuilder extends Logging
             for ( n <- rg.nodes )
             {
                 val sinkNodeIds = n.destinations.map( _.node.nodeId ).toArray
-                val edges = n.destinations.map( _.edge ).toArray
+                val edges = n.destinations.map( d => (d.edge, d.oneWayViolation) ).toArray
                 
                 kryo.writeObject( output, sinkNodeIds )
                 kryo.writeObject( output, edges )
@@ -61,11 +61,11 @@ object RoutableGraphBuilder extends Logging
             for ( n <- nodes )
             {
                 val sinkNodeIds = kryo.readObject( input, classOf[Array[Int]] )
-                val edges = kryo.readObject( input, classOf[Array[RouteEdge]] )
+                val edges = kryo.readObject( input, classOf[Array[(RouteEdge, Boolean)]] )
                 
-                for ( (snid, edge) <- sinkNodeIds.zip(edges) )
+                for ( (snid, (edge, oneWayViolation)) <- sinkNodeIds.zip(edges) )
                 {
-                    n.addEdge( nodeByIdMap(snid), edge )
+                    n.addEdge( nodeByIdMap(snid), edge, oneWayViolation )
                 }
             }
             
@@ -216,11 +216,12 @@ object RoutableGraphBuilder extends Logging
                     
                         // If oneway=yes/true/1. forward oneway. If oneway=-1/reverse, backward oneway
                         
-                    	val (forward, backward) = tagMap.get("highway") match
+                    	val (forward, backward) = (tagMap.get("highway"), tagMap.get("junction")) match
                     	{
-                    	    case Some("yes") | Some("true") | Some("1")	=> (true, false)
-                    	    case Some("reverse") | Some("-1")			=> (false, true)
-                    	    case _										=> (true, true)
+                    	    case (Some("yes"), _) | (Some("true"), _) | (Some("1"), _)	=> (true, false)
+                    	    case (Some("reverse"), _) | (Some("-1"), _)					=> (false, true)
+                    	    case (_, Some("roundabout"))								=> (true, false)
+                    	    case _														=> (true, true)
                     	}
                         
                         val edge = new RouteEdge(
@@ -234,8 +235,8 @@ object RoutableGraphBuilder extends Logging
                             nodes = nodes.toArray )
                           
                         // Conditionally add based on forward/backward determined above
-                        rn.addEdge( lrn, edge )
-                        lrn.addEdge( rn, edge )
+                        rn.addEdge( lrn, edge, !forward )
+                        lrn.addEdge( rn, edge, !backward )
                         nextEdgeId += 1
                     }
                     
