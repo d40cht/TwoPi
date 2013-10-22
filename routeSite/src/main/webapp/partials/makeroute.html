@@ -25,7 +25,7 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <input name="startCoord" type="text" class="form-control" placeholder="Start position" ng-model="startCoord">
+                                <input name="startCoord" type="text" class="form-control" placeholder="Click map to set start" ng-model="startCoord" readonly>
                             </div>
                             <label>Distance (km)</label>
                             <input class="form-control" type="number" name="distance" ng-model="distance" required>
@@ -44,14 +44,14 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <input type="text" class="form-control" placeholder="Start position" ng-model="startCoord" readonly>
+                                <input type="text" class="form-control" placeholder="Click map to set start" ng-model="startCoord" readonly>
                             </div>
                             <label>End</label>
                             <div class="input-group">
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setMid()">Pick</button>
                                 </span>
-                                <input type="text" class="form-control" placeholder="Mid position" ng-model="midCoord" readonly>
+                                <input type="text" class="form-control" placeholder="Click map to set end" ng-model="midCoord" readonly>
                             </div>
                             <input type="hidden" name="distance" ng-model="distance" value="0.0">
                             <br>
@@ -145,7 +145,7 @@
             
             <ul>
                 <li ng-repeat="section in routeData.directions">
-                    <ul>    
+                    <!--<ul>    
                         <li ng-repeat="poi in section.inboundPOIs">
                             <div ng-switch on="hasWikiData(poi)">
                                 <div ng-switch-when="true">
@@ -172,8 +172,8 @@
                         <li ng-repeat="pic in section.inboundPics">
                             <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" ng-src="/geograph/thumb/{{pic.picIndex}}/{{pic.imgHash}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
                         </li>
-                    </ul>
-                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.cumulativeDistance.toFixed(1)}}km - {{section.edgeName}}</div>
+                    </ul>-->
+                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{routeText(section)}}</div>
                 </li>
             </ul>
         </div>

@@ -216,7 +216,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         queueOrdering : Ordering[RouteAnnotation],
         maxDist : Double,
         endNode : Option[RouteNode],
-        temporaryEdgeWeights : Map[Int, Double] ) : AnnotationMap =
+        temporaryEdgeWeights : Map[Int, Double],
+        // TODO: This is a horrible hack. Compute bearings elsewhere
+        computeBearings : Boolean = false ) : AnnotationMap =
     {
         val sn = RouteAnnotation( startNode, 0.0, 0.0 )
         val visited = mutable.HashSet[Int]()
@@ -252,7 +254,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             nodeAnnot.cumulativeCost = thisCost
                             nodeAnnot.cumulativeDistance = minEl.cumulativeDistance + edge.dist
                             
-                            val bearing = 0.0f//minEl.routeNode.coord.bearing( node.coord ).toFloat
+                            val bearing = if ( computeBearings ) minEl.routeNode.coord.bearing( node.coord ).toFloat else 0.0f
                             nodeAnnot.parent = Some( PathElement(minEl, Some(EdgeAndBearing(edge, bearing))) )
                             
                             q += nodeAnnot
@@ -291,7 +293,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             } ),
             Double.MaxValue,
             Some(endNode),
-            temporaryEdgeWeights )
+            temporaryEdgeWeights,
+            computeBearings=true)
     }
         
     private def aStarShortestPath( routeType : RouteType, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : Seq[PathElement] =
