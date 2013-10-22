@@ -51,6 +51,11 @@ trait RouteType
 	        Score(0.5)
 	    }
     }
+    
+    def validDests( rn : RouteNode ) : Seq[EdgeDest] =
+    {
+        rn.destinations.filter( de => !score(de.edge).isZero )
+    }
 }
 
 class DrivingRoute extends RouteType
@@ -119,7 +124,7 @@ class DrivingRoute extends RouteType
             case None => Speed( kph = 0.0)
         }
     }
-    override def respectOneWay = false
+    override def respectOneWay = true
 }
 
 class WalkingRoute extends RouteType

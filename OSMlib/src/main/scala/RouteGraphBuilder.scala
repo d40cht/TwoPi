@@ -222,7 +222,7 @@ object RoutableGraphBuilder extends Logging
                     
                         // If oneway=yes/true/1. forward oneway. If oneway=-1/reverse, backward oneway
                         
-                    	val (forward, backward) = (tagMap.get("highway"), tagMap.get("junction")) match
+                    	val (forward, backward) = (tagMap.get("oneway"), tagMap.get("junction")) match
                     	{
                     	    case (Some("yes"), _) | (Some("true"), _) | (Some("1"), _)	=> (true, false)
                     	    case (Some("reverse"), _) | (Some("-1"), _)					=> (false, true)
@@ -240,10 +240,13 @@ object RoutableGraphBuilder extends Logging
                             pois = pois.map { case (poi, dist) => NearbyPOI( dist, poi ) }.toArray,
                             landCoverScore=(landCoverScores.map(_.value).sum / landCoverScores.size.toDouble).toFloat,
                             nodes = nodes.toArray )
-                          
-                        // Conditionally add based on forward/backward determined above
-                        rn.addEdge( lrn, edge, !forward )
-                        lrn.addEdge( rn, edge, !backward )
+                        
+                        // Forward down this way
+                        lrn.addEdge( rn, edge, !forward )
+                        
+                        // Backwards down this way
+                        rn.addEdge( lrn, edge, !backward )
+                        
                         nextEdgeId += 1
                     }
                     

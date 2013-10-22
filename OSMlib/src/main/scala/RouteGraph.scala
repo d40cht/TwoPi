@@ -324,31 +324,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         new Coord( lon = q(c.lon), lat = q(c.lat) )
     }
     
-
-    private def routePath( startPointAnnotationMap : AnnotationMap, midPointAnnotationMap : AnnotationMap, id1 : Int, id2 : Int, pruneDistalOverlap : Boolean ) : Seq[PathElement] =
-    {
-        val seg1 = traceBack( startPointAnnotationMap(id1), reverse=true )
-        val seg2 = traceBack( midPointAnnotationMap(id1), reverse=false )
-        val seg3 = traceBack( midPointAnnotationMap(id2), reverse=true )
-        val seg4 = traceBack( startPointAnnotationMap(id2), reverse=false )
-        
-        val distalOverlap = if ( pruneDistalOverlap )
-        {
-            seg3.zip(seg2.reverse)
-                .takeWhile { case ( pe1, pe2 ) => pe1.ra.routeNode.nodeId == pe2.ra.routeNode.nodeId }
-                .size - 1
-        }
-        else 0
-        
-        seg1 ++ seg2.dropRight(distalOverlap) ++ seg3.drop(distalOverlap) ++ seg4
-        
-    }
-    
-    private def aStarRoutePath( routeType : RouteType, nodes : Seq[RouteNode] ) : Seq[PathElement] =
-    {
-        nodes.sliding(2).flatMap { case Seq( from, to ) => aStarShortestPath( routeType, from, to, Map() ) }.toSeq
-    }
-    
     type QuarterPoint = (Int, RouteAnnotation, RouteAnnotation)
     type QuarterPointPair = (QuarterPoint, QuarterPoint)
     
@@ -463,13 +438,13 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             .filter
             { annot =>
             
-                val dests = annot.routeNode.destinations.filter( de => !routeType.score(de.edge).isZero )
+                val dests = routeType.validDests( annot.routeNode )
                 dests.size > 2
             }
             .map
             { annot =>
             
-                val dests = annot.routeNode.destinations.filter( de => !routeType.score(de.edge).isZero ).toSeq
+                val dests = routeType.validDests( annot.routeNode )
                 val cost = dests.map( de => routeType.score(de.edge).value ).min
                 
                 (cost * annot.routeNode.landCoverScore, annot)
@@ -531,8 +506,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val candidateDestinations = filterDestinations( routeType, allDestinationsRaw, spacingRatio(targetDist) ).toIndexedSeq
         
         log.info( "Number of possible destination points: " + candidateDestinations.size )
-        
-        
             
         // Have several attempts at destinations before finally giving up
         val possibleMidPoints = midNodeOption match
@@ -660,12 +633,11 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         findRoute( routeType, startNode, midNodeOption, targetDist ).map
         { fullRoute =>
         
-            var lastEdgeName = ""
             var cumulativeDistance = 0.0
             var cumulativeTime = 0.0
             var cumulativeAscent = 0.0
             
-            var lastEdge : Option[EdgeAndBearing] = None
+            var lastPEO : Option[PathElement] = None
             
             val truncatedRoute = mutable.ArrayBuffer[RouteDirections]()
             val recentNodeDists = mutable.ArrayBuffer[NodeAndDistance]()
@@ -714,6 +686,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         seenPics ++= e.scenicPoints
                         seenPOIs ++= e.pois.map(_.poi)
                         
+                        val lastEdge = lastPEO.flatMap( _.re )
                         val (bearingDelta, lastName) = lastEdge match
                         {
                             case Some(leb)  =>
@@ -723,8 +696,15 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             }
                             case None       => (0.0f, "")
                         }
-                                
-                        if ( lastName != e.name )
+                          
+                        val numDests = lastPEO match
+                        {
+                            case Some(lastPE)   => routeType.validDests(lastPE.ra.routeNode).size
+                            case None           => 1
+                        }
+                        
+                        // Only bother with routing directions when there is an alternative to take
+                        if ( (numDests > 2 && lastName != e.name) )
                         {
                             truncatedRoute.append( new RouteDirections( recentNodeDists.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDistance / 1000.0, cumulativeTime, destAnnotNode.routeNode.height, bearingDelta, recentNodeDists.last.node.coord ) )
                             recentNodeDists.clear()
@@ -733,7 +713,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         }
                     }
                 }
-                lastEdge = inboundEdge
+                //lastEdge = inboundEdge
+                lastPEO = Some(pathEl)
             }
 
             new RouteResult(
