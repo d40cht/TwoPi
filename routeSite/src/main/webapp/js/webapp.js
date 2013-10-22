@@ -432,19 +432,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             alert( data );
         } );
     }
-    
-    $scope.routeText = function( section )
-    {
-        var dir = "Continue on";
-        if ( section.bearing < -120.0 ) dir = "Sharp left onto";
-        else if ( section.bearing < -45.0 ) dir = "Left onto";
-        else if ( section.bearing < -10.0 ) dir = "Slight left onto";
-        else if ( section.bearing > 120.0 ) dir = "Sharp right onto";
-        else if ( section.bearing > 45.0 ) dir = "Right onto";
-        else if ( section.bearing > 10.0 ) dir = "Slight right onto";
-        
-        return section.cumulativeDistance.toFixed(1) + "km - " + dir + " " + section.edgeName;
-    }
+
     
     $scope.setStart();
     
@@ -503,6 +491,33 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                 elevationCrossLinkMarker.moveMarker( lonLat );
             } );
             
+            // Update the directions text
+            var directions = [];
+            for ( si in routeData.directions )
+            {
+                var section = routeData.directions[si];
+                
+                
+                var routeText = function( section )
+                {
+                    var dir = "Continue on";
+                    if ( section.bearing < -120.0 ) dir = "Sharp left onto";
+                    else if ( section.bearing < -45.0 ) dir = "Left onto";
+                    else if ( section.bearing < -10.0 ) dir = "Slight left onto";
+                    else if ( section.bearing > 120.0 ) dir = "Sharp right onto";
+                    else if ( section.bearing > 45.0 ) dir = "Right onto";
+                    else if ( section.bearing > 10.0 ) dir = "Slight right onto";
+                    
+                    return section.cumulativeDistance.toFixed(1) + "km - " + dir + " " + section.edgeName;
+                }
+                
+                directions.push( {
+                    coord : section.coord,
+                    text : routeText( section )
+                } );
+            }
+            
+            $scope.directions = directions;
             
             
             $scope.routeId = routeId

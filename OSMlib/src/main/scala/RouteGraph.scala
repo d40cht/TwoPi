@@ -181,7 +181,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
 
     type AnnotationMap = mutable.HashMap[Int, RouteAnnotation]
     
-    def traceBack( endNode : RouteAnnotation, reverse : Boolean ) : Seq[PathElement] =
+    def traceBack( inputEdgeOption : Option[EdgeAndBearing], endNode : RouteAnnotation, reverse : Boolean ) : Seq[PathElement] =
     {
         //val routeAnnotations = mutable.ArrayBuffer[PathElement]()
         
@@ -206,8 +206,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         else edgesBearingsRaw
         
         
-        assert( nodes.size == edgesBearings.size+1 )
-        nodes.zip( None +: edgesBearings.map( e => Some(e) ) ).map { case (n, e) => PathElement( n, e ) }
+        assert( nodes.size == edgesBearings.size + 1 )
+        nodes.zip( inputEdgeOption +: edgesBearings.map( e => Some(e) ) ).map { case (n, e) => PathElement( n, e ) }
     }
     
     private def runDFS(
@@ -297,12 +297,17 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             computeBearings=true)
     }
         
-    private def aStarShortestPath( routeType : RouteType, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : Seq[PathElement] =
+    private def aStarShortestPath( inputEdgeOption : Option[EdgeAndBearing], routeType : RouteType, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : Seq[PathElement] =
     {
         val annot = runAStar( routeType, startNode, endNode, temporaryEdgeWeights )
             
         val endNodeRA = annot(endNode.nodeId)
-        traceBack( endNodeRA, true )
+        val path = traceBack( inputEdgeOption, endNodeRA, true )
+        
+        assert( path.head.ra.routeNode.nodeId == startNode.nodeId )
+        assert( path.last.ra.routeNode.nodeId == endNode.nodeId )
+        
+        path
     }
 
     
@@ -575,15 +580,15 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 val qp1 = chooseDest( possibleQuarterPoints )._2.routeNode
                 
                 var alreadySeenUpweight = immutable.Map[Int, Double]()
-                val section1 = aStarShortestPath( routeType, startNode, qp1, alreadySeenUpweight )
+                val section1 = aStarShortestPath( None, routeType, startNode, qp1, alreadySeenUpweight )
                 section1.flatMap( _.re ).foreach( e => alreadySeenUpweight += (e.edge.edgeId -> 4.0) )
                 val dist1 = section1.last.ra.cumulativeDistance
                 
-                val section2 = aStarShortestPath( routeType, qp1, midPoint.routeNode, alreadySeenUpweight )
+                val section2 = aStarShortestPath( section1.last.re, routeType, qp1, midPoint.routeNode, alreadySeenUpweight )
                 section2.flatMap( _.re ).foreach( e => alreadySeenUpweight += (e.edge.edgeId -> 4.0) )
                 val dist2 = section2.last.ra.cumulativeDistance
                 
-                val section3 = aStarShortestPath( routeType, midPoint.routeNode, startNode, alreadySeenUpweight )
+                val section3 = aStarShortestPath( section2.last.re, routeType, midPoint.routeNode, startNode, alreadySeenUpweight )
                 
                 val totalDist = section1.last.ra.cumulativeDistance + section2.last.ra.cumulativeDistance + section3.last.ra.cumulativeDistance
                 val totalCost = section1.last.ra.cumulativeCost + section2.last.ra.cumulativeCost + section3.last.ra.cumulativeCost
@@ -649,6 +654,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             // TODO: This is all horribly imperative. Refactor
             var lastNodeOption : Option[Node] = None
+            var size = fullRoute.path.size
             fullRoute.path.zipWithIndex.foreach
             { case (pathEl, i) =>
             
@@ -658,8 +664,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 
                 inboundEdge match
                 {
-                    case None       => ("Start", Seq())
-                    case Some(eb)    =>
+                    case None           => ("Start", Seq())
+                    case Some(eb)       =>
                     {
                         val e = eb.edge
 
@@ -704,9 +710,20 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         }
                         
                         // Only bother with routing directions when there is an alternative to take
-                        if ( (numDests > 2 && lastName != e.name) )
+                        if ( (numDests > 2 && lastName != e.name) || i == (size-1) )
                         {
-                            truncatedRoute.append( new RouteDirections( recentNodeDists.toArray, recentPics.toArray, recentPOIs.toArray, e.name, e.dist / 1000.0, cumulativeDistance / 1000.0, cumulativeTime, destAnnotNode.routeNode.height, bearingDelta, recentNodeDists.last.node.coord ) )
+                            truncatedRoute.append( new RouteDirections(
+                                inboundNodes = recentNodeDists.toArray,
+                                inboundPics = recentPics.toArray,
+                                inboundPOIs = recentPOIs.toArray,
+                                edgeName = e.name,
+                                dist = e.dist / 1000.0,
+                                cumulativeDistance = cumulativeDistance / 1000.0,
+                                cumulativeTime = cumulativeTime,
+                                elevation = destAnnotNode.routeNode.height,
+                                bearing = bearingDelta,
+                                coord = recentNodeDists.last.node.coord ) )
+                                
                             recentNodeDists.clear()
                             recentPics.clear()
                             recentPOIs.clear()

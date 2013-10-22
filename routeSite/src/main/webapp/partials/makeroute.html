@@ -144,7 +144,7 @@
             <hr>
             
             <ul>
-                <li ng-repeat="section in routeData.directions">
+                <li ng-repeat="section in directions">
                     <!--<ul>    
                         <li ng-repeat="poi in section.inboundPOIs">
                             <div ng-switch on="hasWikiData(poi)">
@@ -173,7 +173,7 @@
                             <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" ng-src="/geograph/thumb/{{pic.picIndex}}/{{pic.imgHash}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
                         </li>
                     </ul>-->
-                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{routeText(section)}}</div>
+                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.text}}</div>
                 </li>
             </ul>
         </div>
