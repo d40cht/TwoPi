@@ -437,7 +437,9 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     }
     
     get("/gpx/:routeId")
-    {   
+    {
+        contentType = "text/xml"
+
         persistence.getRoute( params("routeId").toInt ) match
         {
             case Some(routeData)    =>
@@ -460,6 +462,18 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                         }
                     }
                     </trkseg></trk>
+                    
+                    {
+                        routeResult.directions.map
+                        { rd =>
+                        
+                            <wpt>
+                                <lat>{rd.coord.lat.toString}</lat>
+                                <lon>{rd.coord.lon.toString}</lon>
+                                <desc>{rd.directionsText}</desc>
+                            </wpt>
+                        }
+                    }
                 </gpx>
             }
             case None               =>

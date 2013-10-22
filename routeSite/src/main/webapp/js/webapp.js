@@ -496,24 +496,17 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             for ( si in routeData.directions )
             {
                 var section = routeData.directions[si];
-                
-                
+
                 var routeText = function( section )
                 {
-                    var dir = "Continue on";
-                    if ( section.bearing < -120.0 ) dir = "Sharp left onto";
-                    else if ( section.bearing < -45.0 ) dir = "Left onto";
-                    else if ( section.bearing < -10.0 ) dir = "Slight left onto";
-                    else if ( section.bearing > 120.0 ) dir = "Sharp right onto";
-                    else if ( section.bearing > 45.0 ) dir = "Right onto";
-                    else if ( section.bearing > 10.0 ) dir = "Slight right onto";
-                    
-                    return section.cumulativeDistance.toFixed(1) + "km - " + dir + " " + section.edgeName + "(" + section.bearing.toFixed(1) + ")";
+                    return section.cumulativeDistance.toFixed(1) + "km - " + section.directionsText;
                 }
+                
+                
                 
                 directions.push( {
                     coord : section.coord,
-                    text : routeText( section )
+                    text : routeText(section)
                 } );
             }
             

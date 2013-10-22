@@ -156,8 +156,9 @@ case class RouteDirections(
 	val cumulativeDistance : Double,
 	val cumulativeTime : Double,
 	val elevation : Double,
-	bearing : Float,
-	coord : Coord )
+	val bearing : Float,
+	val coord : Coord,
+	val directionsText : String )
 
 case class DebugPoint( coord : Coord, name : String, title : String )
 
@@ -784,6 +785,19 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         }
                     }
                     
+                    val routeText =
+                    {
+                        val prefix = if ( bearingDelta < -120.0 ) "Sharp left onto"
+                        else if ( bearingDelta < -45.0 ) "Left onto"
+                        else if ( bearingDelta < -10.0 ) "Slight left onto"
+                        else if ( bearingDelta > 120.0 ) "Sharp right onto"
+                        else if ( bearingDelta > 45.0 ) "Right onto"
+                        else if ( bearingDelta > 10.0 ) "Slight right onto"
+                        else "Continue on"
+                        
+                        prefix + " " + startEB.edge.name
+                    }
+                    
                     truncatedRoute.append( new RouteDirections(
                         outboundNodes = outboundNodeDists.toArray,
                         outboundPics = outboundPics.toArray,
@@ -793,7 +807,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         cumulativeTime = cumulativeTime,
                         elevation = startNode.routeNode.height,
                         bearing = bearingDelta,
-                        coord = startNode.routeNode.coord ) )
+                        coord = startNode.routeNode.coord,
+                        directionsText = routeText ) )
                 }   
                         
                 lastPEO = Some(peSeg.last)
