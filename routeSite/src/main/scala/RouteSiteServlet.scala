@@ -450,7 +450,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                         routeResult.directions.flatMap
                         { rd =>
                             
-                            rd.inboundNodes.map
+                            rd.outboundNodes.map
                             { n =>
                             
                                 <trkpt lat={n.node.coord.lat.toString} lon={n.node.coord.lon.toString}>

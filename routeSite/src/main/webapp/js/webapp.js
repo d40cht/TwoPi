@@ -456,9 +456,9 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             for ( rd in routeData.directions )
             {
                 var dataEl = routeData.directions[rd];
-                for ( n in dataEl.inboundNodes )
+                for ( n in dataEl.outboundNodes )
                 {
-                    var nodeAndDist = dataEl.inboundNodes[n];
+                    var nodeAndDist = dataEl.outboundNodes[n];
                     var distance = nodeAndDist.distance / 1000.0;
                     var node = nodeAndDist.node;
                     
@@ -508,7 +508,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
                     else if ( section.bearing > 45.0 ) dir = "Right onto";
                     else if ( section.bearing > 10.0 ) dir = "Slight right onto";
                     
-                    return section.cumulativeDistance.toFixed(1) + "km - " + dir + " " + section.edgeName;
+                    return section.cumulativeDistance.toFixed(1) + "km - " + dir + " " + section.edgeName + "(" + section.bearing.toFixed(1) + ")";
                 }
                 
                 directions.push( {
