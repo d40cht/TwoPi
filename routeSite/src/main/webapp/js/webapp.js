@@ -268,9 +268,9 @@ function PosterController($scope, $routeParams, $http, $timeout)
             for ( rd in data.directions )
             {
                 var dataEl = data.directions[rd];
-                for ( picI in dataEl.inboundPics )
+                for ( picI in dataEl.outboundPics )
                 {
-                    var pic = dataEl.inboundPics[picI];
+                    var pic = dataEl.outboundPics[picI];
                     pics.push( {
                         title   : pic.title + ", " + pic.photographer,
                         imgSrc  : "/geograph/full/" + pic.picIndex + "/" + pic.imgHash,
@@ -279,9 +279,9 @@ function PosterController($scope, $routeParams, $http, $timeout)
                     } );
                 }
                 
-                for ( poiI in dataEl.inboundPOIs )
+                for ( poiI in dataEl.outboundPOIs )
                 {
-                    var poi = dataEl.inboundPOIs[poiI];
+                    var poi = dataEl.outboundPOIs[poiI];
                     
                     if ( poi.hasOwnProperty("wikiData") && poi.wikiData.hasOwnProperty("imageUrl") )
                     {
