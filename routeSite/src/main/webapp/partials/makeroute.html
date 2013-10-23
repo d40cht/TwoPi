@@ -138,9 +138,12 @@
             </table>
             
             <div class="text-center">
-                <a href="/app/poster/{{routeId}}" class="btn btn-default">Visual route</a>
-                <a href=/gpx/{{routeId}} class="btn btn-default">Export GPX</a>
+                <fieldset ng-disabled="routeData == null">
+                    <a href="/app/poster/{{routeId}}" class="btn btn-info">Visual route</a>
+                    <a href=/gpx/{{routeId}} class="btn btn-default">Export GPX</a>
+                </fieldset>
             </div>
+            
             <hr>
             
             <ul>
