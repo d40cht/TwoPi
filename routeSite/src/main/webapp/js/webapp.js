@@ -536,7 +536,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     $scope.routeDebug = function()
     {
         var dist = Number($scope.$storage.distance);
-        var start = lonLatToString($scope.$storage.startCoord);
+        var start = $scope.lonLatToString($scope.$storage.startCoord);
         $http( {
             method: "GET",
             url : "/debugroute",
