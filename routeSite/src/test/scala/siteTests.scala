@@ -12,6 +12,7 @@ import org.scalatest.concurrent.Eventually.Interval
 import org.scalatest.time.Span
 import org.scalatest.time.Seconds
 
+import org.seacourt.osm.Coord
 
 
 
@@ -230,10 +231,10 @@ case class MockPersistence() extends Persistence
         nu
     }
     
-    def addRoute( routeJSON : String, distance : Double, ascent : Double ) : Int = ???
-    def getRoute(routeId: Int): Option[String] = ???
-    def getUserRoutes(userId: Int): List[UserRoute] = ???
-    def saveRouteToUser(userId: Int,routeId: Int,routeName: String): Unit = ???
+    def addRoute( routeJSON : String, start : Coord, distance : Double, ascent : Double, userId : Option[Int] ) : Int = ???
+    def getRoute(routeId : Int): Option[String] = ???
+    def getUserRoutes(userId : Int): List[UserRoute] = ???
+    def nameRoute(userId: Int, routeId: Int, routeName : String, description : String): Unit = ???
 
     
     private var users = Map[String, User]()
