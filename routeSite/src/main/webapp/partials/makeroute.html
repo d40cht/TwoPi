@@ -30,8 +30,10 @@
                             <label>Distance (km)</label>
                             <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
                             <br>
-                            <button name="specifiedStartSubmit" type="submit" class="btn btn-primary">Go!</button>
-                            <button type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
+                            <fieldset ng-disabled="$storage.startCoord==null">
+                                <button name="specifiedStartSubmit" type="submit" class="btn btn-primary">Go!</button>
+                                <button type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
+                            </fieldset>
                         </div>
                     </form>
                 </div>
@@ -55,7 +57,9 @@
                             </div>
                             <input type="hidden" name="distance" ng-model="distance" value="0.0"/>
                             <br>
-                            <button type="submit" class="btn btn-primary">Go!</button>
+                            <fieldset ng-disabled="($storage.startCoord==null || $storage.midCoord==null)">
+                                <button type="submit" class="btn btn-primary">Go!</button>
+                            </fieldset>
                         </div>
                     </form>
                 </div>
@@ -64,7 +68,7 @@
                     <form>
                         <div class="form-group">
                             <label>Distance (km)</label>
-                            <input class="form-control" type="number" name="distance" ng-model="distance" required>
+                            <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
                             <br>
                             <button type="submit" class="btn btn-primary">Go!</button>
                         </div>
