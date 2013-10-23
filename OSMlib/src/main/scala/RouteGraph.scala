@@ -543,7 +543,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         {
             case Some(mn)   =>
             {
-                4.0 * startNode.coord.distFrom( mn.coord )
+                3.0 * startNode.coord.distFrom( mn.coord )
             }
             case None       => targetDistHint
         }

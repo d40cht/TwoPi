@@ -162,6 +162,7 @@ class WalkingRoute extends RouteType
                 else if ( valueString.startsWith( "bridleway" ) )       				Some( Score(1.0) )
                 else if ( valueString.startsWith( "footway" ) )         				Some( Score(1.0) )
                 else if ( valueString.startsWith( "footpath" ) )        				Some( Score(1.0) )
+                else if ( valueString.startsWith( "path" ) )        				    Some( Score(1.0) )
                 else None
             }
             case None => None
