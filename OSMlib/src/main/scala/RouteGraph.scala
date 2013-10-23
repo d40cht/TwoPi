@@ -543,7 +543,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         {
             case Some(mn)   =>
             {
-                4.0 * startNode.coord.distFrom( mn.coord )
+                3.0 * startNode.coord.distFrom( mn.coord )
             }
             case None       => targetDistHint
         }
@@ -783,6 +783,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             outboundPOIs ++= e.pois.map(_.poi).filter( p => !seenPOIs.contains(p) )
                             seenPics ++= e.scenicPoints
                             seenPOIs ++= e.pois.map(_.poi)
+                            cumulativeAscent += Math.abs(e.absHeightDelta)
                         }
                     }
                     
