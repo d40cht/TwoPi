@@ -21,6 +21,7 @@
         <script src="/js/bootstrap.min.js"></script>
         <script src="/js/angular.min.js"></script>
         <script src="/js/angular-cookies.min.js"></script>
+        <script src="/js/ngStorage.min.js"></script>
         <script src="/js/leaflet.js"></script>
         <script src="/js/highcharts.js"></script>
         <!--<script src="https://raw.github.com/angular-ui/bootstrap/gh-pages/ui-bootstrap-tpls-0.6.0.min.js"></script>-->

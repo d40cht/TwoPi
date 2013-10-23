@@ -5,19 +5,19 @@
         
             <div class="form-group">
                 <label>Routing preference</label>
-                <select class="form-control" ng-model="routingPreference" ng-options="r for r in routingPreferences" required="required">
+                <select class="form-control" ng-model="$storage.routingPreference" ng-options="r for r in routingPreferences" required="required">
                 </select>
             </div>
             
             <ul class="nav nav-tabs" id="routeMethodsTab">
-                <li class="active"><a data-target="#start" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
-                <li><a data-target="#startEnd" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
-                <li><a data-target="#feelLucky" data-toggle="tab"  ng-click="feelLuckyMode()">? - ?</a></li>
+                <li><a data-target="#startMode" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
+                <li><a data-target="#startEndMode" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
+                <li><a data-target="#feelLuckyMode" data-toggle="tab"  ng-click="feelLuckyMode()">? - ?</a></li>
             </ul>
             
             <div class="tab-content">
             
-                <div class="tab-pane active" id="start">    
+                <div class="tab-pane active" id="startMode">    
                     <form ng-submit="requestRoute()">
                         <div class="form-group">
                             <label>Start</label>
@@ -25,10 +25,10 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <input name="startCoord" type="text" class="form-control" placeholder="Click map to set start" ng-model="startCoord" readonly>
+                                <span class="form-control">{{lonLatToString($storage.startCoord)}}</span>
                             </div>
                             <label>Distance (km)</label>
-                            <input class="form-control" type="number" name="distance" ng-model="distance" required>
+                            <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
                             <br>
                             <button name="specifiedStartSubmit" type="submit" class="btn btn-primary">Go!</button>
                             <button type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
@@ -36,7 +36,7 @@
                     </form>
                 </div>
                 
-                <div class="tab-pane" id="startEnd">
+                <div class="tab-pane" id="startEndMode">
                     <form ng-submit="requestRoute()">
                         <div class="form-group">
                             <label>Start</label>
@@ -44,23 +44,23 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <input type="text" class="form-control" placeholder="Click map to set start" ng-model="startCoord" readonly>
+                                <span class="form-control">{{lonLatToString($storage.startCoord)}}</span>
                             </div>
                             <label>End</label>
                             <div class="input-group">
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setMid()">Pick</button>
                                 </span>
-                                <input type="text" class="form-control" placeholder="Click map to set end" ng-model="midCoord" readonly>
+                                <span class="form-control">{{lonLatToString($storage.midCoord)}}</span>
                             </div>
-                            <input type="hidden" name="distance" ng-model="distance" value="0.0">
+                            <input type="hidden" name="distance" ng-model="distance" value="0.0"/>
                             <br>
                             <button type="submit" class="btn btn-primary">Go!</button>
                         </div>
                     </form>
                 </div>
                 
-                <div class="tab-pane" id="feelLucky">
+                <div class="tab-pane" id="feelLuckyMode">
                     <form>
                         <div class="form-group">
                             <label>Distance (km)</label>
@@ -131,7 +131,7 @@
             <br>
             
             <table class="table table-condensed">
-                <tr><td>Route type</td><td id="routePreference">{{routingPreference}}</td></tr>
+                <tr><td>Route type</td><td id="routePreference">{{$storage.routingPreference}}</td></tr>
                 <tr><td>Estimated time</td><td>{{(routeData.time/60.0).toFixed(1)}} minutes</td></tr>
                 <tr><td>Distance</td><td>{{routeData.distance.toFixed(1)}}km</td></tr>
                 <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>

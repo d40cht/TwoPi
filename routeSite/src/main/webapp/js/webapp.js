@@ -1,6 +1,6 @@
 
 
-angular.module('TwoPi', ['ngCookies'], function($provide)
+angular.module('TwoPi', ['ngCookies', 'ngStorage'], function($provide)
     {
         $provide.factory( 'UserService', function($cookies) {
             var sdo =
@@ -8,40 +8,6 @@ angular.module('TwoPi', ['ngCookies'], function($provide)
                 userName : $cookies['UserName']
 	        };
 	        return sdo;
-        } );
-        
-        $provide.factory('RouteStateService', function() {
-            var routeStateKey = 'routeState';
-            
-            var state = null;
-            var ls = localStorage.getItem( routeStateKey );
-            if ( ls == null )
-            {
-                state =
-                {
-                };
-                
-                localStorage.setItem( routeStateKey, JSON.stringify(state) );
-            }
-            else
-            {
-                state = JSON.parse(ls);
-            }
-            
-            var sdo =
-            {
-                getState : function()
-                {
-                    return state;
-                },
-                
-                saveState : function()
-                {
-                    localStorage.setItem( routeStateKey, JSON.stringify(state) );
-                }
-            };
-            
-            return sdo;
         } );
     } )
     .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider)
@@ -75,26 +41,6 @@ angular.module('TwoPi', ['ngCookies'], function($provide)
 var TRACK_LAYER_INDEX = 0;
 var MARKER_LAYER_INDEX = 1;
 
-function localStorageGetOrElse( name, value )
-{
-    var existing = localStorage.getItem(name);
-    if ( existing == null )
-    {
-        return value;
-    }
-    else
-    {
-        return existing;
-    }
-}
-
-function localStorageWatch( scope, name )
-{
-    scope.$watch( name, function()
-    {
-        localStorage.setItem( name, scope[name] );
-    } );
-}
 
 function createPlaceMarker( lonLat, imgUrl, title, zindex, width, height )
 {
@@ -118,7 +64,7 @@ function ManagedMarker( map, imgUrl, title, zindex, width, height )
     {
         if ( marker != null )
         {
-            marker.removeFrom(map);
+            map.removeLayer(marker);
             marker = null;
         }
     };
@@ -137,7 +83,7 @@ function ManagedMarker( map, imgUrl, title, zindex, width, height )
     };
 }
 
-function RouteMap( mapId, lng, lat, zoom )
+function RouteMap( mapId, lng, lat, zoom, $scope, $log )
 {
     var map = L.map(mapId).setView( [lat, lng], zoom );
     
@@ -154,9 +100,12 @@ function RouteMap( mapId, lng, lat, zoom )
         var lonLat = map.getCenter();
         var zoom = map.getZoom();
         
-        localStorage.setItem( "mapLon", lng );
-        localStorage.setItem( "mapLat", lat );
-        localStorage.setItem( "mapZoom", zoom );
+        $log.info( "Setting local storage" );
+        $scope.$storage.mapLon = lonLat.lng;
+        $scope.$storage.mapLat = lonLat.lat;
+        $scope.$storage.mapZoom = zoom;
+        $scope.$apply();
+        $log.info( "  complete" );
     } );
     
    
@@ -336,8 +285,24 @@ function PosterController($scope, $routeParams, $http, $timeout)
 }
 
 
-function RouteController($scope, $log, $http, $location, $routeParams, UserService)
+
+
+function RouteController($scope, $log, $http, $location, $localStorage, $routeParams, UserService, $timeout)
 {   
+    $log.info("Route controller started");
+    $scope.$storage = $localStorage;
+    
+    $scope.$storage = $localStorage.$default(
+    {
+        distance            : 25.0,
+        mapLon              : -5.208,
+        mapLat              : 54.387,
+        mapZoom             : 5,
+        startCoord          : null,
+        midCoord            : null,
+        routeMode           : "startMode"
+    } );
+
     // Pull possible routing preferences from the server
     $scope.routingPreferences = [];
     $http( {
@@ -347,39 +312,48 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     .success( function(data, status, headers, config )
     {
         $scope.routingPreferences = data;
-    } );    
-   
+        
+        if ( !angular.isDefined( $scope.$storage.routingPreference ) )
+        {
+            $scope.$storage.routingPreference = data[0];
+        }
+    } );     
     
-    $scope.distance = Number(localStorageGetOrElse('distance', 25.0));
-    $scope.routingPreference = localStorageGetOrElse("routingPreference", $scope.routingPreferences[0] );
     
     $scope.userName = UserService.userName;
     
-    var mapLon = Number(localStorageGetOrElse("mapLon", -5.208 ));
-    var mapLat = Number(localStorageGetOrElse("mapLat", 54.387 ));
-    var mapZoom = Number(localStorageGetOrElse("mapZoom", 5 ));
+    $scope.lonLatToString = function( lonLat )
+    {
+        if ( lonLat == null ) return "";
+        else return lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
+    }
     
-    localStorageWatch( $scope, 'distance' );
-    localStorageWatch( $scope, 'routingPreference' );
     
     var eg = new ElevationGraph("elevation");
-    var mapHolder = new RouteMap("map", mapLon, mapLat, mapZoom);
+    var mapHolder = new RouteMap("map", $scope.$storage.mapLon, $scope.$storage.mapLat, $scope.$storage.mapZoom, $scope, $log);
     
     var startMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
     var midMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
     var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", "", 1, 20, 34 );
     
-    $scope.mapHolder = mapHolder;
+    if ( $scope.$storage.startCoord != null )
+    {
+        startMarker.moveMarker( $scope.$storage.startCoord );
+    }
     
-    $scope.startCoord = "";
-    $scope.midCoord = "";
+    if ( $scope.$storage.midCoord != null )
+    {
+        midMarker.moveMarker( $scope.$storage.midCoord );
+    }
+    
+    $scope.mapHolder = mapHolder;
     
     $scope.setStart = function()
     {
         mapHolder.setClickCallback( function(lonLat)
         {
             startMarker.moveMarker( lonLat );
-            $scope.startCoord = lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
+            $scope.$storage.startCoord = lonLat;
             $scope.$apply();
         } );
     };
@@ -389,21 +363,23 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         mapHolder.setClickCallback( function(lonLat)
         {
             midMarker.moveMarker( lonLat );
-            $scope.midCoord = lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
+            $scope.$storage.midCoord = lonLat;
             $scope.$apply();
         } );
     };
     
     $scope.startMode = function()
     {
+        $scope.$storage.routeMode = "startMode";
         midMarker.removeMarker();
-        $scope.midCoord = "";
+        $scope.$storage.midCoord = null;
         $scope.setStart();
     }
     
     $scope.startEndMode = function()
     {
-        if ( $scope.startCoord == "" )
+        $scope.$storage.routeMode = "startEndMode";
+        if ( $scope.startCoord == null )
         {
             $scope.setStart();
         }
@@ -415,11 +391,23 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     
     $scope.feelLuckyMode = function()
     {
+        $scope.$storage.routeMode = "feelLuckyMode";
         startMarker.removeMarker();
         midMarker.removeMarker();
-        $scope.startCoord = "";
-        $scope.midCoord = "";
+        $scope.startCoord = null;
+        $scope.midCoord = null;
     }
+    
+    // Remember the route mode
+    $timeout( function()
+    {
+        var tabUrl = '#routeMethodsTab a[data-target="#' + $scope.$storage.routeMode + '"]';
+        $log.info( "Selecting tab: " + tabUrl );
+        var el = $(tabUrl);
+        $log.info( el );
+        el.tab('show');
+        $log.info( "  complete" );
+    }, 0 );
     
     $scope.saveRoute = function()
     {
@@ -543,10 +531,12 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         return '#' + red + '00' + blue;
     }
     
+    
+    
     $scope.routeDebug = function()
     {
-        var dist = Number($scope.distance);
-        var start = $scope.startCoord;
+        var dist = Number($scope.$storage.distance);
+        var start = lonLatToString($scope.$storage.startCoord);
         $http( {
             method: "GET",
             url : "/debugroute",
@@ -554,7 +544,7 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             {
                 distance : dist,
                 start : start,
-                model : $scope.routingPreference
+                model : $scope.$storage.routingPreference
             }
         } )
         .success( function(data, status, headers, config)
@@ -599,17 +589,17 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
     
     $scope.requestRoute = function()
     {
-        var dist = Number($scope.distance);
-        var start = $scope.startCoord;
+        var dist = Number($scope.$storage.distance);
+        var start = $scope.lonLatToString($scope.$storage.startCoord);
        
         var params = null;
-        if ( $scope.midCoord == "" )
+        if ( $scope.$storage.midCoord == null )
         {
             params = $.param(
             {
                 distance : dist,
                 start : start,
-                model : $scope.routingPreference
+                model : $scope.$storage.routingPreference
             } );
         }
         else
@@ -618,8 +608,8 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
             {
                 distance : dist,
                 start : start,
-                mid : $scope.midCoord,
-                model : $scope.routingPreference
+                mid : $scope.lonLatToString($scope.$storage.midCoord),
+                model : $scope.$storage.routingPreference
             } );
         };
         
@@ -632,7 +622,6 @@ function RouteController($scope, $log, $http, $location, $routeParams, UserServi
         .success( function(data, status, headers, config)
         {
             var hash = data;
-            localStorage.setItem( 'currentRoute', hash );
             $location.path( "/route/" + hash );
             setRoute( hash );
         } )
