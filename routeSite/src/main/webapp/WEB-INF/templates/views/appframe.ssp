@@ -44,7 +44,9 @@
                     </div>
                     
                     <div style="display: table; float:right; height: 100%">
+
                         <div style="display:table-cell; vertical-align: middle; height: 100%">
+                            <a href="/app/about">About</a> | 
                             #match (user)
                             #case(None)
                                 Sign in:

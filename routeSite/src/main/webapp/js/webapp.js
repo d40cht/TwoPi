@@ -68,6 +68,10 @@ angular.module('TwoPi', ['ngCookies'], function($provide)
             {
                 templateUrl : '/partials/user.html',
                 controller  : UserController
+            } )
+            .when('/about',
+            {
+                templateUrl : '/partials/about.html'
             } );
     }] );
 
