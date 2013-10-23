@@ -782,6 +782,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             outboundPOIs ++= e.pois.map(_.poi).filter( p => !seenPOIs.contains(p) )
                             seenPics ++= e.scenicPoints
                             seenPOIs ++= e.pois.map(_.poi)
+                            cumulativeAscent += Math.abs(e.absHeightDelta)
                         }
                     }
                     
