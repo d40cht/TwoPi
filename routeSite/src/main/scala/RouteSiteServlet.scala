@@ -485,7 +485,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         }
     }
     
-    put("/saveroute/:routeId/:routeName")
+    put("/saveroute/:routeId/:routeName/:routeDescription")
     {
         getUser match
         {

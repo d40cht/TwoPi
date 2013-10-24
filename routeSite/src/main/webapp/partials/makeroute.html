@@ -122,67 +122,44 @@
         <div>
             <h2>Route details</h2>
             
-            <form ng-submit="saveRoute()">
-                <fieldset ng-disabled="(routeData == null) || (userName == null)">
-                    <div class="input-group">
-                        <input type="text" class="form-control" placeholder="Enter route name" id="routeName" ng-model="routeName">
-                        <span class="input-group-btn">
-                            <button class="btn btn-default" type="submit">Save route</button>
-                        </span>
+            <div ng-switch on="routeData==null">
+                <div ng-switch-when="true">
+                    No route loaded
+                </div>
+                <div ng-switch-default>
+                    <div class="text-center">
+                        <form ng-submit="saveRoute()">
+                            <fieldset ng-disabled="(userName == null)">
+                                <!--<button class="btn btn-default" type="submit">Save route</button>-->
+                                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info">Save route</a>
+                            </fieldset>
+                        </form>
                     </div>
-                </fieldset>
-            </form>
-            <br>
-            
-            <table class="table table-condensed">
-                <tr><td>Route type</td><td id="routePreference">{{$storage.routingPreference}}</td></tr>
-                <tr><td>Estimated time</td><td>{{(routeData.time/60.0).toFixed(1)}} minutes</td></tr>
-                <tr><td>Distance</td><td>{{routeData.distance.toFixed(1)}}km</td></tr>
-                <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>
-            </table>
-            
-            <div class="text-center">
-                <fieldset ng-disabled="routeData == null">
-                    <a href="/app/poster/{{routeId}}" class="btn btn-info">Visual route</a>
-                    <a href=/gpx/{{routeId}} class="btn btn-default">Export GPX</a>
-                </fieldset>
-            </div>
-            
-            <hr>
-            
-            <ul>
-                <li ng-repeat="section in directions">
-                    <!--<ul>    
-                        <li ng-repeat="poi in section.inboundPOIs">
-                            <div ng-switch on="hasWikiData(poi)">
-                                <div ng-switch-when="true">
-                                    <div ng-if="hasWikiImage(poi)">
-                                        <a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
-                                            <img alt="{{poi.name}}" title="{{poi.name}}" ng-src="{{poi.wikiData.imageUrl}}" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)"/>
-                                        </a>
-                                    </div>
-                                    
-                                    <div>
-                                        <table><tr>
-                                        <td><img src="/img/wikipediaLink.png"/></td>
-                                        <td><a href="http://en.wikipedia.org/wiki/{{poi.wikiData.name}}">
-                                            {{poi.name}}
-                                        </a></td>
-                                        </tr></table>
-                                    </div>
-                                </div>
-                                <div ng-switch-default>{{poi.name}}</div>
-                            </div>
+                    <br>
+                    
+                    <table class="table table-condensed">
+                        <tr><td>Route type</td><td id="routePreference">{{$storage.routingPreference}}</td></tr>
+                        <tr><td>Estimated time</td><td>{{(routeData.time/60.0).toFixed(1)}} minutes</td></tr>
+                        <tr><td>Distance</td><td>{{routeData.distance.toFixed(1)}}km</td></tr>
+                        <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>
+                    </table>
+                    
+                    <div class="text-center">
+                        <fieldset ng-disabled="routeData == null">
+                            <a href="/app/poster/{{routeId}}" class="btn btn-info">Visual route</a>
+                            <a href=/gpx/{{routeId}} class="btn btn-default">Export GPX</a>
+                        </fieldset>
+                    </div>
+                    
+                    <hr>
+                    
+                    <ul>
+                        <li ng-repeat="section in directions">
+                            <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.text}}</div>
                         </li>
                     </ul>
-                    <ul>
-                        <li ng-repeat="pic in section.inboundPics">
-                            <a href="http://www.geograph.org.uk/photo/{{pic.picIndex}}"><img title="{{pic.title}}, Copyright {{pic.photographer}}" alt="{{pic.title}}, {{pic.dateTaken}}" ng-src="/geograph/thumb/{{pic.picIndex}}/{{pic.imgHash}}" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)"/></a>
-                        </li>
-                    </ul>-->
-                    <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.text}}</div>
-                </li>
-            </ul>
+                </div>
+            </div>
         </div>
     </div>
     

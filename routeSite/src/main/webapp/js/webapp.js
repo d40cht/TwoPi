@@ -25,6 +25,11 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage'], function($provide)
                 templateUrl : '/partials/makeroute.html',
                 controller  : RouteController
             } )
+            .when('/saveRoute/:routeId',
+            {
+                templateUrl : '/partials/saveRoute.html',
+                controller  : RouteSaveController
+            } )
             .when('/poster/:routeId',
             {
                 templateUrl : '/partials/poster.html',
@@ -204,6 +209,17 @@ function UserController($scope, $routeParams, $http)
             $scope.myroutes = data;
         } );
 }
+
+function RouteSaveController($scope, $routeParams, $http)
+{
+    $scope.routeId = $routeParams.routeId
+    $scope.saveRoute = function()
+    {
+        var name = $scope.routeName;
+        var description = $scope.routeDescription;
+    }
+}
+
 
 
 function PosterController($scope, $routeParams, $http, $timeout)

@@ -1,0 +1,58 @@
+<div class="row">         
+    <div class="col-md-12">
+        <h3>Save route</h3>
+        
+        <div class="panel panel-info">
+            <div class="panel-heading">
+                <h3 class="panel-title">Route summary</h3>
+            </div>
+            <div class="panel-body">
+                <table class="table table-condensed">
+                    <tr>
+                        <td>Route type:</td>
+                        <td>Foo</td>
+                    </tr>
+                    <tr>
+                        <td>Distance:</td>
+                        <td>Foo</td>
+                    </tr>
+                    <tr>
+                        <td>Ascent:</td>
+                        <td>Foo</td>
+                    </tr>
+                    <tr>
+                        <td>Estimated time:</td>
+                        <td>Foo</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="panel panel-primary">
+            <div class="panel-heading">
+                <h3 class="panel-title">Enter name and description</h3>
+            </div>
+            <div class="panel-body">
+                <form class="form-horizontal" role="form" ng-submit="saveRoute()">
+                    <div class="form-group">
+                        <label for="inputName" class="col-lg-1 control-label">Route name</label>
+                        <div class="col-lg-10">
+                            <input id="inputName" class="form-control" type="text" name="distance" ng-model="distance" required></input>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="inputDescription" class="col-lg-1 control-label">Route name</label>
+                        <div class="col-lg-10">
+                            <textarea id="inputDescription" class="form-control" ng-model="description" rows="5" required></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="col-lg-offset-1 col-lg-10">
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
