@@ -8,15 +8,74 @@ class CoordTest extends FunSuite with ShouldMatchers
 {
     import org.seacourt.osm._
     
+
+    // lon, lat
+    val appleton = Coord( -1.36184, 51.70928 )
+	val wytham = Coord( -1.31186, 51.77466 )
+    
     test("Haversine and equirectangular distance")
     {
-    	val appleton = Coord( -1.36184, 51.70928 )
-    	val wytham = Coord( -1.31186, 51.77466 )
-    	
     	val d1 = appleton.distFrom(wytham)
     	val d2 = appleton.approxDistFrom(wytham)
     	
     	d1 should be (d2 plusOrMinus 1e-2)
+    }
+    
+    
+    
+    test("Trig restrictions")
+    {
+        import org.seacourt.osm.route._
+        // Outside the rectangle
+    	val yarnton = Coord( -1.30659, 51.80840 )
+    	val tubney = Coord( -1.37020, 51.68558 )
+    	
+    	// In the rectangle
+    	val cumnor = Coord( -1.33323, 51.73457 )
+    	val tootBaldon = Coord( -1.18164, 51.69793 )
+    	val radley = Coord( -1.23982, 51.68611 )
+    	
+    	{
+	        val b = new BetwixValidator( appleton, wytham )
+	        assert( b.check( appleton ) === true )
+	        assert( b.check( wytham ) === true )
+	        
+	        assert( b.check( yarnton ) === false )
+	        assert( b.check( tubney ) === false )
+	        
+	        assert( b.check( cumnor ) === true )
+	        assert( b.check( tootBaldon ) === true )
+    	}
+    	
+    	{
+	        val b = new BetwixValidator( wytham, appleton )
+	        assert( b.check( appleton ) === true )
+	        assert( b.check( wytham ) === true )
+	        
+	        assert( b.check( yarnton ) === false )
+	        assert( b.check( tubney ) === false )
+	        
+	        assert( b.check( cumnor ) === true )
+	        assert( b.check( tootBaldon ) === true )
+    	}
+    	
+    	{
+	        val b = new BetwixValidator( tubney, cumnor )
+	        assert( b.check( appleton ) === true )
+	        assert( b.check( radley ) === true )
+	        
+	        assert( b.check( yarnton ) === false )
+	        assert( b.check( wytham ) === false )
+    	}
+    	
+    	{
+	        val b = new BetwixValidator( cumnor, tubney )
+	        assert( b.check( appleton ) === true )
+	        assert( b.check( radley ) === true )
+	        
+	        assert( b.check( yarnton ) === false )
+	        assert( b.check( wytham ) === false )
+    	}
     }
 }
 

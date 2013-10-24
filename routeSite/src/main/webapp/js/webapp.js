@@ -456,7 +456,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Historic$" ) iconName = "tourist_museum";
         else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Memorial$" ) iconName = "tourist_memorial";
         else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Fuel$" ) iconName = "transport_fuel";
-        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Unclassified$" ) iconName = "";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Unclassified$" ) iconName = "poi_point_of_interest";
         
         if ( hasWikiLink ) return (
         {

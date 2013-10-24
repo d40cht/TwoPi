@@ -178,6 +178,29 @@ case class DebugWay( coords : Array[Coord], score : Double, scenicScore : Double
 case class DebugDest( coord : Coord, score : Double, title : String )
 case class DebugData( ways : Array[DebugWay], dests : Array[DebugDest], pois : Array[POI], scenicPoints : Array[ScenicPoint] )
 
+
+// If from and to are the check coord are rotated so that from and to are on the y-axis,
+// check that the y value of c is within from and to y coords
+class BetwixValidator( val from : Coord, val to : Coord )
+{
+    private val bearingTan = Math.tan( from.bearing(to) * (Math.PI / 180.0) )
+    
+    def check( c : Coord ) =
+    {
+        val fromDeltaLon = from.lon - c.lon
+        val fromLat = from.lat + fromDeltaLon * bearingTan
+        
+        val toDeltaLon = to.lon - c.lon
+        val toLat = to.lat + toDeltaLon * bearingTan
+        
+        val upperLat = fromLat max toLat
+        val lowerLat = fromLat min toLat
+        
+        c.lat >= lowerLat && c.lat <= upperLat
+    }
+    
+}
+
 class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
     val treeMap = new RTreeIndex[RouteNode]()
@@ -543,7 +566,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         {
             case Some(mn)   =>
             {
-                3.0 * startNode.coord.distFrom( mn.coord )
+                4.0 * startNode.coord.distFrom( mn.coord )
             }
             case None       => targetDistHint
         }
@@ -552,7 +575,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         log.info( "Computing distances from start node: " + startNode.coord + ", " + targetDist )
 
         val allDestinationsRaw = startPointAnnotationMap
-            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.1 && annot.cumulativeDistance < targetDist * 0.3 }
+            .filter { case (nid, annot) => annot.cumulativeDistance > targetDist * 0.2 && annot.cumulativeDistance < targetDist * 0.4 }
             .map( _._2 )
             .toSeq
             
@@ -590,6 +613,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             val midPointAnnotationMap = runDijkstra( routeType, midPoint.routeNode, targetDist, Map() )
             
+            
+            
+            val bv = new BetwixValidator( startNode.coord, midPoint.routeNode.coord )
+            
             log.info( "Computing possible quarterpoints" )
             val possibleQuarterPoints = candidateDestinations.filter
             { case (cost, annot) =>
@@ -597,6 +624,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 val annot1 = midPointAnnotationMap(annot.routeNode.nodeId)
                 val annot2 = startPointAnnotationMap(annot.routeNode.nodeId)
                 
+                val withinBounds = bv.check( annot.routeNode.coord )
                 val withinDistance = (annot1.cumulativeDistance + annot2.cumulativeDistance + midPointDist) < (targetDist*1.2)
                 
                 /*
@@ -616,7 +644,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 log.info( "%.2f (%s)".format( shapeCost, bearings.mkString(",")) )*/
                     
                 // Within distance and filter out very squashed triangles
-                withinDistance //&& (shapeCost < 2.0)
+                withinBounds && withinDistance //&& (shapeCost < 2.0)
             }
             .toIndexedSeq
             
