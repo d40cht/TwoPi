@@ -121,23 +121,23 @@
     <div class="col-md-2 routeBar">
         <div>
             <h2>Route details</h2>
-            
+            <!--
             <span class="glyphicon glyphicon-thumbs-up" style="color:blue; font-size: 1.5em"></span>
             <span class="glyphicon glyphicon-thumbs-down" style="color:grey; font-size: 1.5em"></span>
+            -->
             <div ng-switch on="routeData==null">
                 <div ng-switch-when="true">
                     No route loaded
                 </div>
                 <div ng-switch-default>
-                    <div class="text-center">
+                    <!--<div class="text-center">
                         <form ng-submit="saveRoute()">
                             <fieldset ng-disabled="(userName == null)">
-                                <!--<button class="btn btn-default" type="submit">Save route</button>-->
                                 <a href="/app/saveRoute/{{routeId}}" class="btn btn-info">Save route</a>
                             </fieldset>
                         </form>
                     </div>
-                    <br>
+                    <br>-->
                     
                     <table class="table table-condensed">
                         <tr><td>Route type</td><td id="routePreference">{{$storage.routingPreference}}</td></tr>
