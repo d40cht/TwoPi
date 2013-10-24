@@ -442,13 +442,16 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         contentType = "text/xml"
 
+        val routeName = "Example route"
         persistence.getRoute( params("routeId").toInt ) match
         {
             case Some(routeData)    =>
             {
                 val routeResult = sread[RouteResult]( routeData )
                 <gpx>
-                    <name>Example route</name>
+                    <name>{routeName}</name>
+                    <cmt>{routeName}</cmt>
+                    <desc>{routeName}</desc>
                     <trk><trkseg>
                     {
                         routeResult.directions.flatMap
@@ -465,17 +468,24 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                     }
                     </trkseg></trk>
                     
-                    {
-                        routeResult.directions.map
-                        { rd =>
-                        
-                            <wpt>
-                                <lat>{rd.coord.lat.toString}</lat>
-                                <lon>{rd.coord.lon.toString}</lon>
-                                <desc>{rd.directionsText}</desc>
-                            </wpt>
+                    <rte>
+                        <name>{routeName}</name>
+                        <cmt>{routeName}</cmt>
+                        <desc>{routeName}</desc>
+                        {
+                            routeResult.directions.map
+                            { rd =>
+                            
+                                <rtept>
+                                    <name>{rd.directionsText}</name>
+                                    <cmt>{rd.directionsText}</cmt>
+                                    <desc>{rd.directionsText}</desc>
+                                    <lat>{rd.coord.lat.toString}</lat>
+                                    <lon>{rd.coord.lon.toString}</lon>
+                                </rtept>
+                            }
                         }
-                    }
+                    </rte>
                 </gpx>
             }
             case None               =>

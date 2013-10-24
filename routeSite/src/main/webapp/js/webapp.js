@@ -213,6 +213,7 @@ function UserController($scope, $routeParams, $http)
 function RouteSaveController($scope, $routeParams, $http)
 {
     $scope.routeId = $routeParams.routeId
+
     $scope.saveRoute = function()
     {
         var name = $scope.routeName;
@@ -440,6 +441,35 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
             alert( data );
         } );
     }
+    
+    $scope.poiIcon = function( poi )
+    {
+        var hasWikiLink = angular.isDefined( poi.wikiData );
+        var iconName = "amenity_recycling";
+        if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Parking$" ) iconName = "transport_parking_car";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Pub$" ) iconName = "food_biergarten";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Cafe$" ) iconName = "food_cafe";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Place$" ) iconName = "poi_place_town";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Peak$" ) iconName = "poi_peak2";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Archaeological$" ) iconName = "tourist_archaeological";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Ruins$" ) iconName = "tourist_ruin";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Historic$" ) iconName = "tourist_museum";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Memorial$" ) iconName = "tourist_memorial";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Fuel$" ) iconName = "transport_fuel";
+        else if ( poi.poiType.jsonClass=="org.seacourt.osm.poi.POITypes$Unclassified$" ) iconName = "";
+        
+        if ( hasWikiLink ) return (
+        {
+            hasLink : true,
+            icon : "/img/poiIcons/" + iconName + ".p.16.png",
+            link : "http://en.wikipedia.org/wiki/" + poi.wikiData.name
+        } );
+        else return (
+        {
+            hasLink : false,
+            icon : "/img/poiIcons/" + iconName + ".p.16.png",
+        } );
+    }
 
     
     $scope.setStart();
@@ -482,6 +512,12 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
                     lastNode = node;
                     totalDistance = distance;
                 }
+                
+                for ( poii in dataEl.outboundPOIs )
+                {
+                    var poi = dataEl.outboundPOIs[poii];
+                    $log.info( "POI: " + poi.name + " - " + angular.toJson(poi) );
+                }
             }
             
             mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
@@ -514,7 +550,8 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
                 
                 directions.push( {
                     coord : section.coord,
-                    text : routeText(section)
+                    text : routeText(section),
+                    outboundPOIs : section.outboundPOIs
                 } );
             }
             

@@ -122,6 +122,8 @@
         <div>
             <h2>Route details</h2>
             
+            <span class="glyphicon glyphicon-thumbs-up" style="color:blue; font-size: 1.5em"></span>
+            <span class="glyphicon glyphicon-thumbs-down" style="color:grey; font-size: 1.5em"></span>
             <div ng-switch on="routeData==null">
                 <div ng-switch-when="true">
                     No route loaded
@@ -155,7 +157,20 @@
                     
                     <ul>
                         <li ng-repeat="section in directions">
-                            <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.text}}</div>
+                            <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.text}}
+                            </div>
+                            <span ng-repeat="poi in section.outboundPOIs" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)">
+                                <span ng-switch on="poiIcon(poi).hasLink==true">
+                                    <span ng-switch-when="true">
+                                        <a href="{{poiIcon(poi).link}}" class="btn btn-sm btn-default">
+                                            <img ng-src="{{poiIcon(poi).icon}}" title="{{poi.name}}"></img>
+                                        </a>
+                                    </span>
+                                    <span ng-switch-default>
+                                        <img ng-src="{{poiIcon(poi).icon}}" title="{{poi.name}}"></img>
+                                    </span>
+                                </span>
+                            </span>
                         </li>
                     </ul>
                 </div>
