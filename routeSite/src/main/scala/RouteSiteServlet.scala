@@ -395,7 +395,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 
                 val userIdOption = getUser.map { u => u.id }
         
-                val routeId = persistence.addRoute(jsonRendered, startCoord, route.distance, route.ascent, userIdOption)
+
+                val routeId = persistence.addRoute(jsonRendered, startCoord, route.routeType, route.distance, route.ascent, route.duration, userIdOption)
                 
                 routeId.toString
             }
@@ -430,10 +431,28 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         contentType = "application/json"
         
+        val routeData = persistence.getRoute( params("routeId").toInt )
+        
         
         persistence.getRoute( params("routeId").toInt ) match
         {
-            case Some(routeData)    => routeData
+            case Some(routeData)    =>
+            {
+                val routeName = persistence.getRouteName( params("routeId").toInt )
+                val nr = NamedRoute( routeName, routeData )
+                swrite(nr)
+            }
+            case None               => "Error: route not found"
+        }
+    }
+    
+    get("/getroutesummary/:routeId")
+    {
+        contentType = "application/json"
+        
+        persistence.getRouteSummary( params("routeId").toInt ) match
+        {
+            case Some(routeData)    => swrite(routeData)
             case None               => "Error: route not found"
         }
     }
@@ -445,9 +464,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val routeName = "Example route"
         persistence.getRoute( params("routeId").toInt ) match
         {
-            case Some(routeData)    =>
+            case Some(routeResult)    =>
             {
-                val routeResult = sread[RouteResult]( routeData )
                 <gpx>
                     <name>{routeName}</name>
                     <cmt>{routeName}</cmt>
@@ -495,15 +513,15 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         }
     }
     
-    put("/saveroute/:routeId/:routeName/:routeDescription")
+    post("/saveroute")
     {
         getUser match
         {
             case Some(user) =>
             {
-                val routeId = params("routeId").toInt
-                val routeName = params("routeName")
-                val description = params("routeDescription")
+                val routeId = params("id").toInt
+                val routeName = params("name")
+                val description = params("description")
                 persistence.nameRoute( user.id, routeId, routeName, description )
                 "success"
             }
@@ -524,8 +542,6 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 val routes = persistence.getUserRoutes( user.id )
                 
                 val res = swrite(routes)
-                println( routes )
-                println( res )
                 
                 res
             }

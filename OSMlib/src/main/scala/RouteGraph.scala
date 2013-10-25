@@ -42,7 +42,13 @@ case class ScenicPoint( coord : Coord, score : Float, photographer : String, tit
     assert( score >= 0.0 && score <= 1.0 )
 }
 
-case class EdgeDest( val node : RouteNode, val edge : RouteEdge, val oneWayViolation : Boolean )
+trait RouteDirectionality
+
+case object Bidirectional extends RouteDirectionality
+case object OneWayCompliant extends RouteDirectionality
+case object OneWayViolation extends RouteDirectionality
+
+case class EdgeDest( val node : RouteNode, val edge : RouteEdge, val routeDirectionality : RouteDirectionality )
 {
 }
 
@@ -53,9 +59,9 @@ case class RouteNode( val nodeId : Int, val node : Node, val landCoverScore : Fl
     
     val destinations = mutable.ArrayBuffer[EdgeDest]()
     
-    def addEdge( dest : RouteNode, edge : RouteEdge, oneWayViolation : Boolean ) =
+    def addEdge( dest : RouteNode, edge : RouteEdge, routeDirectionality : RouteDirectionality ) =
     {
-        destinations.append( EdgeDest(dest, edge, oneWayViolation) )
+        destinations.append( EdgeDest(dest, edge, routeDirectionality) )
     }
 }
 
@@ -102,8 +108,9 @@ case class RouteEdge(
 {
 }
 
-case class EdgeAndBearing( val edge : RouteEdge, val bearing : Float )
+case class EdgeAndBearing( val edgeDest : EdgeDest, val bearing : Float )
 {
+    def edge = edgeDest.edge
     //def invertBearing = EdgeAndBearing( edge, normaliseDegrees( bearing - 180.0 ).toFloat )
 }
 
@@ -164,8 +171,9 @@ case class DebugPoint( coord : Coord, name : String, title : String )
 
 case class RouteResult(
     directions : Array[RouteDirections],
+    routeType : String,
     distance : Double,
-    time : Double,
+    duration : Double,
     ascent : Double,
     debugPoints : Array[DebugPoint] )
 
@@ -216,7 +224,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val valid = all.filter
         { rn =>
         
-            rn.destinations.exists( ed => !routeType.score(ed.edge).isZero )
+            rn.destinations.exists( ed => !routeType.score(ed).isZero )
         }
 
         valid.head
@@ -244,7 +252,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         val nodes = if (reverse) nodesRaw.reverse else nodesRaw
         val edgesBearings = if (reverse)
         {
-            edgesBearingsRaw.reverse.map( eb => EdgeAndBearing( eb.edge, normaliseDegrees( eb.bearing - 180.0 ).toFloat ) )
+            edgesBearingsRaw.reverse.map( eb => EdgeAndBearing( eb.edgeDest, normaliseDegrees( eb.bearing - 180.0 ).toFloat ) )
         }
         else edgesBearingsRaw
         
@@ -311,12 +319,16 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 visited.add(minEl.routeNode.nodeId)
                 
                 minEl.routeNode.destinations.foreach
-                { case EdgeDest(node, edge, oneWayViolation) =>
+                { ed =>
+                    
+                    val node = ed.node
+                    val edge = ed.edge
+                    val oneWayViolation = ed.routeDirectionality == OneWayViolation
                     
                     if ( !(oneWayViolation && routeType.respectOneWay) && !visited.contains(node.nodeId) )
                     {
                         val nodeAnnot = annotations.getOrElseUpdate( node.nodeId, RouteAnnotation( node, Double.MaxValue, Double.MaxValue ) )
-                        val thisCost = minEl.cumulativeCost + edge.dist / routeType.score(edge).value * temporaryEdgeWeights.getOrElse( edge.edgeId, 1.0 )
+                        val thisCost = minEl.cumulativeCost + edge.dist / routeType.score(ed).value * temporaryEdgeWeights.getOrElse( edge.edgeId, 1.0 )
                         val thisDist = minEl.cumulativeDistance + edge.dist
                         
                         if ( nodeAnnot.cumulativeCost > thisCost && thisDist < maxDist )
@@ -327,7 +339,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             nodeAnnot.cumulativeDistance = minEl.cumulativeDistance + edge.dist
                             
                             val bearing = if ( computeBearings ) minEl.routeNode.coord.bearing( node.coord ).toFloat else 0.0f
-                            nodeAnnot.parent = Some( PathElement(minEl, Some(EdgeAndBearing(edge, bearing))) )
+                            nodeAnnot.parent = Some( PathElement(minEl, Some(EdgeAndBearing(ed, bearing))) )
                             
                             q += nodeAnnot
                         }
@@ -447,10 +459,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     {
         val startPointAnnotationMap = runDijkstra( routeType, startNode, targetDist, Map() )
         
-        val allEdges = startPointAnnotationMap.flatMap
+        val allEdgeDests = startPointAnnotationMap.flatMap
         { case (id, an) =>
         
-            an.routeNode.destinations.map( _.edge )
+            an.routeNode.destinations
         }
         .toSeq
         .distinct
@@ -482,8 +494,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         
         log.info( "Number of possible destination points: " + candidateDestinations.size )
         
-        val allWays = allEdges.map( e => DebugWay( e.nodes.map( _.coord ).toArray, routeType.score( e ).value, routeType.scenicScore(e).value) )
-        	.filter(e => e.score != 0.0 )
+        val allWays = allEdgeDests.map( ed => DebugWay( ed.edge.nodes.map( _.coord ).toArray, routeType.score( ed ).value, routeType.scenicScore(ed).value) )
+        	.filter( e => e.score != 0.0 )
         	.toArray
         	
         val cds = candidateDestinations.flatMap
@@ -522,7 +534,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             { annot =>
             
                 val dests = routeType.validDests( annot.routeNode )
-                val cost = dests.map( de => routeType.score(de.edge).value ).min
+                val cost = dests.map( de => routeType.score(de).value ).min
                 
                 (cost * annot.routeNode.landCoverScore, annot)
             }
@@ -794,7 +806,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                             
                                 val distDelta = ln.coord.distFrom(n.coord)
                                 cumulativeDistance += distDelta
-                                cumulativeTime += routeType.speed( fpe.outgoingEB.get.edge ).timeToCover(distDelta)
+                                cumulativeTime += routeType.speed( fpe.outgoingEB.get.edgeDest ).timeToCover(distDelta)
                                 
                                 outboundNodeDists.append( NodeAndDistance( n, cumulativeDistance) )
                             }
@@ -846,6 +858,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
             new RouteResult(
                 truncatedRoute.toArray,
+                routeType.name,
                 cumulativeDistance / 1000.0,
                 cumulativeTime,
                 cumulativeAscent,

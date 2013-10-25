@@ -130,19 +130,30 @@
                     No route loaded
                 </div>
                 <div ng-switch-default>
-                    <!--<div class="text-center">
-                        <form ng-submit="saveRoute()">
-                            <fieldset ng-disabled="(userName == null)">
-                                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info">Save route</a>
-                            </fieldset>
-                        </form>
+                
+                    <div ng-switch on="routeName==null">
+                        <div ng-switch-when="true">
+                            <div class="text-center">
+                                <form ng-submit="saveRoute()">
+                                    <fieldset ng-disabled="(userName == null)">
+                                        <a href="/app/saveRoute/{{routeId}}" class="btn btn-info">Save route</a>
+                                    </fieldset>
+                                </form>
+                            </div>
+                        </div>
+                        <div ng-switch-default>
+                           <table class="table table-condensed">
+                                <tr><td>Name</td><td>{{routeName.name}}</td></tr>
+                                <tr><td>Description</td><td>{{routeName.description}}</td></tr>
+                            </table>
+                        </div>
                     </div>
-                    <br>-->
+                    <br>
                     
                     <table class="table table-condensed">
                         <tr><td>Route type</td><td id="routePreference">{{$storage.routingPreference}}</td></tr>
-                        <tr><td>Estimated time</td><td>{{(routeData.time/60.0).toFixed(1)}} minutes</td></tr>
-                        <tr><td>Distance</td><td>{{routeData.distance.toFixed(1)}}km</td></tr>
+                        <tr><td>Estimated time</td><td>{{(routeData.duration/60.0).toFixed(0)}} minutes</td></tr>
+                        <tr><td>Distance</td><td>{{routeData.distance.toFixed(0)}}km</td></tr>
                         <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>
                     </table>
                     

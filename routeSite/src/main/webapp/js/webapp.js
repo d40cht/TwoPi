@@ -210,14 +210,45 @@ function UserController($scope, $routeParams, $http)
         } );
 }
 
-function RouteSaveController($scope, $routeParams, $http)
+function RouteSaveController($scope, $routeParams, $http, $location)
 {
     $scope.routeId = $routeParams.routeId
+    
+    $http( {
+            method: "GET",
+            url : ("/getroutesummary/" + $scope.routeId)
+        } )
+        .success( function( data, status, headers, config )
+        {
+            $scope.routeSummary = data;
+        } )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure in fetching route summary: " + status );
+        } );
 
     $scope.saveRoute = function()
-    {
-        var name = $scope.routeName;
-        var description = $scope.routeDescription;
+    {   
+        var params = $.param( {
+            id : $scope.routeId,
+            name : $scope.name,
+            description : $scope.description
+        } );
+        
+        $http( {
+            method: "POST",
+            url : "/saveroute",
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            data : params
+        } )
+        .success( function( data, status, headers, config )
+        {
+            $location.path("/route/" + $scope.routeId)
+        } )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure in saving route summary: " + status + " - " + data );
+        } );
     }
 }
 
@@ -430,17 +461,6 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         $log.info( "  complete" );
     }, 0 );
     
-    $scope.saveRoute = function()
-    {
-        $http( {
-            method  : "GET",
-            url     : "/saveroute/" + $scope.routeId + "/" + $scope.routeName
-        } )
-        .success( function(data, status, headers, config )
-        {
-            alert( data );
-        } );
-    }
     
     $scope.poiIcon = function( poi )
     {
@@ -480,9 +500,12 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
             method: "GET",
             url : ("/getroute/" + routeId)
         } )
-        .success( function(routeData, status, headers, config )
+        .success( function(namedRoute, status, headers, config )
         {
+            var routeData = namedRoute.route;
             $scope.routeData = routeData;
+            if ( angular.isDefined(namedRoute.name) ) $scope.routeName = namedRoute.name;
+            else $scope.routeName = null;
             
             // Update the map and elevation graph
             var seriesData = [];

@@ -9,16 +9,20 @@
             <div class="panel-body">
                 <table class="table table-condensed">
                     <tr>
-                        <td>Route type:</td>
-                        <td>Foo</td>
+                        <td>Route type</td>
+                        <td>{{routeSummary.routeType}}</td>
                     </tr>
                     <tr>
-                        <td>Distance:</td>
-                        <td>Foo</td>
+                        <td>Distance</td>
+                        <td>{{routeSummary.distance.toFixed(0)}} km</td>
                     </tr>
                     <tr>
-                        <td>Ascent:</td>
-                        <td>Foo</td>
+                        <td>Ascent</td>
+                        <td>{{routeSummary.ascent.toFixed(0)}} m</td>
+                    </tr>
+                    <tr>
+                        <td>Duration</td>
+                        <td>{{(routeSummary.duration / 60).toFixed(0)}} minutes</td>
                     </tr>
                 </table>
             </div>
@@ -33,11 +37,11 @@
                     <div class="form-group">
                         <label for="inputName" class="col-lg-1 control-label">Route name</label>
                         <div class="col-lg-10">
-                            <input id="inputName" class="form-control" type="text" name="distance" ng-model="distance" required></input>
+                            <input id="inputName" class="form-control" type="text" name="distance" ng-model="name" required></input>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="inputDescription" class="col-lg-1 control-label">Route name</label>
+                        <label for="inputDescription" class="col-lg-1 control-label">Route description</label>
                         <div class="col-lg-10">
                             <textarea id="inputDescription" class="form-control" ng-model="description" rows="5" required></textarea>
                         </div>
