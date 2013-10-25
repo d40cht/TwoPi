@@ -14,8 +14,10 @@ CREATE TABLE "Routes"(
     "routeData"     VARCHAR NOT NULL,
     "startLon"      REAL NOT NULL,
     "startLat"      REAL NOT NULL,
+    "routeType"     VARCHAR NOT NULL,
     "distance"      REAL NOT NULL,
     "ascent"        REAL NOT NULL,
+    "duration"      REAL NOT NULL,
     "timeAdded"     TIMESTAMP DEFAULT CURRENT_TIMESTAMP() NOT NULL,
     "userId"        INTEGER
 );

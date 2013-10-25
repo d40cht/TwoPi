@@ -27,12 +27,14 @@ case class Speed( val kph : Double )
 
 trait RouteType
 {
-    def score( re : RouteEdge ) : Score
-    def speed( re : RouteEdge ) : Speed
+    def name : String
+    def score( ed : EdgeDest ) : Score
+    def speed( ed : EdgeDest ) : Speed
     def respectOneWay : Boolean
     
-    def scenicScore( re : RouteEdge ) : Score =
+    def scenicScore( ed : EdgeDest ) : Score =
     {
+        val re = ed.edge
     	if ( !re.scenicPoints.isEmpty )
 	    {
 	        // 1 or 2 are rubbish, 8 or 9 are exceptional, but 4 can be quite nice
@@ -54,14 +56,18 @@ trait RouteType
     
     def validDests( rn : RouteNode ) : Seq[EdgeDest] =
     {
-        rn.destinations.filter( de => !score(de.edge).isZero )
+        rn.destinations.filter( de => !score(de).isZero )
     }
 }
 
+
 class DrivingRoute extends RouteType
 {
-    override def score( re : RouteEdge ) : Score =
+    val name = "Driving"
+    
+    override def score( ed : EdgeDest ) : Score =
 	{
+	    val re = ed.edge
     	val tagMap = re.wayTags
     	
         val highwayAnnotation : Option[String] = tagMap.get("highway")
@@ -91,13 +97,14 @@ class DrivingRoute extends RouteType
         
         val costMultiplier = costMultiplierOption.getOrElse( Score(0.0) )
     
-	    val sc = scenicScore( re )
+	    val sc = scenicScore( ed )
 	    
 	    costMultiplier * sc * Score(re.landCoverScore)
 	}
     
-    override def speed( re : RouteEdge ) =
+    override def speed( ed : EdgeDest ) =
     {
+        val re = ed.edge
     	val tagMap = re.wayTags
     	
         val highwayAnnotation : Option[String] = tagMap.get("highway")
@@ -127,10 +134,13 @@ class DrivingRoute extends RouteType
     override def respectOneWay = true
 }
 
-class WalkingRoute extends RouteType
+class WalkingRoute() extends RouteType
 {
-    override def score( re : RouteEdge ) : Score =
+    val name="Walking"
+    
+    override def score( ed : EdgeDest ) : Score =
 	{
+	    val re = ed.edge
     	val tagMap = re.wayTags
     	
         val highwayAnnotation : Option[String] = tagMap.get("highway")
@@ -170,12 +180,12 @@ class WalkingRoute extends RouteType
         
         val costMultiplier = costMultiplierOption.getOrElse( Score(0.0) )
     
-	    val sc = scenicScore( re )
+	    val sc = scenicScore( ed )
 	    
 	    costMultiplier * sc * Score(re.landCoverScore)
 	}
     
-    override def speed( re : RouteEdge ) = Speed(kph=4)
+    override def speed( ed : EdgeDest ) = Speed(kph=4)
     override def respectOneWay = false
 }
 
@@ -184,11 +194,13 @@ trait BaseCycleRouting extends RouteType
 {
     def inclineScore( re : RouteEdge ) : Score
     
-    override def score( re : RouteEdge ) : Score =
+    override def score( ed : EdgeDest ) : Score =
 	{
+	    val re = ed.edge
     	val tagMap = re.wayTags
     	
         val highwayAnnotation : Option[String] = tagMap.get("highway")
+        val lanesAnnotation : Option[String] = tagMap.get("lanes")
         val junctionAnnotation : Option[String] = tagMap.get("junction")
         val bridgeAnnotation : Option[String] = tagMap.get("bridge")
         val nameAnnotation : Option[String] = tagMap.get("name")
@@ -199,8 +211,15 @@ trait BaseCycleRouting extends RouteType
         {
             case Some( valueString ) =>
             {
-                if ( refAnnotation.isDefined && refAnnotation.get.matches("A[0-9]+") )  Some( Score(0.2) )
-                else if ( valueString.startsWith( "trunk" ) )                           Some( Score(0.2) )
+                if ( valueString.startsWith( "trunk" ) )
+                {
+                    val multipleCarriageWay =
+                        (ed.routeDirectionality != Bidirectional) &&
+                        (lanesAnnotation.isDefined && lanesAnnotation != Some("1"))
+                        
+                    if ( multipleCarriageWay )                                          Some( Score(0.05) )
+                    else                                                                Some( Score(0.2) )
+                }
                 else if ( valueString.startsWith( "primary" ) )                         Some( Score(0.3) )
                 else if ( valueString.startsWith( "residential" ) )                     Some( Score(0.4) )
                 else if ( valueString.startsWith( "road" ) )                            Some( Score(0.6) )
@@ -217,33 +236,38 @@ trait BaseCycleRouting extends RouteType
         
         val costMultiplier : Score = costMultiplierOption.getOrElse( Score(0.0) )
     
-	    val sc = scenicScore( re )
+	    val sc = scenicScore( ed )
 	    
 	    
 	    costMultiplier * sc * inclineScore( re ) * Score(re.landCoverScore)
 	}
     
     // TODO: Modify according to incline
-    override def speed( re : RouteEdge ) = Speed(kph=20)
+    override def speed( ed : EdgeDest ) = Speed(kph=20)
     override def respectOneWay = true
 }
 
-class BumpyCycleRouting extends BaseCycleRouting
+class BumpyCycleRouting() extends BaseCycleRouting
 {
+    val name="Cycling (hilly)"
+    
     def inclineScore( re : RouteEdge ) = Score(0.5 + (((re.absHeightDelta / re.dist)*5.0) min 0.5))
 }
 
-class IgnoreHeightCycleRouting extends BaseCycleRouting
+class IgnoreHeightCycleRouting() extends BaseCycleRouting
 {
+    val name="Cycling (normal)"
+    
     def inclineScore( re : RouteEdge ) = Score(1.0)
 }
 
 object RouteType
 {
-    lazy val allTypes = Map(
-    	"Walking"			-> new WalkingRoute(),
-    	"Cycling (normal)"	-> new IgnoreHeightCycleRouting(),
-    	"Cycling (hilly)"	-> new BumpyCycleRouting(),
-    	"Driving"			-> new DrivingRoute()
-    )
+    lazy val allTypes = Seq(
+        new WalkingRoute(),
+        new IgnoreHeightCycleRouting(),
+        new BumpyCycleRouting(),
+        new DrivingRoute() )
+    .map( x => (x.name, x) )
+    .toMap
 }

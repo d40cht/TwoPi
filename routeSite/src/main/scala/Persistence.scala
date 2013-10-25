@@ -7,9 +7,22 @@ import scala.slick.driver.H2Driver.simple._
 import java.sql.{Timestamp}
 
 import org.seacourt.osm.Coord
+import org.seacourt.osm.route.{POIType, RouteResult}
+
+// JSON handling support
+import org.json4s._
+import org.json4s.native.JsonMethods._
+import org.json4s.JsonDSL._
+
+import org.json4s.native.Serialization.{read => sread, write => swrite}
 
 case class User( id : Int, extId : String, name : String, email : String, numLogins : Int, firstLogin : Timestamp, lastLogin : Timestamp )
 case class UserRoute( id : Int, name : String, description : String, startCoord : Coord, distance : Double, ascent : Double, timeAdded : Timestamp )
+
+case class RouteName( name : String, description : String, timeAdded : Timestamp )
+
+case class NamedRoute( name : Option[RouteName], route : RouteResult )
+
 
 private object UserTable extends Table[User]("Users")
 {
@@ -24,19 +37,21 @@ private object UserTable extends Table[User]("Users")
     def * = id ~ extId ~ name ~ email ~ numLogins ~ firstLogin ~ lastLogin <> (User, User.unapply _)
 }
 
-private object RouteTable extends Table[(Int, String, Double, Double, Double, Double, Timestamp, Option[Int])]("Routes")
+private object RouteTable extends Table[(Int, String, Double, Double, String, Double, Double, Double, Timestamp, Option[Int])]("Routes")
 {
-    def id          = column[Int]("id", O.PrimaryKey, O.AutoInc)
-    def routeData   = column[String]("routeData")
-    def startLon	= column[Double]("startLon")
-    def startLat	= column[Double]("startLat")
-    def distance    = column[Double]("distance")
-    def ascent      = column[Double]("ascent")
-    def timeAdded   = column[Timestamp]("timeAdded")
-    def userId		= column[Option[Int]]("userId")
+    def id              = column[Int]("id", O.PrimaryKey, O.AutoInc)
+    def routeData       = column[String]("routeData")
+    def startLon	    = column[Double]("startLon")
+    def startLat	    = column[Double]("startLat")
+    def routeType       = column[String]("routeType")
+    def distance        = column[Double]("distance")
+    def ascent          = column[Double]("ascent")
+    def duration        = column[Double]("duration")
+    def timeAdded       = column[Timestamp]("timeAdded")
+    def userId		    = column[Option[Int]]("userId")
     
-    def * = id ~ routeData ~ startLon ~ startLat ~distance ~ ascent ~ timeAdded ~ userId
-    def autoInc = (routeData ~ startLon ~ startLat ~ distance ~ ascent ~ userId) returning id
+    def * = id ~ routeData ~ startLon ~ startLat ~ routeType ~ distance ~ ascent ~ duration ~ timeAdded ~ userId
+    def autoInc = (routeData ~ startLon ~ startLat ~ routeType ~ distance ~ ascent ~ duration ~ userId) returning id
 }
 
 private object RouteNameTable extends Table[(Int, String, String, Timestamp)]("RouteNames")
@@ -50,18 +65,23 @@ private object RouteNameTable extends Table[(Int, String, String, Timestamp)]("R
     def insCols = routeId ~ name ~ description
 }
 
+case class RouteSummary( routeId : Int, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] )
+
 trait Persistence
 {
     def getUser( extId : String ) : Option[User]
     def addUser( extId : String, email : String, name : String ) : User
-    def addRoute( routeData : String, start : Coord, distance : Double, ascent : Double, userId : Option[Int] ) : Int
-    def getRoute( routeId : Int ) : Option[String]
+    def addRoute( routeData : String, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] ) : Int
+    def getRoute( routeId : Int ) : Option[RouteResult]
+    def getRouteName( routeId : Int ) : Option[RouteName]
+    def getRouteSummary( routeId : Int ) : Option[RouteSummary]
     def nameRoute( userId : Int, routeId : Int, name : String, description : String )
     def getUserRoutes( userId : Int ) : List[UserRoute]
 }
 
 class DbPersistence( val db : Database ) extends Persistence
 {
+    implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
     private def timestampNow = new java.sql.Timestamp( (new java.util.Date()).getTime() )
     
     def getUser( extId : String ) : Option[User] =
@@ -97,15 +117,16 @@ class DbPersistence( val db : Database ) extends Persistence
         }
     }
     
-    def addRoute( routeData : String, start : Coord, distance : Double, ascent : Double, userId : Option[Int] ) : Int =
+    def addRoute( routeData : String, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] ) : Int =
     {
         db withSession
         {
-            RouteTable.autoInc.insert( (routeData, start.lon, start.lat, distance, ascent, userId) )
+            RouteTable.autoInc.insert( (routeData, start.lon, start.lat, routeType, distance, ascent, duration, userId) )
         }
     }
     
-    def getRoute( routeId : Int ) : Option[String] =
+    
+    def getRoute( routeId : Int ) : Option[RouteResult] =
     {
         db withSession
         {
@@ -114,7 +135,33 @@ class DbPersistence( val db : Database ) extends Persistence
                 .map( _.routeData )
                 .firstOption
                 
-            res
+            res.map { s => sread[RouteResult](s) }
+        }
+    }
+    
+    def getRouteName( routeId : Int ) : Option[RouteName] =
+    {
+        db withSession
+        {
+            val resO = Query(RouteNameTable)
+                .filter(_.routeId === routeId)
+                .map( x => x.name ~ x.description ~ x.timeAdded )
+                .firstOption
+        
+            resO.map { res => RouteName( res._1, res._2, res._3 ) }
+        }
+    }
+    
+    def getRouteSummary( routeId : Int ) : Option[RouteSummary] =
+    {
+        db withSession
+        {
+            val resO = Query(RouteTable)
+                .filter(_.id === routeId )
+                .map( x => x.id ~ x.startLon ~ x.startLat ~ x.routeType ~ x.distance ~ x.ascent ~ x.duration ~ x.userId )
+                .firstOption
+                
+            resO.map( res => RouteSummary( res._1, Coord( res._2, res._3 ), res._4, res._5, res._6, res._7, res._8 ) )
         }
     }
     

@@ -47,7 +47,7 @@ object RoutableGraphBuilder extends Logging
             for ( n <- rg.nodes )
             {
                 val sinkNodeIds = n.destinations.map( _.node.nodeId ).toArray
-                val edges = n.destinations.map( d => (d.edge, d.oneWayViolation) ).toArray
+                val edges = n.destinations.map( d => (d.edge, d.routeDirectionality) ).toArray
                 
                 kryo.writeObject( output, sinkNodeIds )
                 kryo.writeObject( output, edges )
@@ -63,11 +63,11 @@ object RoutableGraphBuilder extends Logging
             for ( n <- nodes )
             {
                 val sinkNodeIds = kryo.readObject( input, classOf[Array[Int]] )
-                val edges = kryo.readObject( input, classOf[Array[(RouteEdge, Boolean)]] )
+                val edges = kryo.readObject( input, classOf[Array[(RouteEdge, RouteDirectionality)]] )
                 
-                for ( (snid, (edge, oneWayViolation)) <- sinkNodeIds.zip(edges) )
+                for ( (snid, (edge, routeDirectionality)) <- sinkNodeIds.zip(edges) )
                 {
-                    n.addEdge( nodeByIdMap(snid), edge, oneWayViolation )
+                    n.addEdge( nodeByIdMap(snid), edge, routeDirectionality )
                 }
             }
             
@@ -224,10 +224,10 @@ object RoutableGraphBuilder extends Logging
                         
                     	val (forward, backward) = (tagMap.get("oneway"), tagMap.get("junction")) match
                     	{
-                    	    case (Some("yes"), _) | (Some("true"), _) | (Some("1"), _)	=> (true, false)
-                    	    case (Some("reverse"), _) | (Some("-1"), _)					=> (false, true)
-                    	    case (_, Some("roundabout"))								=> (true, false)
-                    	    case _														=> (true, true)
+                    	    case (Some("yes"), _) | (Some("true"), _) | (Some("1"), _)	=> (OneWayCompliant, OneWayViolation)
+                    	    case (Some("reverse"), _) | (Some("-1"), _)					=> (OneWayViolation, OneWayCompliant)
+                    	    case (_, Some("roundabout"))								=> (OneWayCompliant, OneWayViolation)
+                    	    case _														=> (Bidirectional, Bidirectional)
                     	}
                         
                         val edge = new RouteEdge(
@@ -242,10 +242,10 @@ object RoutableGraphBuilder extends Logging
                             nodes = nodes.toArray )
                         
                         // Forward down this way
-                        lrn.addEdge( rn, edge, !forward )
+                        lrn.addEdge( rn, edge, forward )
                         
                         // Backwards down this way
-                        rn.addEdge( lrn, edge, !backward )
+                        rn.addEdge( lrn, edge, backward )
                         
                         nextEdgeId += 1
                     }
