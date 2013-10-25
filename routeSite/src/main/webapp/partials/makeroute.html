@@ -25,7 +25,7 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <span class="form-control">{{lonLatToString($storage.startCoord)}}</span>
+                                <span class="form-control" ng-class="{highlit : selecting=='start'}">{{renderRoutePoint($storage.startCoord)}}</span>
                             </div>
                             <label>Distance (km)</label>
                             <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
@@ -46,14 +46,14 @@
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
-                                <span class="form-control">{{lonLatToString($storage.startCoord)}}</span>
+                                <span class="form-control" ng-class="{highlit : selecting=='start'}">{{renderRoutePoint($storage.startCoord)}}</span>
                             </div>
                             <label>End</label>
                             <div class="input-group">
                                 <span class="input-group-btn">
                                     <button class="btn btn-default" type="button" ng-click="setMid()">Pick</button>
                                 </span>
-                                <span class="form-control">{{lonLatToString($storage.midCoord)}}</span>
+                                <span class="form-control" ng-class="{highlit : selecting=='mid'}">{{renderRoutePoint($storage.midCoord)}}</span>
                             </div>
                             <input type="hidden" name="distance" ng-model="distance" value="0.0"/>
                             <br>

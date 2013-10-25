@@ -349,6 +349,12 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         else return lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
     }
     
+    $scope.renderRoutePoint = function( lonLat )
+    {
+        if ( lonLat == null ) return "Click map to select point";
+        else return $scope.lonLatToString( lonLat );
+    }
+    
     
     var eg = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", $scope.$storage.mapLon, $scope.$storage.mapLat, $scope.$storage.mapZoom, $scope, $log);
@@ -369,22 +375,28 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     
     $scope.mapHolder = mapHolder;
     
+    $scope.selecting = null;
     $scope.setStart = function()
     {
+        $scope.selecting="start";
+        $scope.$storage.startCoord = null;
         mapHolder.setClickCallback( function(lonLat)
         {
             startMarker.moveMarker( lonLat );
             $scope.$storage.startCoord = lonLat;
+            $scope.selecting=null;
             $scope.$apply();
         } );
     };
     
     $scope.setMid = function()
     {
+        $scope.selecting="mid";
         mapHolder.setClickCallback( function(lonLat)
         {
             midMarker.moveMarker( lonLat );
             $scope.$storage.midCoord = lonLat;
+            $scope.selecting=null;
             $scope.$apply();
         } );
     };
@@ -394,20 +406,20 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         $scope.$storage.routeMode = "startMode";
         midMarker.removeMarker();
         $scope.$storage.midCoord = null;
-        $scope.setStart();
+        //$scope.setStart();
     }
     
     $scope.startEndMode = function()
     {
         $scope.$storage.routeMode = "startEndMode";
-        if ( $scope.startCoord == null )
+        /*if ( $scope.startCoord == null )
         {
             $scope.setStart();
         }
         else
         {
             $scope.setMid();
-        }
+        }*/
     }
     
     $scope.feelLuckyMode = function()
@@ -472,7 +484,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     }
 
     
-    $scope.setStart();
+    //$scope.setStart();
     
     function setRoute(routeId)
     {
