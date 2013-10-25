@@ -170,6 +170,11 @@
                         <li ng-repeat="section in directions">
                             <div ng-mouseover="moveMarker(section.coord.lon, section.coord.lat)">{{section.text}}
                             </div>
+                            <span ng-repeat="pic in section.outboundPics" ng-mouseover="moveMarker(pic.coord.lon, pic.coord.lat)">
+                                <a href="{{'http://www.geograph.org.uk/photo/' + pic.picIndex}}">
+                                    <img ng-src="/img/poiIcons/tourist_view_point.p.16.png" title={{pic.title}}></img>
+                                </a>
+                            </span>
                             <span ng-repeat="poi in section.outboundPOIs" ng-mouseover="moveMarker(poi.coord.lon, poi.coord.lat)">
                                 <span ng-switch on="poiIcon(poi).hasLink==true">
                                     <span ng-switch-when="true">
@@ -177,7 +182,7 @@
                                             <img ng-src="{{poiIcon(poi).icon}}" title="{{poi.name}}"></img>
                                         </a>
                                     </span>
-                                    <span ng-switch-default>
+                                    <span ng-switch-default>    
                                         <img ng-src="{{poiIcon(poi).icon}}" title="{{poi.name}}"></img>
                                     </span>
                                 </span>

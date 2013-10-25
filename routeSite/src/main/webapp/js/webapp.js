@@ -586,7 +586,8 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
                 directions.push( {
                     coord : section.coord,
                     text : routeText(section),
-                    outboundPOIs : section.outboundPOIs
+                    outboundPOIs : section.outboundPOIs,
+                    outboundPics : section.outboundPics
                 } );
             }
             

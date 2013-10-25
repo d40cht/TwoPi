@@ -59,6 +59,14 @@ object Utility extends Logging
     }
 }
 
+class Nearest( ids : mutable.ArrayBuffer[Int] ) extends gnu.trove.TIntProcedure
+{
+    def execute( id : Int ) =
+    {
+        ids.append(id)
+        true
+    }
+}
 
 class RTreeIndex[T]
 {
@@ -81,16 +89,11 @@ class RTreeIndex[T]
     {
         val ids = mutable.ArrayBuffer[Int]()
         
+        val nearest = new Nearest( ids )
+        
         index.nearestN(
             new Point( c.lon.toFloat, c.lat.toFloat ),
-            new gnu.trove.TIntProcedure
-            {
-                def execute( id : Int ) =
-                {
-                    ids.append(id)
-                    true
-                }
-            },
+            nearest,
             n,
             Float.MaxValue )
             
