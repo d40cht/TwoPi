@@ -165,11 +165,23 @@ class DbPersistence( val db : Database ) extends Persistence
         }
     }
     
+    // You can name a route if you own it, or if it is currently un-owned (user None). In
+    // the latter case, ownership will be assigned to the first namer.
     def nameRoute( userId : Int, routeId : Int, routeName : String, description : String )
     {
-        db withSession
+        db withTransaction
         {
-            RouteNameTable.insCols.insert( (routeId, routeName, description) )
+            val routeUserQ = Query(RouteTable)
+                .filter(_.id === routeId)
+                .map(_.userId)
+                
+            val routeUserId = routeUserQ.first
+            
+            if ( routeUserId == None || routeUserId == Some(userId) )
+            {
+                routeUserQ.update( Some(userId) )
+                RouteNameTable.insCols.insert( (routeId, routeName, description) )
+            }
         }
     }
     

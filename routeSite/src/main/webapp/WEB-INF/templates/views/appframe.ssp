@@ -1,5 +1,4 @@
 <%@ val googleOpenIdLink : String %>
-<%@ val flash : org.scalatra.FlashMap %>
 <%@ val user : Option[org.seacourt.routeSite.User] %>
 
 
@@ -46,24 +45,24 @@
                     
                     <div style="display: table; float:right; height: 100%">
 
-                        <div style="display:table-cell; vertical-align: middle; height: 100%">
+                        <div ng-controller="AuthenticationController" style="display:table-cell; vertical-align: middle; height: 100%">
                             <a href="/app/about">About</a> | 
                             #match (user)
                             #case(None)
                                 Sign in:
                                 <div style="display: inline">
-                                    <a class="btn" href="${googleOpenIdLink}">
+                                    <a class="btn" ng-click="redirectWithReturnState('${googleOpenIdLink}&')">
                                         <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
                                     </a>
-                                    <a class="btn" href="/guestLogin" alt="Guest logon" id="guestLogon">
+                                    <a class="btn" ng-click="redirectWithReturnState('/guestLogin?')" alt="Guest logon" id="guestLogon">
                                         <span class="glyphicon glyphicon-user"></span>
                                     </a>
                                 </div>
                                 <script> var loggedIn = false; </script>
                             #otherwise
                                 
-                                <a href="/app/user">${user.get.name}</a> |
-                                <a href="/logout">Logout</a>
+                                <a ng-click="redirect('app/user')">${user.get.name}</a> |
+                                <a ng-click="redirectWithReturnState('/logout?')">Logout</a>
                                 
                                 <script> var loggedIn = true; </script>
                             #end
@@ -75,19 +74,20 @@
             
             <div id="wrap">
                 <div class="row" style="position: absolute; top : 0px; width: 100%; z-index: 10000">
-                    #if ( flash contains "error" )
-                        <div class="alert alert-error alert-dismissable" id="flashError">
-                            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                            <strong>${flash("error")}</strong>
+                    <div ng-controller="FlashRenderController">
+                        <div ng-switch on="messageType">
+                            <div ng-switch-when="error" class="alert alert-error alert-dismissable" id="flashError">
+                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                <strong>{{message}}</strong>
+                            </div>
+                            <div ng-switch-when="info" class="alert alert-info alert-dismissable" id="flashInfo">
+                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                <strong>{{message}}</strong>
+                            </div>
+                            <div ng-switch-default>
+                            </div>
                         </div>
-                    #end
-                    
-                    #if ( flash contains "info" )
-                        <div class="alert alert-info alert-dismissable" id="flashInfo">
-                            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                            <strong>${flash("info")}</strong>
-                        </div>
-                    #end
+                    </div>
                 </div>
                 
                 <div ng-view style="height: 100%"></div>

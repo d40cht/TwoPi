@@ -5,7 +5,8 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage'], function($provide)
         $provide.factory( 'UserService', function($cookies) {
             var sdo =
             {
-                userName : $cookies['UserName']
+                userName    : $cookies['UserName'],
+                userId      : $cookies['UserId'],
 	        };
 	        return sdo;
         } );
@@ -43,7 +44,13 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage'], function($provide)
             .when('/about',
             {
                 templateUrl : '/partials/about.html'
-            } );
+            } )
+            .when('/flash',
+            {
+                controller  : FlashController,
+                templateUrl : '/partials/flash.html'
+            } )
+            .otherwise({ redirectTo: '/' });
     }] );
 
 
@@ -195,6 +202,44 @@ function ElevationGraph( divId )
     {
         chartElement.highcharts().series[0].setData( data, true );
         crossLinkFn = newCrossLinkFn;
+    }
+}
+
+// This flash logic is generally horrible (the redirect page is
+// particularly evil). Refactor asap.
+function FlashController($scope, $timeout, $sessionStorage, $location, $window)
+{
+    $sessionStorage.flash = $location.search()["message"];
+    
+    // Disgusting pause to get the session storage to take. Is
+    // this neccessary?
+    $timeout( function()
+    {       
+        $window.location = $location.search()["redirect"];
+    }, 200 );
+}
+
+function FlashRenderController($scope, $sessionStorage, $location, $log)
+{
+    if ( $location.path() != "/flash" && angular.isDefined( $sessionStorage.flash ) )
+    {
+        $scope.messageType="info";
+        $scope.message = angular.copy( $sessionStorage.flash );
+        delete $sessionStorage.flash
+    }
+}
+
+function AuthenticationController($scope, $window, $location, $http)
+{
+    $scope.redirect = function(url)
+    {
+        $window.location = url;
+    }
+    
+    $scope.redirectWithReturnState = function(url)
+    {
+        var backTo = $window.location.pathname;
+        $window.location = url + "state=" + backTo;
     }
 }
 

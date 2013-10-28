@@ -126,7 +126,7 @@ case class GoogleUserInfo(
 
 trait AuthenticationSupport
 {
-    self : ScalatraServlet with FlashMapSupport with Logging =>
+    self : ScalatraServlet with Logging =>
 	
     def persistence : Persistence
         
@@ -146,37 +146,48 @@ trait AuthenticationSupport
         }    
     }     
     
-    def trackingCookie = cookies.get("JSESSIONID")
+    def trackingCookie : String =
+    {
+        val trackingId = "TwoPISession"
+        cookies.get(trackingId) match
+        {
+            case Some(tc)       => tc
+            case None           =>
+            {
+                val uuid = java.util.UUID.randomUUID().toString
+                cookies += (trackingId -> uuid)
+                uuid
+            }
+        }
+    }
     
     protected def getUser : Option[User] =
     {
-        trackingCookie.flatMap
-        { tc =>
-            
-            val userData = getSessionCache.get(tc)
-            if ( userData == null ) None
-            else
-            {
-            	Some( userData.getObjectValue.asInstanceOf[User] )
-            }
+        val tc = trackingCookie
+    
+        val userData = getSessionCache.get(tc)
+        if ( userData == null ) None
+        else
+        {
+        	Some( userData.getObjectValue.asInstanceOf[User] )
         }
     }
     
     protected def logout()
     {
-        trackingCookie.foreach { tc => getSessionCache.remove(tc) }
+        getSessionCache.remove(trackingCookie)
     }
     
     protected def login( userDetails : User )
     {
-        trackingCookie.foreach { tc => getSessionCache.put( new Element(tc, userDetails, loginExpirySeconds, loginExpirySeconds) ) }
+        getSessionCache.put( new Element(trackingCookie, userDetails, loginExpirySeconds, loginExpirySeconds) )
     }
     
 }
 
 trait GoogleAuthenticationSupport
 {
-	self : AuthenticationSupport with ScalatraServlet with FlashMapSupport with Logging =>
+	self : AuthenticationSupport with ScalatraServlet with Logging =>
     
     private final val googleRedirectURI="http://www.twopi.co.uk/googleoauth2callback"
 	private final val googleClientId = "725550604793.apps.googleusercontent.com"
@@ -198,12 +209,14 @@ trait GoogleAuthenticationSupport
         params.get("error") foreach
         { message =>
 
-            flash("error") = message
-            redirect("/")
+            redirect("/app/error/" + message)
         }
         
         // Now get auth code
         val code = params("code")
+        
+        // And return state
+        val redirectBackTo = params("state")
         
         log.info( "Requesting auth code" )
         val authCodeRes = Http.post("https://accounts.google.com/o/oauth2/token")
@@ -246,49 +259,61 @@ trait GoogleAuthenticationSupport
         val extId = "google_" + userInfo.id
 
         val existingUserOption = persistence.getUser(extId)
-        val userDetails = existingUserOption match
+        existingUserOption match
         {
             case Some( user )   =>
             {
-                flash("info") = "Welcome back: " + user.name
-                user
+                login( user )
+                redirect("/app/flash?message=Welcome back " + user.name + "&redirect=" + redirectBackTo)
             }
             case None           =>
             {
                 val newUser = persistence.addUser( extId, userInfo.email, userInfo.name )
-                flash("info") = "Thanks for joining: " + newUser.name
-                newUser
+                login( newUser )
+                redirect("/app/flash/?message=Welcome " + newUser.name + "&redirect=" + redirectBackTo)
             }
         }
-        
-        login( userDetails )
-        
-        redirect("/")
     }
     
     get("/guestLogin")
     {
         val extId = "guest"
+        
+        val redirectBackTo = params("state")
             
         val existingUserOption = persistence.getUser(extId)
-        val userDetails = existingUserOption match
+        existingUserOption match
         {
             case Some( user )   =>
             {
-                flash("info") = "Welcome back: " + user.name
-                user
+                login(user)
+                redirect("/app/flash?message=Welcome back " + user.name + "&redirect=" + redirectBackTo)
             }
             case None           =>
             {
                 val newUser = persistence.addUser( extId, "guest@guest.com", "A guest" )
-                flash("info") = "Thanks for joining: " + newUser.name
-                newUser
+                login(newUser)
+                redirect("/app/flash/?message=Welcome " + newUser.name + "&redirect=" + redirectBackTo)
             }
         }
         
-        login( userDetails )
+        redirect(redirectBackTo)
+    }
+    
+    get("/logout")
+    {
+        val redirectBackTo = params("state")
         
-        redirect("/")
+        getUser map
+        { u =>
+            trackingCookie.foreach
+            { tc =>
+                
+                logout()
+            }
+        }
+        
+        redirect(redirectBackTo)
     }
     
     
@@ -300,17 +325,11 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 	with GoogleAuthenticationSupport
     with ScalateSupport
     with GZipSupport
-    with FlashMapSupport
     with Logging
 {
     implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
     
     private val loginExpirySeconds = 60*60*24*10
-
-    def flashError( message : String )  { flash("error") = message }
-    def flashInfo( message : String )   { flash("info") = message }
-    
-    //implicit val formats = DefaultFormats
     
     Logging.configureDefaultLogging()
 
@@ -340,25 +359,17 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     {
         getUser match
         {
-            case Some(u) 	=> cookies += ("UserName" -> u.name)
-            case None		=> cookies.delete("UserName")
-        }
-    }
-    
-    get("/logout")
-    {
-        getUser map
-        { u =>
-            trackingCookie.foreach
-            { tc =>
-                
-                logout()
-                
-                flashInfo("Goodbye: " + u.name)
+            case Some(u) 	=>
+            {
+                cookies += ("UserName" -> u.name)
+                cookies += ("UserId" -> u.id.toString)
+            }
+            case None		=>
+            {
+                cookies.delete("UserName")
+                cookies.delete("UserId")
             }
         }
-        
-        redirect("/")
     }
     
     
@@ -569,10 +580,14 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         layoutTemplate("/WEB-INF/templates/views/appframe.ssp",
             "googleOpenIdLink" -> googleOpenIdLink.urlEncode,
-            "flash" -> flash,
             "user" -> user
         )
     }
+    
+    /*notFound
+    {
+          <h1>Not found. Bummer.</h1>
+    }*/
 }
 
 object JettyLauncher
