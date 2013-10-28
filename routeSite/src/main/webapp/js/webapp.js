@@ -51,7 +51,20 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage'], function($provide)
                 templateUrl : '/partials/flash.html'
             } )
             .otherwise({ redirectTo: '/' });
-    }] );
+    }] )
+    .directive("btnLoading", function()
+    {
+        return function(scope, element, attrs)
+        {
+            scope.$watch(
+                function() { return scope.$eval(attrs.btnLoading); },
+                function(loading)
+                {
+                    if(loading) return element.button("loading");
+                    element.button("reset");
+                } );
+        }
+    } );
 
 
 var TRACK_LAYER_INDEX = 0;
@@ -390,6 +403,8 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     $log.info("Route controller started");
     $scope.$storage = $localStorage;
     
+    $scope.working = false;
+    
     $scope.$storage = $localStorage.$default(
     {
         distance            : 25.0,
@@ -676,6 +691,8 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     {
         var dist = Number($scope.$storage.distance);
         var start = $scope.lonLatToString($scope.$storage.startCoord);
+        
+        $scope.working = true;
         $http( {
             method: "GET",
             url : "/debugroute",
@@ -719,10 +736,12 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
                 circle.bindPopup( d.title );
                 circle.addTo( mapHolder.getMap() );
             }
+            $scope.working = false;
         } )
         .error( function(data, status, headers, config)
         {
             alert( "Failure in route debug: " + status + ", " + data );
+            $scope.working = false;
         } );
     }
     
@@ -752,6 +771,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
             } );
         };
         
+        $scope.working = true;
         $http( {
             method: "POST",
             url : "/requestroute",
@@ -762,10 +782,12 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         {
             var hash = data;
             $location.path( "/route/" + hash );
+            $scope.working = false;
             setRoute( hash );
         } )
         .error( function(data, status, headers, config)
         {
+            $scope.working = false;
             alert( "Failure in request route: " + status );
         } );
     };

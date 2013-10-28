@@ -31,8 +31,8 @@
                             <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
                             <br>
                             <fieldset ng-disabled="$storage.startCoord==null">
-                                <button name="specifiedStartSubmit" type="submit" class="btn btn-primary">Go!</button>
-                                <button type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
+                                <button btn-loading="working" name="specifiedStartSubmit" type="submit" class="btn btn-primary">Go!</button>
+                                <button btn-loading="working" type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
                             </fieldset>
                         </div>
                     </form>
@@ -58,7 +58,7 @@
                             <input type="hidden" name="distance" ng-model="distance" value="0.0"/>
                             <br>
                             <fieldset ng-disabled="($storage.startCoord==null || $storage.midCoord==null)">
-                                <button type="submit" class="btn btn-primary">Go!</button>
+                                <button btn-loading="working" type="submit" class="btn btn-primary">Go!</button>
                             </fieldset>
                         </div>
                     </form>
@@ -70,7 +70,7 @@
                             <label>Distance (km)</label>
                             <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
                             <br>
-                            <button type="submit" class="btn btn-primary">Go!</button>
+                            <button btn-loading="working" type="submit" class="btn btn-primary">Go!</button>
                         </div>
                     </form>
                 </div>
