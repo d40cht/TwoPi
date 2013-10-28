@@ -266,9 +266,10 @@ function PosterController($scope, $routeParams, $http, $timeout)
         {
             var pics = [];
             var wiki = [];
-            for ( rd in data.directions )
+            var route = data.route;
+            for ( rd in route.directions )
             {
-                var dataEl = data.directions[rd];
+                var dataEl = route.directions[rd];
                 for ( picI in dataEl.outboundPics )
                 {
                     var pic = dataEl.outboundPics[picI];
@@ -314,7 +315,7 @@ function PosterController($scope, $routeParams, $http, $timeout)
             }
             $scope.pics = picsSorted;
             $scope.wiki = wiki;
-            $scope.routeData = data;
+            $scope.routeData = route;
             
             
             $timeout( function()

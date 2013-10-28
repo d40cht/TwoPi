@@ -2,8 +2,7 @@
 -------------------------------------------------- */
 
 @headerHeight: 60px;
-/*@footerHeight: 50px;*/
-@footerHeight: 20px;
+@footerHeight: 0px;
 
 
 
@@ -23,7 +22,7 @@ div.row
 {
     position: absolute;
     top: @headerHeight;
-    bottom: @footerHeight;
+    bottom: 0;
     width: 100%;
 }
 
@@ -34,8 +33,8 @@ div.headerAndBody
     height: auto !important;
     height: 100%;
     
-    margin: 0 auto -@footerHeight;
-    padding: 0 0 @footerHeight;
+    margin: 0 auto 0;
+    padding: 0 0 0;
 }
 
 div.header
@@ -114,12 +113,6 @@ div.controlBar
 {
     overflow: hidden;
     height: 100%;
-}
-
-div.footer
-{
-     height: @footerHeight;
-     background-color: #f0f0f0;
 }
 
 #masonryContainer

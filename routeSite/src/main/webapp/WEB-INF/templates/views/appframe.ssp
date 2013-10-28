@@ -94,16 +94,6 @@
             </div>
             
         </div>
-        
-        <!-- Footer -->
-        <div class="row">
-            <div class="col-md-12 footer">
-                <div class="text-center" style="padding:8px">
-                    <small>Footer</small>
-                </div>
-            </div>
-        </div>
-        
     </body>
 </html>
 
