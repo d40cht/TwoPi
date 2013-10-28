@@ -111,10 +111,9 @@ case class RouteEdge(
 case class EdgeAndBearing( val edgeDest : EdgeDest, val bearing : Float )
 {
     def edge = edgeDest.edge
-    //def invertBearing = EdgeAndBearing( edge, normaliseDegrees( bearing - 180.0 ).toFloat )
 }
 
-case class PathElement( ra : RouteAnnotation, re : Option[EdgeAndBearing] )
+case class PathElement( ra : RouteAnnotation, re : Option[EdgeDest] )
 {
     def edgeNodes : Seq[Node] =
     {
@@ -235,53 +234,31 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     
     def shortestPathTo( endNode : RouteAnnotation ) : Seq[ForwardPathElement] =
     {
-        val revPath2 = mutable.ArrayBuffer[ForwardPathElement]()
-        
-        {
-        	var iterNode : Option[PathElement] = Some(PathElement(endNode, None))
-        	var lastNode : Option[RouteAnnotation] = None
-        	
-        	do
-        	{
-    	    	val PathElement(ra, edgeAndBearing) = iterNode.get
-    	    	
-    	    	val eb = lastNode.map
-    	    	{ ln =>
-    	    		
-    	    	    val bearing = ra.routeNode.coord.bearing( ln.routeNode.coord ).toFloat
-    	        	EdgeAndBearing( edgeAndBearing.get.edgeDest, bearing )
-    	    	}
-    	    	
-    	    	revPath2.append( ForwardPathElement( ra, eb ) )
-        	    
-    	    	lastNode = Some(ra)
-        	    iterNode = ra.parent
-        	}
-        	while ( iterNode != None )
-        }
-        
-        var iterNode : Option[PathElement] = Some( PathElement(endNode, None) )
-        
         val revPath = mutable.ArrayBuffer[ForwardPathElement]()
         
-        do
-        {
-            val PathElement(ra, edgeAndBearing) = iterNode.get
-            
-            revPath.append( ForwardPathElement( ra, edgeAndBearing ) )
-            
-            iterNode = ra.parent
-        }
-        while ( iterNode != None )
+    	var iterNode : Option[PathElement] = Some(PathElement(endNode, None))
+    	var lastNode : Option[RouteAnnotation] = None
+    	
+    	do
+    	{
+	    	val PathElement(ra, edgeAndBearing) = iterNode.get
+	    	
+	    	val eb = lastNode.map
+	    	{ ln =>
+	    		
+	    	    val bearing = ra.routeNode.coord.bearing( ln.routeNode.coord ).toFloat
+	        	EdgeAndBearing( edgeAndBearing.get, bearing )
+	    	}
+	    	
+	    	revPath.append( ForwardPathElement( ra, eb ) )
+    	    
+	    	lastNode = Some(ra)
+    	    iterNode = ra.parent
+    	}
+    	while ( iterNode != None )
         
         val path = revPath.reverse.toSeq
-        val path2 = revPath2.reverse.toSeq
-        
-        log.info( path.take(4).map( _.outgoingEB.map(_.bearing) ).mkString(",") )
-        log.info( path2.take(4).map( _.outgoingEB.map(_.bearing) ).mkString(",") )
-        
-        assert( path.size == path2.size, "Paths do not match in size: %d, %d".format( path.size, path2.size ) )
-        
+                
         path.dropRight(1).foreach
         { p =>
         
@@ -299,23 +276,21 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
         queueOrdering : Ordering[RouteAnnotation],
         maxDist : Double,
         endNode : Option[RouteNode],
-        temporaryEdgeWeights : Map[Int, Double],
-        // TODO: This is a horrible hack. Compute bearings elsewhere
-        computeBearings : Boolean = false ) : AnnotationMap =
+        temporaryEdgeWeights : Map[Int, Double] ) : AnnotationMap =
     {
         val sn = RouteAnnotation( startNode, 0.0, 0.0 )
         val visited = mutable.HashSet[Int]()
         val annotations = mutable.HashMap( startNode.nodeId -> sn )
         
-        implicit val raOrdering = queueOrdering
-        
-        var q = immutable.TreeSet[RouteAnnotation](sn)
+        var q = new java.util.TreeSet[RouteAnnotation]( queueOrdering )
+        q.add( sn )
         breakable
         {
             while ( !q.isEmpty )
             {
-                val minEl = q.head
-                q -= minEl
+                val minEl = q.first()
+                q.remove(minEl)
+                //q -= minEl
                 
                 if ( Some(minEl.routeNode) == endNode ) break
                 
@@ -336,15 +311,16 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         
                         if ( nodeAnnot.cumulativeCost > thisCost && thisDist < maxDist )
                         {
-                            q -= nodeAnnot
+                            //q -= nodeAnnot
+                            q.remove( nodeAnnot )
                             
                             nodeAnnot.cumulativeCost = thisCost
                             nodeAnnot.cumulativeDistance = minEl.cumulativeDistance + edge.dist
                             
-                            val bearing = if ( computeBearings ) minEl.routeNode.coord.bearing( node.coord ).toFloat else 0.0f
-                            nodeAnnot.parent = Some( PathElement(minEl, Some(EdgeAndBearing(ed, bearing))) )
+                            nodeAnnot.parent = Some( PathElement(minEl, Some(ed)) )
                             
-                            q += nodeAnnot
+                            //q += nodeAnnot
+                            q.add( nodeAnnot )
                         }
                     }
                 }
@@ -380,8 +356,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             } ),
             Double.MaxValue,
             Some(endNode),
-            temporaryEdgeWeights,
-            computeBearings=true)
+            temporaryEdgeWeights )
     }
         
     private def aStarShortestPath( routeType : RouteType, startNode : RouteNode, endNode : RouteNode, temporaryEdgeWeights : Map[Int, Double] ) : Seq[ForwardPathElement] =
