@@ -48,7 +48,7 @@ case object Bidirectional extends RouteDirectionality
 case object OneWayCompliant extends RouteDirectionality
 case object OneWayViolation extends RouteDirectionality
 
-case class EdgeDest( val node : RouteNode, val edge : RouteEdge, val routeDirectionality : RouteDirectionality )
+case class EdgeDest( val node : RouteNode, val edge : RouteEdge, val routeDirectionality : RouteDirectionality, val forward : Boolean )
 {
 }
 
@@ -59,9 +59,9 @@ case class RouteNode( val nodeId : Int, val node : Node, val landCoverScore : Fl
     
     val destinations = mutable.ArrayBuffer[EdgeDest]()
     
-    def addEdge( dest : RouteNode, edge : RouteEdge, routeDirectionality : RouteDirectionality ) =
+    def addEdge( dest : RouteNode, edge : RouteEdge, routeDirectionality : RouteDirectionality, forward : Boolean ) =
     {
-        destinations.append( EdgeDest(dest, edge, routeDirectionality) )
+        destinations.append( EdgeDest(dest, edge, routeDirectionality, forward) )
     }
 }
 
@@ -99,7 +99,7 @@ case class RouteEdge(
     val wayTags : Map[String, String], 
     val edgeId : Int,
     val dist : Double,
-    val absHeightDelta : Double,
+    val forwardHeightDelta : Double,
     val name : String,
     val scenicPoints : Array[ScenicPoint],
     val pois : Array[NearbyPOI],
@@ -795,13 +795,15 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                         fpe.outgoingEB.foreach
                         { eb =>
                         
-                            val e = eb.edge
-                            cumulativeAscent += Math.abs(e.absHeightDelta)
+                            val ed = eb.edgeDest
+                            val e = ed.edge
                             outboundPics ++= e.scenicPoints.filter( p => !seenPics.contains(p) )
                             outboundPOIs ++= e.pois.map(_.poi).filter( p => !seenPOIs.contains(p) )
                             seenPics ++= e.scenicPoints
                             seenPOIs ++= e.pois.map(_.poi)
-                            cumulativeAscent += Math.abs(e.absHeightDelta)
+                            
+                            val heightChange = if ( ed.forward ) e.forwardHeightDelta else - e.forwardHeightDelta
+                            cumulativeAscent += 0.0 max heightChange
                         }
                     }
                     

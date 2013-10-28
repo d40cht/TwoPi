@@ -253,7 +253,7 @@ class BumpyCycleRouting() extends BaseCycleRouting
 {
     val name="Cycling (hilly)"
     
-    def inclineScore( re : RouteEdge ) = Score(0.5 + (((re.absHeightDelta / re.dist)*5.0) min 0.5))
+    def inclineScore( re : RouteEdge ) = Score(0.5 + (((Math.abs(re.forwardHeightDelta) / re.dist)*5.0) min 0.5))
 }
 
 class IgnoreHeightCycleRouting() extends BaseCycleRouting
