@@ -232,52 +232,55 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
 
     type AnnotationMap = mutable.HashMap[Int, RouteAnnotation]
     
-    def traceBack( inputEdgeOption : Option[EdgeAndBearing], endNode : RouteAnnotation, reverse : Boolean ) : Seq[PathElement] =
-    {
-        //val routeAnnotations = mutable.ArrayBuffer[PathElement]()
-        
-        val nodesRaw = mutable.ArrayBuffer[RouteAnnotation]()
-        val edgesBearingsRaw = mutable.ArrayBuffer[EdgeAndBearing]()
-        
-        var iterNode : Option[PathElement] = Some( PathElement(endNode, None) )
-        do
-        {
-            val PathElement(ra, edgeAndBearing) = iterNode.get
-            edgeAndBearing.foreach( eb => edgesBearingsRaw.append( eb ) )
-            nodesRaw.append( ra )
-            iterNode = ra.parent
-        }
-        while ( iterNode != None )
-        
-        val nodes = if (reverse) nodesRaw.reverse else nodesRaw
-        val edgesBearings = if (reverse)
-        {
-            edgesBearingsRaw.reverse.map( eb => EdgeAndBearing( eb.edgeDest, normaliseDegrees( eb.bearing - 180.0 ).toFloat ) )
-        }
-        else edgesBearingsRaw
-        
-        
-        assert( nodes.size == edgesBearings.size + 1 )
-        nodes.zip( inputEdgeOption +: edgesBearings.map( e => Some(e) ) ).map { case (n, e) => PathElement( n, e ) }
-    }
     
     def shortestPathTo( endNode : RouteAnnotation ) : Seq[ForwardPathElement] =
     {
+        val revPath2 = mutable.ArrayBuffer[ForwardPathElement]()
+        
+        {
+        	var iterNode : Option[PathElement] = Some(PathElement(endNode, None))
+        	var lastNode : Option[RouteAnnotation] = None
+        	
+        	do
+        	{
+    	    	val PathElement(ra, edgeAndBearing) = iterNode.get
+    	    	
+    	    	val eb = lastNode.map
+    	    	{ ln =>
+    	    		
+    	    	    val bearing = ra.routeNode.coord.bearing( ln.routeNode.coord ).toFloat
+    	        	EdgeAndBearing( edgeAndBearing.get.edgeDest, bearing )
+    	    	}
+    	    	
+    	    	revPath2.append( ForwardPathElement( ra, eb ) )
+        	    
+    	    	lastNode = Some(ra)
+        	    iterNode = ra.parent
+        	}
+        	while ( iterNode != None )
+        }
+        
         var iterNode : Option[PathElement] = Some( PathElement(endNode, None) )
         
-        var revPath = mutable.ArrayBuffer[ForwardPathElement]()
+        val revPath = mutable.ArrayBuffer[ForwardPathElement]()
         
         do
         {
             val PathElement(ra, edgeAndBearing) = iterNode.get
             
-            revPath.append( ForwardPathElement( ra, edgeAndBearing/*.map( _.invertBearing )*/ ) )
+            revPath.append( ForwardPathElement( ra, edgeAndBearing ) )
             
             iterNode = ra.parent
         }
         while ( iterNode != None )
         
         val path = revPath.reverse.toSeq
+        val path2 = revPath2.reverse.toSeq
+        
+        log.info( path.take(4).map( _.outgoingEB.map(_.bearing) ).mkString(",") )
+        log.info( path2.take(4).map( _.outgoingEB.map(_.bearing) ).mkString(",") )
+        
+        assert( path.size == path2.size, "Paths do not match in size: %d, %d".format( path.size, path2.size ) )
         
         path.dropRight(1).foreach
         { p =>

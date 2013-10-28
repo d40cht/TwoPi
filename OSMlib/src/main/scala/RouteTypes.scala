@@ -166,6 +166,7 @@ class WalkingRoute() extends RouteType
                 else if ( valueString.startsWith( "cycleway" ) )        				Some( Score(0.5) )
                 else if ( valueString.startsWith( "tertiary" ) )        				Some( Score(0.6) )
                 else if ( valueString.startsWith( "unclassified" ) )    				Some( Score(0.6) )
+                else if ( valueString.startsWith( "steps" ) )    						Some( Score(0.8) )
                 else if ( valueString.startsWith( "track" ) )           				Some( Score(0.9) )
                 else if ( valueString.startsWith( "service" ) && (footAnnotation==Some("yes") || footAnnotation==Some("permissive")) )
                                                                         				Some( Score(0.9) )
@@ -220,6 +221,7 @@ trait BaseCycleRouting extends RouteType
                     if ( multipleCarriageWay )                                          Some( Score(0.05) )
                     else                                                                Some( Score(0.2) )
                 }
+                else if ( valueString.startsWith( "steps" ) )    						Some( Score(0.1) )
                 else if ( valueString.startsWith( "primary" ) )                         Some( Score(0.3) )
                 else if ( valueString.startsWith( "residential" ) )                     Some( Score(0.4) )
                 else if ( valueString.startsWith( "road" ) )                            Some( Score(0.6) )
