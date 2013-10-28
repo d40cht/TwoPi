@@ -173,8 +173,7 @@ case class RouteResult(
     routeType : String,
     distance : Double,
     duration : Double,
-    ascent : Double,
-    debugPoints : Array[DebugPoint] )
+    ascent : Double )
 
 
 
@@ -493,7 +492,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     
     // *************** The main mechanics of route finding happens here ***************
     
-    case class FoundRoute( val path : Seq[ForwardPathElement], val debugPoints : Seq[DebugPoint] )
+    case class FoundRoute( val path : Seq[ForwardPathElement] )
     
     private def filterDestinations( routeType : RouteType, annotations : Seq[RouteAnnotation],  minSpacing : Double ) : Seq[(Double, RouteAnnotation)] =
     {
@@ -662,10 +661,6 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 
                 log.info( "Possible distance: " + totalDist )
                 
-                val dps = Seq(
-                    DebugPoint(midPoint.routeNode.coord, "blue_MarkerM", ""),
-                    DebugPoint(startNode.coord, "blue_MarkerS", ""),
-                    DebugPoint(qp1.coord, "blue_MarkerQ", "") )
                     
                 
                 
@@ -677,10 +672,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     // no outgoing edge
                     section1.dropRight(1) ++
                     section2.dropRight(1) ++
-                    section3, dps)
+                    section3)
             }
             .filter
-            { case (dist, costRatio, route, dps) => 
+            { case (dist, costRatio, route) => 
                 
                 (dist > (targetDist * 0.8)) && (dist < (targetDist * 1.2))
             }
@@ -689,9 +684,9 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             
                 
             possibleRoutes.map
-            { case (dist, costRatio, route, debugPoints) =>
+            { case (dist, costRatio, route) =>
                 
-                FoundRoute( route, debugPoints )
+                FoundRoute( route )
                 
             }
         }
@@ -841,8 +836,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                 routeType.name,
                 cumulativeDistance / 1000.0,
                 cumulativeTime,
-                cumulativeAscent,
-                fullRoute.debugPoints.toArray )
+                cumulativeAscent )
         }
     }
 }
