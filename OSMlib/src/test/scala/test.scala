@@ -98,7 +98,7 @@ class SRTMTest extends FunSuite
 class BridgeFindingTest extends FunSuite
 {
     import org.seacourt.osm.{Node, Coord}
-    import org.seacourt.osm.route.{RouteNode, RouteEdge, EdgeDest}
+    import org.seacourt.osm.route.{RouteNode, RouteEdge, EdgeDest, Bidirectional}
     
     class Graph
     {
@@ -116,8 +116,8 @@ class BridgeFindingTest extends FunSuite
         def makeEdge( first : RouteNode, second : RouteNode ) : RouteEdge =
         {
             val e = RouteEdge( Map(), nextEdgeId, 0.0, 0.0, "", Array(), Array(), 0.0f, Array() )
-            first.addEdge( second, e, false )
-            second.addEdge( first, e, false )
+            first.addEdge( second, e, Bidirectional, true )
+            second.addEdge( first, e, Bidirectional, false )
             nextEdgeId += 1
             e
         }

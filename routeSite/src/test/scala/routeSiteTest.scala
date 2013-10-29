@@ -60,7 +60,7 @@ class LiftJSONTest extends FlatSpec
         
         
         val dir = RouteDirections( Array(), Array(), Array(poi), "test edge", 0.0, 0.0, 0.0, 0.0f, Coord( 3.0, 4.0 ), "Foo" )
-        val z = RouteResult( Array(dir), 4.0, 6.0, 103.2, Array() )
+        val z = RouteResult( Array(dir), "Walking", 4.0, 6.0, 103.2 )
         
         val ser = swrite(z)
         

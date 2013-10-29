@@ -13,6 +13,7 @@ import org.scalatest.time.Span
 import org.scalatest.time.Seconds
 
 import org.seacourt.osm.Coord
+import org.seacourt.osm.route.RouteResult
 
 
 
@@ -204,7 +205,6 @@ class SeleniumTest extends FlatSpec with ShouldMatchers with servlet.ServletApiI
 }
 
 
-
 case class MockPersistence() extends Persistence
 {
     def getUser( extId : String ) : Option[User] =
@@ -231,8 +231,10 @@ case class MockPersistence() extends Persistence
         nu
     }
     
-    def addRoute( routeJSON : String, start : Coord, distance : Double, ascent : Double, userId : Option[Int] ) : Int = ???
-    def getRoute(routeId : Int): Option[String] = ???
+    def addRoute( routeData : String, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] ) : Int = ???
+    def getRoute(routeId : Int): Option[RouteResult] = ???
+    def getRouteSummary( routeId : Int ) : Option[RouteSummary] = ???
+    def getRouteName( routeId : Int ) : Option[RouteName] = ???
     def getUserRoutes(userId : Int): List[UserRoute] = ???
     def nameRoute(userId: Int, routeId: Int, routeName : String, description : String): Unit = ???
 

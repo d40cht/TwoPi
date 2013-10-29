@@ -47,7 +47,7 @@ object RoutableGraphBuilder extends Logging
             for ( n <- rg.nodes )
             {
                 val sinkNodeIds = n.destinations.map( _.node.nodeId ).toArray
-                val edges = n.destinations.map( d => (d.edge, d.routeDirectionality) ).toArray
+                val edges = n.destinations.map( d => (d.edge, d.routeDirectionality, d.forward) ).toArray
                 
                 kryo.writeObject( output, sinkNodeIds )
                 kryo.writeObject( output, edges )
@@ -63,11 +63,11 @@ object RoutableGraphBuilder extends Logging
             for ( n <- nodes )
             {
                 val sinkNodeIds = kryo.readObject( input, classOf[Array[Int]] )
-                val edges = kryo.readObject( input, classOf[Array[(RouteEdge, RouteDirectionality)]] )
+                val edges = kryo.readObject( input, classOf[Array[(RouteEdge, RouteDirectionality, Boolean)]] )
                 
-                for ( (snid, (edge, routeDirectionality)) <- sinkNodeIds.zip(edges) )
+                for ( (snid, (edge, routeDirectionality, forwardEdge)) <- sinkNodeIds.zip(edges) )
                 {
-                    n.addEdge( nodeByIdMap(snid), edge, routeDirectionality )
+                    n.addEdge( nodeByIdMap(snid), edge, routeDirectionality, forwardEdge )
                 }
             }
             
@@ -163,7 +163,7 @@ object RoutableGraphBuilder extends Logging
             val name = RouteEdge.name( tagMap )
             
             var dist = 0.0
-            var absHeightDelta = 0.0
+            var heightDelta = 0.0
             var lastNode : Option[Node] = None
             var lastRouteNode : Option[RouteNode] = None
             var nodes = mutable.ArrayBuffer[Node]()
@@ -206,7 +206,7 @@ object RoutableGraphBuilder extends Logging
                     val prevHeight = node.height
                     val thisHeight = ln.height
                     
-                    absHeightDelta += Math.abs(prevHeight - thisHeight)
+                    heightDelta += thisHeight - prevHeight
                 }
                 
                 
@@ -234,7 +234,7 @@ object RoutableGraphBuilder extends Logging
                             wayTags = tagMap,
                             edgeId = nextEdgeId,
                             dist = dist,
-                            absHeightDelta = absHeightDelta,
+                            forwardHeightDelta = heightDelta,
                             name = name,
                             scenicPoints = scenicPoints.distinct.toArray,
                             pois = pois.map { case (poi, dist) => NearbyPOI( dist, poi ) }.toArray,
@@ -242,10 +242,10 @@ object RoutableGraphBuilder extends Logging
                             nodes = nodes.toArray )
                         
                         // Forward down this way
-                        lrn.addEdge( rn, edge, forward )
+                        lrn.addEdge( rn, edge, forward, true )
                         
                         // Backwards down this way
-                        rn.addEdge( lrn, edge, backward )
+                        rn.addEdge( lrn, edge, backward, false )
                         
                         nextEdgeId += 1
                     }
@@ -257,7 +257,7 @@ object RoutableGraphBuilder extends Logging
                     nodes.append( node )
                     pois = Map()
                     dist = 0.0
-                    absHeightDelta = 0.0
+                    heightDelta = 0.0
                 }
                 
                 lastNode = Some(node)
