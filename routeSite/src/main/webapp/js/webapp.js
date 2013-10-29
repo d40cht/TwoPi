@@ -64,6 +64,36 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage'], function($provide)
                     element.button("reset");
                 } );
         }
+    } )
+    .directive("popoverText", function($timeout)
+    {
+        return function(scope, element, attrs)
+        {
+            var text = attrs.popoverText;
+            element.popover(
+            {
+                content : text,
+                placement : "auto top",
+                trigger : "hover",
+                delay : { show : 500, hide : 100 }
+            } );
+            
+            /*
+            Hook document click and keypress to only show these
+            after a set browser idle time
+            popover-text="Choose route type (cycling, walking etc)"
+            
+            // Named to prevent it being shown more than once to a given user
+            popover-idle-name="pickStart"
+            // Show after idle for 2000 ms
+            popover-idle-show="2000"
+            // Only after routeType has been shown
+            popover-idle-dep="routeType"
+            $timeout( function()
+            {
+                element.popover("show");
+            }, 2000 );*/
+        }
     } );
 
 

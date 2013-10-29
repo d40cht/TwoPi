@@ -5,14 +5,14 @@
         
             <div class="form-group">
                 <label>Routing preference</label>
-                <select class="form-control" ng-model="$storage.routingPreference" ng-options="r for r in routingPreferences" required="required">
+                <select class="form-control" ng-model="$storage.routingPreference" ng-options="r for r in routingPreferences" required="required" popover-text="Choose route type (cycling, walking etc)">
                 </select>
             </div>
             
             <ul class="nav nav-tabs" id="routeMethodsTab">
-                <li><a data-target="#startMode" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
-                <li><a data-target="#startEndMode" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
-                <li><a data-target="#feelLuckyMode" data-toggle="tab"  ng-click="feelLuckyMode()">? - ?</a></li>
+                <li popover-text="Set a starting point and a distance"><a data-target="#startMode" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
+                <li popover-text="Set a starting end end point"><a data-target="#startEndMode" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
+                <!--<li popover-text="Just choose a distance, and we'll chose it all"><a data-target="#feelLuckyMode" data-toggle="tab"  ng-click="feelLuckyMode()">? - ?</a></li>-->
             </ul>
             
             <div class="tab-content">
@@ -22,16 +22,16 @@
                         <div class="form-group">
                             <label>Start</label>
                             <div class="input-group">
-                                <span class="input-group-btn">
+                                <span class="input-group-btn" popover-text="Click here to choose the start of your route">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
                                 <span class="form-control" ng-class="{highlit : selecting=='start'}">{{renderRoutePoint($storage.startCoord)}}</span>
                             </div>
                             <label>Distance (km)</label>
-                            <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required>
+                            <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required popover-text="Choose the distance for your route">
                             <br>
                             <fieldset ng-disabled="$storage.startCoord==null">
-                                <button btn-loading="working" name="specifiedStartSubmit" type="submit" class="btn btn-primary">Go!</button>
+                                <button btn-loading="working" name="specifiedStartSubmit" type="submit" class="btn btn-primary" required popover-text="Find a route">Go!</button>
                                 <button btn-loading="working" type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
                             </fieldset>
                         </div>
@@ -43,14 +43,14 @@
                         <div class="form-group">
                             <label>Start</label>
                             <div class="input-group">
-                                <span class="input-group-btn">
+                                <span class="input-group-btn" popover-text="Click here to choose the start of your route">
                                     <button class="btn btn-default" type="button" ng-click="setStart()">Pick</button>
                                 </span>
                                 <span class="form-control" ng-class="{highlit : selecting=='start'}">{{renderRoutePoint($storage.startCoord)}}</span>
                             </div>
                             <label>End</label>
                             <div class="input-group">
-                                <span class="input-group-btn">
+                                <span class="input-group-btn" popover-text="Click here to choose the end of your route">
                                     <button class="btn btn-default" type="button" ng-click="setMid()">Pick</button>
                                 </span>
                                 <span class="form-control" ng-class="{highlit : selecting=='mid'}">{{renderRoutePoint($storage.midCoord)}}</span>
@@ -58,7 +58,7 @@
                             <input type="hidden" name="distance" ng-model="distance" value="0.0"/>
                             <br>
                             <fieldset ng-disabled="($storage.startCoord==null || $storage.midCoord==null)">
-                                <button btn-loading="working" type="submit" class="btn btn-primary">Go!</button>
+                                <button btn-loading="working" type="submit" class="btn btn-primary" required popover-text="Find a route">Go!</button>
                             </fieldset>
                         </div>
                     </form>
@@ -84,7 +84,7 @@
                     <div class="form-group">
                         <label>Place search</label>
                         <div class="input-group">
-                            <input id="placeSearchInput" type="text" class="form-control" placeholder="Input placename" ng-model="placename"/>
+                            <input id="placeSearchInput" type="text" class="form-control" placeholder="Input placename" ng-model="placename" popover-text="Search for a place by name"/>
                             <span class="input-group-btn">
                                 <button name="placeSearchSubmit" type="submit" class="btn btn-default">Search!</button>
                             </span>
@@ -134,11 +134,16 @@
                     <div ng-switch on="routeName==null">
                         <div ng-switch-when="true">
                             <div class="text-center">
-                                <form ng-submit="saveRoute()">
-                                    <fieldset ng-disabled="(userName == null)">
-                                        <a href="/app/saveRoute/{{routeId}}" class="btn btn-info">Save route</a>
-                                    </fieldset>
-                                </form>
+                                <div ng-switch on="(userName == null)">
+                                    <div ng-switch-when="false">
+                                        <form ng-submit="saveRoute()">
+                                            <a href="/app/saveRoute/{{routeId}}" class="btn btn-info">Save route</a>
+                                        </form>
+                                    </div>
+                                    <div ng-switch-default>
+                                        <strong>(Sign in to save route)</strong>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div ng-switch-default>
@@ -159,8 +164,8 @@
                     
                     <div class="text-center">
                         <fieldset ng-disabled="routeData == null">
-                            <a href="/app/poster/{{routeId}}" class="btn btn-info">Visual route</a>
-                            <a href=/gpx/{{routeId}} class="btn btn-default">Export GPX</a>
+                            <a href="/app/poster/{{routeId}}" class="btn btn-info" popover-text="Pictorial summary of the route">Visual route</a>
+                            <a href=/gpx/{{routeId}} class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)">Export GPX</a>
                         </fieldset>
                     </div>
                     
