@@ -17,8 +17,25 @@
             </div>
             
             <div class="text-center">
-                <a ng-click="requestRoute()" class="btn btn-info" popover-text="Generate another route with the same parameters">Regenerate</a>
-                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info" popover-text="Save this route to your account">Save route</a>
+                <span ng-switch on="routeName==null">
+                    <span ng-switch-when="true">
+                        <span ng-switch on="userName!=null">
+                            <span ng-switch-when="true">
+                                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info" popover-text="Save this route to your account">Save route</a>
+                            </span>
+                            <span ng-switch-default>
+                                (Login to save route)
+                            </span>
+                        </span>
+                    </span>
+                </span>
+                
+                <span ng-switch on="$storage.startCoord!=null">
+                    <span ng-switch-when="true">
+                        <a ng-click="requestRoute()" class="btn btn-info" popover-text="Generate another route with the same parameters">Regenerate</a>
+                    </span>
+                </span>
+                
                 <a href="/app/route/{{routeId}}" class="btn btn-info" popover-text="Display this route on the main map">Back to map</a>
                 <a href="/gpx/{{routeId}}" class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)">Export GPX</a>
             </div>

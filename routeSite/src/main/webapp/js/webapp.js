@@ -475,7 +475,7 @@ function PosterController($scope, $routeParams, $http, $timeout, analytics)
         } );
 }
 
-function routeParserFunction( $scope, routeId, mapHolder, elevationGraph )
+function routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )
 {
     return function( namedRoute, status, headers, config )
     {
@@ -546,9 +546,9 @@ function routeParserFunction( $scope, routeId, mapHolder, elevationGraph )
         }
         
         $scope.directions = directions;
-        
-        
         $scope.routeId = routeId;
+        
+        startMarker.moveMarker( routePoints[0] );
     };
 }
 
@@ -609,14 +609,18 @@ function requestRouteFunction($scope, $location, $http)
 };
 
 
-function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, analytics)
+function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, UserService, analytics)
 {
     $scope.$storage = $localStorage;
     var elevationGraph = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", $scope.$storage.mapLon, $scope.$storage.mapLat, $scope.$storage.mapZoom, $scope, $log);
     
+    var startMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerS.png", "Start", 1, 20, 34 );
+    var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", "", 1, 20, 34 );
+    
     var routeId = $routeParams['routeId'];
     
+    $scope.userName = UserService.userName;
     $scope.lonLatToString = lonLatToString;
     $scope.requestRoute = requestRouteFunction($scope, $location, $http)
     
@@ -628,7 +632,7 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
         } )
         .success( function( data, status, headers, config )
         {
-            routeParserFunction( $scope, routeId, mapHolder, elevationGraph )( data, status, headers, config );
+            routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )( data, status, headers, config );
             posterParserFn($scope)( data, status, headers, config );
             
             $timeout( function()
@@ -826,7 +830,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
             method: "GET",
             url : ("/getroute/" + routeId)
         } )
-        .success( routeParserFunction( $scope, routeId, mapHolder, eg ) )
+        .success( routeParserFunction( $scope, routeId, mapHolder, eg, elevationCrossLinkMarker, startMarker ) )
         .error( function(data, status, headers, config )
         {
             alert( "Failure in setRoute: " + status );
