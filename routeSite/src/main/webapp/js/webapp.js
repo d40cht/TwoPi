@@ -73,6 +73,11 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 templateUrl : '/partials/poster.html',
                 controller  : PosterController
             } )
+            .when('/summary/:routeId',
+            {
+                templateUrl : '/partials/summary.html',
+                controller  : SummaryController
+            } )
             .when('/user',
             {
                 templateUrl : '/partials/user.html',
@@ -369,12 +374,71 @@ function RouteSaveController($scope, $routeParams, $http, $location, analytics)
         } )
         .success( function( data, status, headers, config )
         {
-            $location.path("/route/" + $scope.routeId)
+            $location.path("/summary/" + $scope.routeId)
         } )
         .error( function(data, status, headers, config )
         {
             alert( "Failure in saving route summary: " + status + " - " + data );
         } );
+    }
+}
+
+function posterParserFn($scope)
+{
+    return function( data, status, headers, config )
+    {
+        var pics = [];
+        var wiki = [];
+        var route = data.route;
+        for ( rd in route.directions )
+        {
+            var dataEl = route.directions[rd];
+            for ( picI in dataEl.outboundPics )
+            {
+                var pic = dataEl.outboundPics[picI];
+                pics.push( {
+                    title   : pic.title + ", " + pic.photographer,
+                    imgSrc  : "/geograph/full/" + pic.picIndex + "/" + pic.imgHash,
+                    link    : "http://www.geograph.org.uk/photo/" + pic.picIndex,
+                    score   : pic.score
+                } );
+            }
+            
+            for ( poiI in dataEl.outboundPOIs )
+            {
+                var poi = dataEl.outboundPOIs[poiI];
+                
+                if ( poi.hasOwnProperty("wikiData") && poi.wikiData.hasOwnProperty("imageUrl") )
+                {
+                    wiki.push( {
+                        title   : "Wikipedia: " + poi.wikiData.name.replace(/_/g, " "),
+                        imgSrc  : poi.wikiData.imageUrl,
+                        link    : "http://en.wikipedia.org/wiki/" + poi.wikiData.name,
+                        score   : 0.6
+                    } );
+                }
+            }
+        }
+        
+        // Sort to get highest scoring pictures first
+        var picsSorted = pics.slice(0,12);
+        picsSorted.sort( function( a, b)
+        {
+            if ( a.score < b.score ) return 1;
+            else if ( a.score > b.score ) return -1;
+            else return 0;
+        } );
+        
+        for ( pi in picsSorted )
+        {
+            var pic = picsSorted[pi];
+            if ( pi < 2 ) pic.picClass = "masonrySize1";
+            else if ( pi < 6 ) pic.picClass = "masonrySize2";
+            else pic.picClass = "masonrySize3";
+        }
+        $scope.pics = picsSorted;
+        $scope.wiki = wiki;
+        $scope.routeData = route;
     }
 }
 
@@ -390,59 +454,7 @@ function PosterController($scope, $routeParams, $http, $timeout, analytics)
         } )
         .success( function( data, status, headers, config )
         {
-            var pics = [];
-            var wiki = [];
-            var route = data.route;
-            for ( rd in route.directions )
-            {
-                var dataEl = route.directions[rd];
-                for ( picI in dataEl.outboundPics )
-                {
-                    var pic = dataEl.outboundPics[picI];
-                    pics.push( {
-                        title   : pic.title + ", " + pic.photographer,
-                        imgSrc  : "/geograph/full/" + pic.picIndex + "/" + pic.imgHash,
-                        link    : "http://www.geograph.org.uk/photo/" + pic.picIndex,
-                        score   : pic.score
-                    } );
-                }
-                
-                for ( poiI in dataEl.outboundPOIs )
-                {
-                    var poi = dataEl.outboundPOIs[poiI];
-                    
-                    if ( poi.hasOwnProperty("wikiData") && poi.wikiData.hasOwnProperty("imageUrl") )
-                    {
-                        wiki.push( {
-                            title   : "Wikipedia: " + poi.wikiData.name.replace(/_/g, " "),
-                            imgSrc  : poi.wikiData.imageUrl,
-                            link    : "http://en.wikipedia.org/wiki/" + poi.wikiData.name,
-                            score   : 0.6
-                        } );
-                    }
-                }
-            }
-            
-            // Sort to get highest scoring pictures first
-            var picsSorted = pics.slice(0);
-            picsSorted.sort( function( a, b)
-            {
-                if ( a.score < b.score ) return 1;
-                else if ( a.score > b.score ) return -1;
-                else return 0;
-            } );
-            
-            for ( pi in picsSorted )
-            {
-                var pic = picsSorted[pi];
-                if ( pi < 2 ) pic.picClass = "masonrySize1";
-                else if ( pi < 6 ) pic.picClass = "masonrySize2";
-                else pic.picClass = "masonrySize3";
-            }
-            $scope.pics = picsSorted;
-            $scope.wiki = wiki;
-            $scope.routeData = route;
-            
+            posterParserFn($scope)( data, status, headers, config );
             
             $timeout( function()
             {
@@ -463,7 +475,181 @@ function PosterController($scope, $routeParams, $http, $timeout, analytics)
         } );
 }
 
+function routeParserFunction( $scope, routeId, mapHolder, elevationGraph )
+{
+    return function( namedRoute, status, headers, config )
+    {
+        var routeData = namedRoute.route;
+        $scope.routeData = routeData;
+        if ( angular.isDefined(namedRoute.name) ) $scope.routeName = namedRoute.name;
+        else $scope.routeName = null;
+        
+        // Update the map and elevation graph
+        var seriesData = [];
+        var lastNode = null;
+        var ascent = 0.0;
+        var totalDistance = 0.0;
+        
+        var routePoints = [];
+        for ( rd in routeData.directions )
+        {
+            var dataEl = routeData.directions[rd];
+            for ( n in dataEl.outboundNodes )
+            {
+                var nodeAndDist = dataEl.outboundNodes[n];
+                var distance = nodeAndDist.distance / 1000.0;
+                var node = nodeAndDist.node;
+                
+                seriesData.push( { x : distance, y : node.height, lng : node.coord.lon, lat : node.coord.lat } );
+                
+                routePoints.push( new L.LatLng( node.coord.lat, node.coord.lon ) );
+                
+                if ( lastNode != null )
+                {
+                    heightDelta = node.height - lastNode.height;
+                    if ( heightDelta > 0.0 ) ascent += heightDelta;
+                }
+                lastNode = node;
+                totalDistance = distance;
+            }
+            
+            for ( poii in dataEl.outboundPOIs )
+            {
+                var poi = dataEl.outboundPOIs[poii];
+            }
+        }
+        
+        mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
 
+        elevationGraph.setData( seriesData, function( lonLat )
+        {
+            elevationCrossLinkMarker.moveMarker( lonLat );
+        } );
+        
+        // Update the directions text
+        var directions = [];
+        for ( si in routeData.directions )
+        {
+            var section = routeData.directions[si];
+
+            var routeText = function( section )
+            {
+                return section.cumulativeDistance.toFixed(1) + "km - " + section.directionsText;
+            }
+            
+            directions.push( {
+                coord : section.coord,
+                text : routeText(section),
+                outboundPOIs : section.outboundPOIs,
+                outboundPics : section.outboundPics
+            } );
+        }
+        
+        $scope.directions = directions;
+        
+        
+        $scope.routeId = routeId;
+    };
+}
+
+function lonLatToString( lonLat )
+{
+    if ( lonLat == null ) return "";
+    else return lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
+}
+
+function requestRouteFunction($scope, $location, $http)
+{
+    return function()
+    {
+        var dist = Number($scope.$storage.distance);
+        var start = $scope.lonLatToString($scope.$storage.startCoord);
+       
+        var params = null;
+        if ( $scope.$storage.midCoord == null )
+        {
+            params = $.param(
+            {
+                distance : dist,
+                start : start,
+                model : $scope.$storage.routingPreference
+            } );
+        }
+        else
+        {
+            params = $.param(
+            {
+                distance : dist,
+                start : start,
+                mid : $scope.lonLatToString($scope.$storage.midCoord),
+                model : $scope.$storage.routingPreference
+            } );
+        };
+        
+        $scope.working = true;
+        $http( {
+            method: "POST",
+            url : "/requestroute",
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            data : params
+        } )
+        .success( function(data, status, headers, config)
+        {
+            var hash = data;
+            $location.path( "/summary/" + hash );
+            $scope.working = false;
+            setRoute( hash );
+        } )
+        .error( function(data, status, headers, config)
+        {
+            $scope.working = false;
+            alert( "Failure in request route: " + status );
+        } );
+    }
+};
+
+
+function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, analytics)
+{
+    $scope.$storage = $localStorage;
+    var elevationGraph = new ElevationGraph("elevation");
+    var mapHolder = new RouteMap("map", $scope.$storage.mapLon, $scope.$storage.mapLat, $scope.$storage.mapZoom, $scope, $log);
+    
+    var routeId = $routeParams['routeId'];
+    
+    $scope.lonLatToString = lonLatToString;
+    $scope.requestRoute = requestRouteFunction($scope, $location, $http)
+    
+    if ( routeId != null )
+    {
+        $http( {
+            method: "GET",
+            url : ("/getroute/" + routeId)
+        } )
+        .success( function( data, status, headers, config )
+        {
+            routeParserFunction( $scope, routeId, mapHolder, elevationGraph )( data, status, headers, config );
+            posterParserFn($scope)( data, status, headers, config );
+            
+            $timeout( function()
+            {
+                var $container = $('#masonryContainer');
+                
+                $container.imagesLoaded( function()
+                {
+                    $container.masonry( {
+                        columnWidth: 60,
+                        itemSelect : '.masonryItem',
+                    } );
+                } );
+            }, 0 );
+        } )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure in setRoute: " + status );
+        } );
+    }
+}
 
 
 function RouteController($scope, $log, $http, $location, $localStorage, $routeParams, UserService, $timeout, analytics)
@@ -503,11 +689,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     
     $scope.userName = UserService.userName;
     
-    $scope.lonLatToString = function( lonLat )
-    {
-        if ( lonLat == null ) return "";
-        else return lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
-    }
+    $scope.lonLatToString = lonLatToString;
     
     $scope.renderRoutePoint = function( lonLat )
     {
@@ -631,115 +813,24 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
             icon : "/img/poiIcons/" + iconName + ".p.16.png",
         } );
     }
-
-    
-    //$scope.setStart();
-    
-    function setRoute(routeId)
-    {
-        $http( {
-            method: "GET",
-            url : ("/getroute/" + routeId)
-        } )
-        .success( function(namedRoute, status, headers, config )
-        {
-            var routeData = namedRoute.route;
-            $scope.routeData = routeData;
-            if ( angular.isDefined(namedRoute.name) ) $scope.routeName = namedRoute.name;
-            else $scope.routeName = null;
-            
-            // Update the map and elevation graph
-            var seriesData = [];
-            var lastNode = null;
-            var ascent = 0.0;
-            var totalDistance = 0.0;
-            
-            var routePoints = [];
-            for ( rd in routeData.directions )
-            {
-                var dataEl = routeData.directions[rd];
-                for ( n in dataEl.outboundNodes )
-                {
-                    var nodeAndDist = dataEl.outboundNodes[n];
-                    var distance = nodeAndDist.distance / 1000.0;
-                    var node = nodeAndDist.node;
-                    
-                    seriesData.push( { x : distance, y : node.height, lng : node.coord.lon, lat : node.coord.lat } );
-                    
-                    routePoints.push( new L.LatLng( node.coord.lat, node.coord.lon ) );
-                    
-                    if ( lastNode != null )
-                    {
-                        heightDelta = node.height - lastNode.height;
-                        if ( heightDelta > 0.0 ) ascent += heightDelta;
-                    }
-                    lastNode = node;
-                    totalDistance = distance;
-                }
-                
-                for ( poii in dataEl.outboundPOIs )
-                {
-                    var poi = dataEl.outboundPOIs[poii];
-                    $log.info( "POI: " + poi.name + " - " + angular.toJson(poi) );
-                }
-            }
-            
-            mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
-            
-            for ( dbi in routeData.debugPoints )
-            {
-                var db = routeData.debugPoints[dbi];
-                
-                var nm = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/" + db.name + ".png", db.title, 1, 20.0 * 0.7, 34.0 * 0.7 );
-                nm.moveMarker( new L.LatLng( db.coord.lat, db.coord.lon ) );
-            }
-            
-            eg.setData( seriesData, function( lonLat )
-            {
-                elevationCrossLinkMarker.moveMarker( lonLat );
-            } );
-            
-            // Update the directions text
-            var directions = [];
-            for ( si in routeData.directions )
-            {
-                var section = routeData.directions[si];
-
-                var routeText = function( section )
-                {
-                    return section.cumulativeDistance.toFixed(1) + "km - " + section.directionsText;
-                }
-                
-                
-                
-                directions.push( {
-                    coord : section.coord,
-                    text : routeText(section),
-                    outboundPOIs : section.outboundPOIs,
-                    outboundPics : section.outboundPics
-                } );
-            }
-            
-            $scope.directions = directions;
-            
-            
-            $scope.routeId = routeId
-        } )
-        .error( function(data, status, headers, config )
-        {
-            alert( "Failure in setRoute: " + status );
-        } );
-    }
     
     $scope.moveMarker = function( lng, lat )
     {
         elevationCrossLinkMarker.moveMarker( new L.LatLng( lat, lng ) );
     };
     
-    var cr = $routeParams['routeId'];
-    if ( cr != null )
+    var routeId = $routeParams['routeId'];
+    if ( routeId != null )
     {
-        setRoute( cr );
+        $http( {
+            method: "GET",
+            url : ("/getroute/" + routeId)
+        } )
+        .success( routeParserFunction( $scope, routeId, mapHolder, eg ) )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure in setRoute: " + status );
+        } );
     }
     
     var colorFromScore = function( score )
@@ -813,52 +904,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         } );
     }
     
-    $scope.requestRoute = function()
-    {
-        var dist = Number($scope.$storage.distance);
-        var start = $scope.lonLatToString($scope.$storage.startCoord);
-       
-        var params = null;
-        if ( $scope.$storage.midCoord == null )
-        {
-            params = $.param(
-            {
-                distance : dist,
-                start : start,
-                model : $scope.$storage.routingPreference
-            } );
-        }
-        else
-        {
-            params = $.param(
-            {
-                distance : dist,
-                start : start,
-                mid : $scope.lonLatToString($scope.$storage.midCoord),
-                model : $scope.$storage.routingPreference
-            } );
-        };
-        
-        $scope.working = true;
-        $http( {
-            method: "POST",
-            url : "/requestroute",
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            data : params
-        } )
-        .success( function(data, status, headers, config)
-        {
-            var hash = data;
-            $location.path( "/route/" + hash );
-            $scope.working = false;
-            setRoute( hash );
-        } )
-        .error( function(data, status, headers, config)
-        {
-            $scope.working = false;
-            alert( "Failure in request route: " + status );
-        } );
-    };
+    $scope.requestRoute = requestRouteFunction($scope, $location, $http)
     
     $scope.hasWikiData = function(poi)
     {

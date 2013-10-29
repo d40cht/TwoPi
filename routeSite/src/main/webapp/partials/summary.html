@@ -1,0 +1,52 @@
+<div class="row" style="margin-left: 6px; margin-right: 6px">
+    <div class="row" height="height:30%">
+        <h3>Route summary</h3>
+        
+        <div class="col-md-6">
+        
+            <table class="table table-condensed">
+                <tr><td>Name</td><td>{{routeName.name}}</td></tr>
+                <tr><td>Description</td><td>{{routeName.description}}</td></tr>
+                <tr><td>Route type</td><td id="routePreference">{{$storage.routingPreference}}</td></tr>
+                <tr><td>Estimated time</td><td>{{(routeData.duration/60.0).toFixed(0)}} minutes</td></tr>
+                <tr><td>Distance</td><td>{{routeData.distance.toFixed(0)}}km</td></tr>
+                <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>
+            </table>
+        
+            <div id="elevation" style="height:200px">
+            </div>
+            
+            <div class="text-center">
+                <a ng-click="requestRoute()" class="btn btn-info" popover-text="Generate another route with the same parameters">Regenerate</a>
+                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info" popover-text="Save this route to your account">Save route</a>
+                <a href="/app/route/{{routeId}}" class="btn btn-info" popover-text="Display this route on the main map">Back to map</a>
+            </div>
+
+        </div>
+        <div class="col-md-6">
+            <div id="map" style="height: 400px">
+            </div>
+        </div>
+    </div>
+    
+    <hr/>
+   
+    <div class="row">
+        <div class="col-md-12">
+            <div id="masonryContainer">
+                <div ng-repeat="pic in pics" class="masonryItem {{pic.picClass}}">
+                    <div class="panel panel-primary">
+                        <div class="panel-body">
+                            <a href="{{pic.link}}">
+                                <img ng-src="{{pic.imgSrc}}" title="{{pic.title}}" style="width: 100%"></img>
+                            </a>
+                        </div>
+                        
+                        <div class="panel-heading"><a href="{{pic.link}}">{{pic.title}}</a></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>

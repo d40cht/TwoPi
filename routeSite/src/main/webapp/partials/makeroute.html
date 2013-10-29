@@ -10,8 +10,8 @@
             </div>
             
             <ul class="nav nav-tabs" id="routeMethodsTab">
-                <li popover-text="Set a starting point and a distance"><a data-target="#startMode" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
-                <li popover-text="Set a starting end end point"><a data-target="#startEndMode" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
+                <li popover-text="Set a start point and a distance"><a data-target="#startMode" data-toggle="tab" ng-click="startMode()">A - ?</a></li>
+                <li popover-text="Set start and end points"><a data-target="#startEndMode" data-toggle="tab" ng-click="startEndMode()">A - B</a></li>
                 <!--<li popover-text="Just choose a distance, and we'll chose it all"><a data-target="#feelLuckyMode" data-toggle="tab"  ng-click="feelLuckyMode()">? - ?</a></li>-->
             </ul>
             
@@ -164,7 +164,8 @@
                     
                     <div class="text-center">
                         <fieldset ng-disabled="routeData == null">
-                            <a href="/app/poster/{{routeId}}" class="btn btn-info" popover-text="Pictorial summary of the route">Visual route</a>
+                            <a href="/app/summary/{{routeId}}" class="btn btn-info" popover-text="Summary of the route">Summary</a>
+                            <a href="/app/poster/{{routeId}}" class="btn btn-info" popover-text="Things to see along the way">Sights</a>
                             <a href=/gpx/{{routeId}} class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)">Export GPX</a>
                         </fieldset>
                     </div>
