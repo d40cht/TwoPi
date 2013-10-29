@@ -61,7 +61,7 @@
                                 <script> var loggedIn = false; </script>
                             #otherwise
                                 
-                                <a ng-click="redirect('app/user')">${user.get.name}</a> |
+                                <a ng-click="redirect('/app/user')">${user.get.name}</a> |
                                 <a ng-click="redirectWithReturnState('/logout?')">Logout</a>
                                 
                                 <script> var loggedIn = true; </script>
