@@ -12,9 +12,7 @@ import org.openstreetmap.osmosis.core.domain.v0_6
 
 import scala.collection.{mutable, immutable}
 
-import com.twitter.logging.Logger
-import com.twitter.logging.{Logger, LoggerFactory, FileHandler, ConsoleHandler, Policy}
-import com.twitter.logging.config._
+//import org.seacourt.osm.{Logging, Logger}
 
 
 /* TODO:
@@ -24,48 +22,7 @@ import com.twitter.logging.config._
     * Experiment with auto-classifying gpx files
 */
 
-trait Logging
-{
-    lazy val log = Logger.get(getClass)
-}
 
-object Logging
-{
-    import com.twitter.logging.{Logger, LoggerFactory, FileHandler, ConsoleHandler, Policy}
-    import com.twitter.logging.config._
-    import java.io._
-    
-    val TRACE	= Level.TRACE
-    val DEBUG	= Level.DEBUG
-    val INFO	= Level.INFO
-    val WARN	= Level.WARNING
-    val ERROR	= Level.ERROR
-    
-    def configureDefaultLogging( logFileName : Option[File] = None, level : Level = DEBUG )
-    {
-        val handlers = logFileName match
-        {
-            case None => List( ConsoleHandler( level = Some( Level.INFO ) ) )
-            case Some( f ) => List(
-                FileHandler(
-                    filename = f.getAbsolutePath,
-                    append = false,
-                    level = Some(level),
-                    rollPolicy = Policy.SigHup,
-                    rotateCount=8
-                ),
-                    ConsoleHandler( level = Some( Level.INFO ) )
-            )
-        }
-                
-        Logger.clearHandlers()
-        LoggerFactory(
-            node = "org.seacourt",
-            level = Some(level),
-            handlers = handlers
-        ).apply()
-    }
-}
 
 case class Tag( val key : String, val value : String )
 {
@@ -367,9 +324,6 @@ object OSMCrunch extends App with Logging
 {    
     override def main( args : Array[String] )
     {
-        Logger.clearHandlers()
-        LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
-
         val srtmFiles = new java.io.File( "./data" ).listFiles.filter( _.toString.endsWith(".asc") )
         log.info( "Found SRTM files: " + srtmFiles.toList )
         val heightMap = new SRTMInMemoryTiles( srtmFiles )
@@ -518,9 +472,6 @@ object CalculateWayLength extends App with Logging
 {
     override def main( args : Array[String] )
     {
-        Logger.clearHandlers()
-        LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
-        
         val loadedMap = OSMMap.load( new File( args(0) ) )
      
         var acc = 0.0
@@ -572,9 +523,6 @@ object ProcessGPXToBin extends App with Logging
     {
         import java.util.zip.{GZIPInputStream}
         import org.xeustechnologies.jtar._
-        
-        Logger.clearHandlers()
-        LoggerFactory( node="org.seacourt", handlers = List(ConsoleHandler( level = Some( Level.INFO ) )) ).apply()
         
         // Process the metadata first
         /*val pp = new scala.xml.pull.XMLEventReader( io.Source.fromFile( new java.io.File("/home/alex/Devel/AW/tmp/gpx-planet-2013-04-09/metadata.xml") ) )

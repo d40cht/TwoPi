@@ -8,6 +8,54 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 import scala.collection.{mutable, immutable}
 
+import com.twitter.logging.Logger
+import com.twitter.logging.{Logger, LoggerFactory, FileHandler, ConsoleHandler, Policy}
+import com.twitter.logging.config._
+
+
+trait Logging
+{
+    lazy val log = Logger.get(getClass)
+}
+
+object Logging
+{
+    import com.twitter.logging.{Logger, LoggerFactory, FileHandler, ConsoleHandler, Policy}
+    import com.twitter.logging.config._
+    import java.io._
+    
+    val TRACE	= Level.TRACE
+    val DEBUG	= Level.DEBUG
+    val INFO	= Level.INFO
+    val WARN	= Level.WARNING
+    val ERROR	= Level.ERROR
+    
+    def configureDefaultLogging( logFileName : Option[File] = None, level : Level = DEBUG, node : String = "" )
+    {
+        val handlers = logFileName match
+        {
+            case None => List( ConsoleHandler( level = Some( Level.INFO ) ) )
+            case Some( f ) => List(
+                FileHandler(
+                    filename = f.getAbsolutePath,
+                    append = false,
+                    level = Some(level),
+                    rollPolicy = Policy.SigHup,
+                    rotateCount=8
+                ),
+                ConsoleHandler( level = Some( Level.INFO ) )
+            )
+        }
+                
+        Logger.clearHandlers()
+        LoggerFactory(
+            node = node,
+            level = Some(level),
+            handlers = handlers
+        ).apply()
+    }
+}
+
 object Utility extends Logging
 {
     def kryoSave[T]( obj : T, outputFile : File ) =

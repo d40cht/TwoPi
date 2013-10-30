@@ -5,19 +5,20 @@ import javax.servlet.ServletContext
 
 // Support for slick and c3p0 connection pooling
 import com.mchange.v2.c3p0.ComboPooledDataSource
-import org.slf4j.{Logger, LoggerFactory}
 import scala.slick.session.Database
 import Database.threadLocalSession
 import scala.slick.driver.H2Driver.simple._
 import scala.slick.jdbc.{StaticQuery}
 import scala.slick.jdbc.meta.{MTable}
 
+import org.seacourt.osm.Logging
+
 package org.seacourt.routeSite
 {
 
     trait DatabaseEvolutionManager
     {
-        def logger : Logger
+        self : Logging =>
         
         object DbEvolutions extends Table[(Int, String, Boolean)]("DbEvolutions")
         {
@@ -37,7 +38,7 @@ package org.seacourt.routeSite
             script.split(";").foreach
             { cmd =>
             
-                logger.info( "Applying: " + cmd )
+                log.info( "Applying: " + cmd )
                 StaticQuery.updateNA(cmd).execute
             }
             // If we get here, mark the evolution as cleanly applied
@@ -81,12 +82,12 @@ package org.seacourt.routeSite
                         case Some(hash) =>
                         {
                             assert( hash == computedHash, "Hash of evolution %d in db does not match the evo script: %s, %s".format(version, hash, computedHash) )
-                            logger.info( "Skipping already applied evolution (%d)".format( version ) )
+                            log.info( "Skipping already applied evolution (%d)".format( version ) )
                         }
                         case None =>
                         {
                             // Apply this evolution script
-                            logger.info( "Applying evolution: %d".format(version) )
+                            log.info( "Applying evolution: %d".format(version) )
                             applyEvolutionScript( evolutionScript, version, computedHash )
                         }
                     }
@@ -97,11 +98,15 @@ package org.seacourt.routeSite
 
 }
 
-class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEvolutionManager
+class ScalatraBootstrap extends LifeCycle with Logging with org.seacourt.routeSite.DatabaseEvolutionManager
 {
-    val logger = LoggerFactory.getLogger(getClass)
+    val logDir = (new java.io.File("log")).getAbsoluteFile
+    println( "Log path: " + logDir )
+    if ( !logDir.exists ) logDir.mkdirs()
+    Logging.configureDefaultLogging( Some( new java.io.File( logDir, "log.txt" ) ), level=Logging.DEBUG, node="org.seacourt" )
+
     val cpds = new ComboPooledDataSource
-    logger.info("Created c3p0 connection pool")
+    log.info("Created c3p0 connection pool")
     
     
     val db = Database.forDataSource(cpds)
@@ -126,7 +131,7 @@ class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEv
             }
             .toSeq
             
-        logger.info( "Most recent evolution in JAR: " + evolutionsFromJar.last.toString )
+        log.info( "Most recent evolution in JAR: " + evolutionsFromJar.last.toString )
             
         evolveDb( evolutionsFromJar )
     }
@@ -141,7 +146,7 @@ class ScalatraBootstrap extends LifeCycle with org.seacourt.routeSite.DatabaseEv
     
     private def closeDbConnection()
     {
-        logger.info("Closing c3p0 connection pool")
+        log.info("Closing c3p0 connection pool")
         cpds.close
     }
 

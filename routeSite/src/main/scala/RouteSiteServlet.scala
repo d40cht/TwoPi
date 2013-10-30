@@ -331,8 +331,6 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     private val loginExpirySeconds = 60*60*24*10
     
-    Logging.configureDefaultLogging()
-
     val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
      
     
@@ -357,6 +355,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 
     before()
     {
+        log.debug( "Request from %s for %s (referrer %s)".format( request.remoteAddress, request.pathInfo, request.referrer ) )
+        
         getUser match
         {
             case Some(u) 	=>
@@ -599,6 +599,7 @@ object JettyLauncher
 		val context = new WebAppContext()
 		context.setInitParameter("org.mortbay.jetty.servlet.SessionURL", "none")
 		context setContextPath "/"
+		
 
 		val resourceBase = getClass.getClassLoader.getResource("webapp").toExternalForm
 		println( "Resource base: " + resourceBase)

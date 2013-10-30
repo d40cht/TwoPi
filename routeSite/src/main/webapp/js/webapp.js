@@ -400,6 +400,7 @@ function posterParserFn($scope)
                     title   : pic.title + ", " + pic.photographer,
                     imgSrc  : "/geograph/full/" + pic.picIndex + "/" + pic.imgHash,
                     link    : "http://www.geograph.org.uk/photo/" + pic.picIndex,
+                    coord   : pic.coord,
                     score   : pic.score
                 } );
             }
@@ -622,7 +623,12 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
     
     $scope.userName = UserService.userName;
     $scope.lonLatToString = lonLatToString;
-    $scope.requestRoute = requestRouteFunction($scope, $location, $http)
+    $scope.requestRoute = requestRouteFunction($scope, $location, $http);
+    
+    $scope.moveMarker = function( lng, lat )
+    {
+        elevationCrossLinkMarker.moveMarker( new L.LatLng( lat, lng ) );
+    };
     
     if ( routeId != null )
     {
