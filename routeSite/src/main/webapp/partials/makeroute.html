@@ -3,7 +3,7 @@
     <div class="col-md-2 controlBar">
         <h2>Actions</h2>
         
-            <div popover-text="introText" popover-parse popover-placement="right" popover-trigger="hover">
+            <div popover-text="introText" popover-parse popover-placement="right" popover-trigger="onceOnly" id="makeRouteIntro">
                 <div class="form-group">
                     <label>Routing preference</label>
                     <select class="form-control" ng-model="$storage.routingPreference" ng-options="r for r in routingPreferences" required="required" popover-text="Choose route type (cycling, walking etc)">

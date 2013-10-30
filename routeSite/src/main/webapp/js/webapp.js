@@ -113,7 +113,7 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 } );
         }
     } )
-    .directive("popoverText", function($timeout, $parse)
+    .directive("popoverText", function($timeout, $parse, $localStorage)
     {
         return function(scope, element, attrs)
         {
@@ -136,7 +136,14 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
             {
                 trigger = attrs.popoverTrigger;
             }
-
+            
+            var onceOnly = false;
+            if ( trigger == "onceOnly" )
+            {
+                onceOnly = true;
+                trigger = "manual";
+            }
+            
             element.popover(
             {
                 content : text,
@@ -146,6 +153,17 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 delay : { show : 500, hide : 100 },
                 container : "body"
             } );
+            
+            if ( onceOnly && !angular.isDefined( $localStorage[attrs.id] ) )
+            {
+                element.popover("show");
+                $localStorage[attrs.id] = true;
+                scope.dismissPopup = function()
+                {
+                    alert("Click");
+                    element.popover("hide");
+                };
+            }
             
             /*
             Hook document click and keypress to only show these
@@ -636,10 +654,37 @@ function requestRouteFunction($scope, $location, $http)
     }
 };
 
+var defaultRouteState =
+{
+    distance            : 25.0,
+    mapLon              : -5.208,
+    mapLat              : 54.387,
+    mapZoom             : 5,
+    startCoord          : null,
+    midCoord            : null,
+    routeMode           : "startMode"
+};
 
 function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, UserService, analytics)
 {
-    $scope.$storage = $localStorage;
+    $scope.$storage = $localStorage.$default( defaultRouteState );
+    
+    
+    $scope.introText = [
+        "<h4>Your first route</h4>",
+        "<ul>",
+        "<li>Zoom and pan around the map to check your route</li>",
+        "<li>Check out the pictures of places along the way</li>",
+        "<li>Hover over the pictures to see where each one is on the map</li>",
+        "<li>Click 'Regenerate' if you want to try another similar route</li>",
+        "<li>Click 'Export GPX' to download the route for your GPS or phone app</li>",
+        "<li>Click 'Back to map' to view a bigger map or change your route choices</li>",
+        "<li>Login using a Google account to save this route for later</li>",
+        "</ul>",
+        // This is an utterly awful way to dismiss the popover. Fix by using angular-ui when ready for Bootstrap 3.0
+        '<div class="text-center"><button onClick="window.location.reload()" class="btn btn-default">Got it!</button></div>'
+    ].join("\n");
+    
     var elevationGraph = new ElevationGraph("elevation");
     var mapHolder = new RouteMap("map", $scope.$storage.mapLon, $scope.$storage.mapLat, $scope.$storage.mapZoom, $scope, $log);
     
@@ -692,7 +737,7 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
 function RouteController($scope, $log, $http, $location, $localStorage, $routeParams, UserService, $timeout, analytics)
 {   
     $log.info("Route controller started");
-    $scope.$storage = $localStorage;
+    $scope.$storage = $localStorage.$default( defaultRouteState );
     
     $scope.working = false;
     
@@ -706,21 +751,14 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         "<h4>Customise your route</h4>",
         "<ul>",
         "<li>Change 'Routing preference' to choose walking, cycling or driving routes</li>",
-        "<li>Select 'A - B' to generate routes between two chosen places</li>",
-        "<li>Enter a name and hit 'Search!' to find a place</li>",
-        "</ul>"
+        "<li>Select 'A - B' to change to generating routes between two chosen places</li>",
+        "<li>If you need to find a place, enter its name in 'Place search' and hit 'Search!' to find</li>",
+        "</ul>",
+        // This is an utterly awful way to dismiss the popover. Fix by using angular-ui when ready for Bootstrap 3.0
+        '<div class="text-center"><button onClick="window.location.reload()" class="btn btn-default">Got it!</button></div>'
     ].join("\n");
     
-    $scope.$storage = $localStorage.$default(
-    {
-        distance            : 25.0,
-        mapLon              : -5.208,
-        mapLat              : 54.387,
-        mapZoom             : 5,
-        startCoord          : null,
-        midCoord            : null,
-        routeMode           : "startMode"
-    } );
+    
 
     // Pull possible routing preferences from the server
     $scope.routingPreferences = [];
