@@ -38,7 +38,7 @@ object Logging
             case Some( f ) => List(
                 FileHandler(
                     filename = f.getAbsolutePath,
-                    append = false,
+                    append = true,
                     level = Some(level),
                     rollPolicy = Policy.SigHup,
                     rotateCount=8

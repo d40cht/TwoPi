@@ -13,6 +13,34 @@ import org.eclipse.jetty.servlet.{DefaultServlet, ServletContextHandler}
 import org.eclipse.jetty.webapp.WebAppContext
 import org.scalatra.servlet.ScalatraListener
 
+/*
+http://www.geograph.org.uk/more.php?id=3331644
+http://www.geograph.org.uk/more.php?id=2792162
+http://www.geograph.org.uk/photo/1041947
+
+http://www.geograph.org.uk/more.php?id=3177083
+http://www.geograph.org.uk/more.php?id=2113291
+
+
+Big:
+
+Trevor Littlewood: http://www.geograph.org.uk/profile/39198
+
+http://www.geograph.org.uk/reuse.php?id=2151547&download=b276cd82&size=original
+http://www.geograph.org.uk/more.php?id=3686911
+http://www.geograph.org.uk/profile/39198
+http://www.geograph.org.uk/photo/3686492
+http://www.geograph.org.uk/photo/3679887
+http://www.geograph.org.uk/photo/3564088
+http://www.geograph.org.uk/photo/3522426
+
+Appropriate:
+
+http://www.geograph.org.uk/more.php?id=3703973
+
+http://www.geograph.org.uk/more.php?id=3196713
+
+*/
 
 // JSON handling support
 import org.json4s._

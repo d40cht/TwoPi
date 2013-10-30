@@ -2,7 +2,8 @@
 
 var _gaq = _gaq || [];
 
-angular.module('analytics', []).run(['$http', function($http) {
+angular.module('analytics', []).run(['$http', function($http)
+    {
 
         _gaq.push(['_setAccount', 'UA-44464792-1']);
         _gaq.push(['_trackPageview']);
@@ -12,7 +13,8 @@ angular.module('analytics', []).run(['$http', function($http) {
         var s = document.getElementsByTagName('script')[0];
         s.parentNode.insertBefore(ga, s);
 
-}]).service('analytics', function($rootScope, $window, $location, $routeParams) {
+    }]).service('analytics', function($rootScope, $window, $location, $routeParams)
+    {
 
         $rootScope.$on('$viewContentLoaded', track);
 
@@ -33,7 +35,7 @@ angular.module('analytics', []).run(['$http', function($http) {
 
                 return path + "?" + querystring;
         };
-});
+    });
 
 
 
@@ -86,6 +88,10 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
             .when('/about',
             {
                 templateUrl : '/partials/about.html'
+            } )
+            .when('/splash',
+            {
+                templateUrl : '/partials/splash.html'
             } )
             .when('/flash',
             {
@@ -422,7 +428,7 @@ function posterParserFn($scope)
         }
         
         // Sort to get highest scoring pictures first
-        var picsSorted = pics.slice(0,12);
+        var picsSorted = pics;
         picsSorted.sort( function( a, b)
         {
             if ( a.score < b.score ) return 1;
@@ -430,7 +436,7 @@ function posterParserFn($scope)
             else return 0;
         } );
         
-        for ( pi in picsSorted )
+        for ( pi in picsSorted.slice(0, 18) )
         {
             var pic = picsSorted[pi];
             if ( pi < 2 ) pic.picClass = "masonrySize1";
@@ -764,14 +770,14 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     $scope.startEndMode = function()
     {
         $scope.$storage.routeMode = "startEndMode";
-        /*if ( $scope.startCoord == null )
+        if ( $scope.$storage.startCoord == null )
         {
             $scope.setStart();
         }
-        else
+        else if ( $scope.$storage.midCoord == null )
         {
             $scope.setMid();
-        }*/
+        }
     }
     
     $scope.feelLuckyMode = function()
@@ -779,8 +785,8 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         $scope.$storage.routeMode = "feelLuckyMode";
         startMarker.removeMarker();
         midMarker.removeMarker();
-        $scope.startCoord = null;
-        $scope.midCoord = null;
+        $scope.$storage.startCoord = null;
+        $scope.$storage.midCoord = null;
     }
     
     // Remember the route mode
@@ -793,6 +799,15 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         el.tab('show');
         $log.info( "  complete" );
     }, 0 );
+    
+    if ( $scope.$storage.startCoord == null )
+    {
+        $scope.setStart();
+    }
+    else if ( $scope.$storage.midCoord == null )
+    {
+        $scope.setMid();
+    }
     
     
     $scope.poiIcon = function( poi )
