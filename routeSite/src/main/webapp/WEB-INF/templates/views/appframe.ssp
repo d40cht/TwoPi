@@ -40,7 +40,7 @@
             <div class="row header">
                 <div class="col-md-12" style="height:100%">
                     <div style="float:left">
-                        <h2><a href="/">TwoPi.co.uk</a></h2>
+                        <h2><a href="/app">TwoPi.co.uk</a></h2>
                     </div>
                     
                     <div style="display: table; float:right; height: 100%">
