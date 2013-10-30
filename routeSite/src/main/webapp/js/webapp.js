@@ -665,10 +665,9 @@ var defaultRouteState =
     routeMode           : "startMode"
 };
 
-function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, UserService, analytics)
+function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, $window, UserService, analytics)
 {
     $scope.$storage = $localStorage.$default( defaultRouteState );
-    
     
     $scope.introText = [
         "<h4>Your first route</h4>",
@@ -731,6 +730,7 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
             alert( "Failure in setRoute: " + status );
         } );
     }
+
 }
 
 

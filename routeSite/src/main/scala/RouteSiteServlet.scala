@@ -590,7 +590,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 
     get("/")
     {
-        redirect("./app")
+        redirect("./app/splash")
     }
     
     get("/app*")
