@@ -113,17 +113,38 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 } );
         }
     } )
-    .directive("popoverText", function($timeout)
+    .directive("popoverText", function($timeout, $parse)
     {
         return function(scope, element, attrs)
         {
-            var text = attrs.popoverText;
+            var text = null;
+            if ( angular.isDefined(attrs.popoverParse) )
+            {
+                var model = $parse( attrs.popoverText );
+                text = model(scope);
+            }
+            else
+            {
+                text = attrs.popoverText;
+            }
+
+            var placement = "auto top";
+            if ( angular.isDefined(attrs.popoverPlacement) ) placement = attrs.popoverPlacement;
+            
+            var trigger = "hover";
+            if ( angular.isDefined(attrs.popoverTrigger) )
+            {
+                trigger = attrs.popoverTrigger;
+            }
+
             element.popover(
             {
                 content : text,
-                placement : "auto top",
-                trigger : "hover",
-                delay : { show : 500, hide : 100 }
+                html : true,
+                placement : placement,
+                trigger : trigger,
+                delay : { show : 500, hide : 100 },
+                container : "body"
             } );
             
             /*
@@ -674,6 +695,21 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     $scope.$storage = $localStorage;
     
     $scope.working = false;
+    
+    $scope.introText = [
+        "<h4>Getting started</h4>",
+        "<ol>",
+        "<li>Click on the map to set a starting point for your route</li>",
+        "<li>Enter the distance you'd like to travel</li>",
+        "<li>Click 'Go' to generate a route</li>",
+        "</ol>",
+        "<h4>Customise your route</h4>",
+        "<ul>",
+        "<li>Change 'Routing preference' to choose walking, cycling or driving routes</li>",
+        "<li>Select 'A - B' to generate routes between two chosen places</li>",
+        "<li>Enter a name and hit 'Search!' to find a place</li>",
+        "</ul>"
+    ].join("\n");
     
     $scope.$storage = $localStorage.$default(
     {
