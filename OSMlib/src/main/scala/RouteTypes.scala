@@ -202,11 +202,12 @@ trait BaseCycleRouting extends RouteType
     	
         val highwayAnnotation : Option[String] = tagMap.get("highway")
         val lanesAnnotation : Option[String] = tagMap.get("lanes")
-        val junctionAnnotation : Option[String] = tagMap.get("junction")
-        val bridgeAnnotation : Option[String] = tagMap.get("bridge")
+        //val junctionAnnotation : Option[String] = tagMap.get("junction")
+        //val bridgeAnnotation : Option[String] = tagMap.get("bridge")
         val nameAnnotation : Option[String] = tagMap.get("name")
-        val refAnnotation : Option[String] = tagMap.get("ref")
-        val footAnnotation : Option[String] = tagMap.get("foot")
+        //val refAnnotation : Option[String] = tagMap.get("ref")
+        //val footAnnotation : Option[String] = tagMap.get("foot")
+        
     
         val costMultiplierOption = highwayAnnotation match
         {
@@ -228,9 +229,22 @@ trait BaseCycleRouting extends RouteType
                 else if ( valueString.startsWith( "secondary" ) )                       Some( Score(0.7) )
                 else if ( valueString.startsWith( "tertiary" ) )                        Some( Score(0.8) )
                 else if ( valueString.startsWith( "unclassified" ) )                    Some( Score(0.9) )
-                
-                // Cycleways are normally urban and along a road, or short and dull. So score low
-                else if ( valueString.startsWith( "cycleway" ) )                        Some( Score(0.4) )
+                else if ( valueString.startsWith( "cycleway" ) )
+                {
+                    val railAnnotation : Option[String] = tagMap.get("railway")
+                    val adjacent : Option[String] = tagMap.get("adjacent")
+                    val segregated : Option[String] = tagMap.get("segregated")
+                    val ncn_ref : Option[String] = tagMap.get("ncn_ref")
+                    
+                    // Abandoned railways are perfect for cycling
+                    if ( railAnnotation == Some("abandoned") )                          Some( Score(1.0) )
+                    // Cycleways are normally urban and along a road, or short and dull. So default score low
+                    else if ( segregated == Some("no") )                                Some( Score(0.4) )
+                    else if ( segregated == Some("yes") )                               Some( Score(0.6) )
+                    else if ( adjacent.isDefined )                                      Some( Score(0.5) )
+                    else if ( ncn_ref.isDefined )                                       Some( Score(0.7) )
+                    else                                                                Some( Score(0.6) )
+                }
                 else None
             }
             case None => None

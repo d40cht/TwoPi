@@ -442,7 +442,7 @@ function posterParserFn($scope)
             {
                 var pic = dataEl.outboundPics[picI];
                 pics.push( {
-                    title   : pic.title + ", " + pic.photographer,
+                    title   : pic.title + ", © " + pic.photographer,
                     imgSrc  : "/geograph/full/" + pic.picIndex + "/" + pic.imgHash,
                     link    : "http://www.geograph.org.uk/photo/" + pic.picIndex,
                     coord   : pic.coord,

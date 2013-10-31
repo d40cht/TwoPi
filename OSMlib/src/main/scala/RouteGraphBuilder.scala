@@ -315,7 +315,7 @@ object GenerateRouteGraph extends App with Logging
             val imageId = els(0).toInt
             val lat = els(1).toDouble
             val lon = els(2).toDouble
-            val title = els(4)
+            val title = els(4).trim.reverse.dropWhile( _ == '.' ).reverse
             val photographer = els(5)
             val hash = els(7)
             // TODO: Re-instate date parsing? Ask Barry to re-do the dump with this column

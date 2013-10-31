@@ -77,6 +77,7 @@ trait Persistence
     def getRouteSummary( routeId : Int ) : Option[RouteSummary]
     def nameRoute( userId : Int, routeId : Int, name : String, description : String )
     def getUserRoutes( userId : Int ) : List[UserRoute]
+    def getAllNamedRoutes() : List[UserRoute]
 }
 
 class DbPersistence( val db : Database ) extends Persistence
@@ -193,6 +194,30 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 rn  <- RouteNameTable
                 r   <- RouteTable if rn.routeId === r.id && r.userId === userId
+            } yield ( r.id, rn.name, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
+            
+            routes.list.map
+            { r =>
+            	UserRoute(
+            	    id = r._1,
+            	    name = r._2,
+            	    description = r._3,
+            	    startCoord = Coord(r._4, r._5),
+            	    distance = r._6,
+            	    ascent = r._7,
+            	    timeAdded = r._8 )
+            }
+        }
+    }
+    
+    def getAllNamedRoutes() : List[UserRoute] =
+    {
+        db withSession
+        {
+            val routes = for
+            {
+                rn  <- RouteNameTable
+                r   <- RouteTable if rn.routeId === r.id
             } yield ( r.id, rn.name, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
             
             routes.list.map
