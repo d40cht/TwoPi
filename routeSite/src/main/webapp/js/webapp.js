@@ -481,14 +481,15 @@ function posterParserFn($scope)
             else return 0;
         } );
         
-        for ( pi in picsSorted.slice(0, 18) )
+        var picsSliced = picsSorted.slice(0, 18);
+        for ( pi in picsSliced )
         {
             var pic = picsSorted[pi];
             if ( pi < 2 ) pic.picClass = "masonrySize1";
             else if ( pi < 6 ) pic.picClass = "masonrySize2";
             else pic.picClass = "masonrySize3";
         }
-        $scope.pics = picsSorted;
+        $scope.pics = picsSliced;
         $scope.wiki = wiki;
         $scope.routeData = route;
     }

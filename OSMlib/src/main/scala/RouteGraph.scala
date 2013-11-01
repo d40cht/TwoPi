@@ -626,7 +626,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             case Some(mn)   => ( Seq( startPointAnnotationMap(mn.nodeId) ), 20 )
             case None       =>
             {
-                val mps = (0 until 3).iterator.map
+                val mps = (0 until 1).iterator.map
                 { _ =>
                 
                     // Choose randomly from the top 25% by cost to get a mid-point
@@ -637,7 +637,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
                     else None
                 }.flatten
                 
-                (mps, 6)
+                (mps, 20)
             }
         }
         
