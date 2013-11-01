@@ -10,6 +10,9 @@ Build it using sbt:
 
 Launch the app on localhost:8080 with:
 
+(it will expect a route graph called 'default.bin.rg' in the repo route directory. I use a symlink to oxfordshire.bin.rg
+for development)
+
 ./sbt "project routeSite" "container:start" shell
 
 The OSMlib project has the framework for parsing and aggregating the various datasources and building the
