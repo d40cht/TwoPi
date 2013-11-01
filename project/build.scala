@@ -34,7 +34,8 @@ object Toplevel extends Build
             "org.scalatest" %% "scalatest" % "1.9.1" % "test",
             "org.apache.commons" % "commons-lang3" % "3.1",
             "com.rockymadden.stringmetric" % "stringmetric-core" % "0.25.3",
-            "org.apache.commons" % "commons-compress" % "1.5"
+            "org.apache.commons" % "commons-compress" % "1.5",
+            "net.sf.jgrapht" % "jgrapht" % "0.8.3"
         ),
         mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
         { v =>

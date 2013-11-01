@@ -13,6 +13,7 @@ case class Score( val value : Double )
     
     def *( other : Score ) = Score( value * other.value )
     def isZero = value == 0.0
+    def sqrt = Score( math.sqrt(value) )
 }
 
 case class Speed( val kph : Double )
@@ -28,7 +29,22 @@ case class Speed( val kph : Double )
 trait RouteType
 {
     def name : String
-    def score( ed : EdgeDest ) : Score
+    def calcScore( ed : EdgeDest ) : Score
+    
+    val scoreCache = new java.util.HashMap[EdgeDest, Score]()
+    def score( ed : EdgeDest ) : Score =
+    {
+        val existing = scoreCache.get(ed)
+        if ( existing != null ) existing
+        else
+        {
+            val sc = calcScore( ed )
+            scoreCache.put( ed, sc )
+            
+            sc
+        }
+    }
+    
     def speed( ed : EdgeDest ) : Speed
     def respectOneWay : Boolean
     
@@ -65,7 +81,7 @@ class DrivingRoute extends RouteType
 {
     val name = "Driving"
     
-    override def score( ed : EdgeDest ) : Score =
+    override def calcScore( ed : EdgeDest ) : Score =
 	{
 	    val re = ed.edge
     	val tagMap = re.wayTags
@@ -138,7 +154,7 @@ class WalkingRoute() extends RouteType
 {
     val name="Walking"
     
-    override def score( ed : EdgeDest ) : Score =
+    override def calcScore( ed : EdgeDest ) : Score =
 	{
 	    val re = ed.edge
     	val tagMap = re.wayTags
@@ -193,20 +209,17 @@ class WalkingRoute() extends RouteType
 
 trait BaseCycleRouting extends RouteType
 {
-    def inclineScore( re : RouteEdge ) : Score
+    def inclineScore( baseScore : Score, re : RouteEdge ) : Score
     
-    override def score( ed : EdgeDest ) : Score =
+    override def calcScore( ed : EdgeDest ) : Score =
 	{
 	    val re = ed.edge
     	val tagMap = re.wayTags
     	
         val highwayAnnotation : Option[String] = tagMap.get("highway")
         val lanesAnnotation : Option[String] = tagMap.get("lanes")
-        //val junctionAnnotation : Option[String] = tagMap.get("junction")
-        //val bridgeAnnotation : Option[String] = tagMap.get("bridge")
         val nameAnnotation : Option[String] = tagMap.get("name")
-        //val refAnnotation : Option[String] = tagMap.get("ref")
-        //val footAnnotation : Option[String] = tagMap.get("foot")
+
         
     
         val costMultiplierOption = highwayAnnotation match
@@ -227,7 +240,7 @@ trait BaseCycleRouting extends RouteType
                 else if ( valueString.startsWith( "residential" ) )                     Some( Score(0.4) )
                 else if ( valueString.startsWith( "road" ) )                            Some( Score(0.6) )
                 else if ( valueString.startsWith( "secondary" ) )                       Some( Score(0.7) )
-                else if ( valueString.startsWith( "tertiary" ) )                        Some( Score(0.8) )
+                else if ( valueString.startsWith( "tertiary" ) )                        Some( Score(0.9) )
                 else if ( valueString.startsWith( "unclassified" ) )                    Some( Score(0.9) )
                 else if ( valueString.startsWith( "cycleway" ) )
                 {
@@ -254,8 +267,9 @@ trait BaseCycleRouting extends RouteType
     
 	    val sc = scenicScore( ed )
 	    
-	    
-	    costMultiplier * sc * inclineScore( re ) * Score(re.landCoverScore)
+        val baseScore = costMultiplier * sc * Score(re.landCoverScore)
+        
+        inclineScore( baseScore, re )
 	}
     
     // TODO: Modify according to incline
@@ -263,27 +277,55 @@ trait BaseCycleRouting extends RouteType
     override def respectOneWay = true
 }
 
-class BumpyCycleRouting() extends BaseCycleRouting
+abstract class InclineCycleRouting extends BaseCycleRouting
+{
+    // A 1 in 10 or above scores 1.0
+    def inclineRatio( re : RouteEdge ) =
+    {
+        if ( re.dist == 0.0 ) 0.0
+        else (Math.abs(re.forwardHeightDelta) / re.dist)*10.0 min 1.0
+    }
+}
+
+class FlatCycleRouting() extends InclineCycleRouting
+{
+    val name="Cycling (flat)"
+    
+    def inclineScore( baseScore : Score, re : RouteEdge ) =
+    {
+        val ic = Score(1.0 - inclineRatio(re)*0.8)
+        //baseScore * ic * ic
+        baseScore.sqrt * ic
+    }
+}
+
+class BumpyCycleRouting() extends InclineCycleRouting
 {
     val name="Cycling (hilly)"
     
-    def inclineScore( re : RouteEdge ) = Score(0.5 + (((Math.abs(re.forwardHeightDelta) / re.dist)*5.0) min 0.5))
+    def inclineScore( baseScore : Score, re : RouteEdge ) =
+    {
+        val ic = Score(0.2 + inclineRatio(re)*0.8)
+        baseScore.sqrt * ic
+    }
 }
 
 class IgnoreHeightCycleRouting() extends BaseCycleRouting
 {
     val name="Cycling (normal)"
     
-    def inclineScore( re : RouteEdge ) = Score(1.0)
+    def inclineScore( baseScore : Score, re : RouteEdge ) = baseScore
 }
 
 object RouteType
 {
     lazy val allTypes = Seq(
         new WalkingRoute(),
+        new FlatCycleRouting(),
         new IgnoreHeightCycleRouting(),
         new BumpyCycleRouting(),
         new DrivingRoute() )
     .map( x => (x.name, x) )
-    .toMap
+    
+    lazy val allTypesMap = allTypes.toMap
 }

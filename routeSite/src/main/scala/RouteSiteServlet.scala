@@ -141,7 +141,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         log.info( "Request requestroute: %s, %s, %.2f, %s".format( startCoord, midCoordOption, distInKm, costModelName ) )
         
-        val routeType = RouteType.allTypes( costModelName )
+        val routeType = RouteType.allTypesMap( costModelName )
         val startNode = rg.getClosest( routeType, startCoord )
         val midNodeOption = midCoordOption.map { mc => rg.getClosest( routeType, mc ) }
         
@@ -178,7 +178,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         log.info( "Request requestroute: %s, %.2f, %s".format( startCoord, distInKm, costModelName ) )
         
-        val routeType = RouteType.allTypes( costModelName )
+        val routeType = RouteType.allTypesMap( costModelName )
         val startNode = rg.getClosest( routeType, startCoord )
         val res = rg.debugRoute( routeType, startNode, distInKm * 1000.0 )
         

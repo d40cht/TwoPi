@@ -1,8 +1,8 @@
-<div class="row" style="margin-left: 6px; margin-right: 6px">
+<div id="top" class="row" style="margin-left: 6px; margin-right: 6px">
     <div class="row" height="height:30%">
         <h3>Route summary</h3>
         
-        <div class="col-md-6" popover-text="introText" popover-parse popover-placement="right" popover-trigger="onceOnly" id="makeSummaryIntro">
+        <div class="col-md-6" popover-text="introText" popover-parse popover-placement="right" popover-trigger="onceOnly" id="makeSummaryIntro" popover-container="#top">
         
             <table class="table table-condensed">
                 <tr><td>Name</td><td>{{routeName.name}}</td></tr>
@@ -21,7 +21,7 @@
                     <span ng-switch-when="true">
                         <span ng-switch on="userName!=null">
                             <span ng-switch-when="true">
-                                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info" popover-text="Save this route to your account">Save route</a>
+                                <a href="/app/saveRoute/{{routeId}}" class="btn btn-info" popover-text="Save this route to your account" popover-container="#top">Save route</a>
                             </span>
                             <span ng-switch-default>
                                 (Login to save route)
@@ -32,12 +32,12 @@
                 
                 <span ng-switch on="$storage.startCoord!=null">
                     <span ng-switch-when="true">
-                        <a ng-click="requestRoute()" btn-loading="working" class="btn btn-info" popover-text="Generate another route with the same parameters">Regenerate</a>
+                        <a ng-click="requestRoute()" btn-loading="working" data-loading-text="Working..." class="btn btn-info" popover-text="Generate another route with the same parameters" popover-container="#top">Regenerate</a>
                     </span>
                 </span>
                 
-                <a href="/app/route/{{routeId}}" class="btn btn-info" popover-text="Display this route on the main map">Back to map</a>
-                <a href="/gpx/{{routeId}}" class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)">Export GPX</a>
+                <a href="/app/route/{{routeId}}" class="btn btn-info" popover-text="Display this route on the main map" popover-container="#top">Back to map</a>
+                <a href="/gpx/{{routeId}}" class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)" popover-container="#top">Export GPX</a>
             </div>
 
         </div>

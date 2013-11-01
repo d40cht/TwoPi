@@ -144,6 +144,12 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 trigger = "manual";
             }
             
+            var container = "body";
+            if ( angular.isDefined(attrs.popoverContainer) )
+            {
+                container = attrs.popoverContainer;
+            }
+            
             element.popover(
             {
                 content : text,
@@ -151,7 +157,7 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 placement : placement,
                 trigger : trigger,
                 delay : { show : 500, hide : 100 },
-                container : "body"
+                container : container
             } );
             
             if ( onceOnly && !angular.isDefined( $localStorage[attrs.id] ) )
@@ -751,7 +757,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         "<h4>Customise your route</h4>",
         "<ul>",
         "<li>Change 'Routing preference' to choose walking, cycling or driving routes</li>",
-        "<li>Select 'A - B' to change to generating routes between two chosen places</li>",
+        "<li>Select 'A - B' to specify a mid-point as well as a starting point.</li>",
         "<li>If you need to find a place, enter its name in 'Place search' and hit 'Search!' to find</li>",
         "</ul>",
         // This is an utterly awful way to dismiss the popover. Fix by using angular-ui when ready for Bootstrap 3.0
@@ -808,6 +814,11 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     $scope.mapHolder = mapHolder;
     
     $scope.selecting = null;
+    var setNone = function()
+    {
+        mapHolder.setClickCallback( function(lonLat) {} );
+    };
+    
     $scope.setStart = function()
     {
         $scope.selecting="start";
@@ -838,7 +849,14 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         $scope.$storage.routeMode = "startMode";
         midMarker.removeMarker();
         $scope.$storage.midCoord = null;
-        //$scope.setStart();
+        if ( $scope.$storage.startCoord == null )
+        {
+            $scope.setStart();
+        }
+        else
+        {
+            setNone();
+        }
     }
     
     $scope.startEndMode = function()
@@ -874,14 +892,14 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         $log.info( "  complete" );
     }, 0 );
     
-    if ( $scope.$storage.startCoord == null )
+    /*if ( $scope.$storage.startCoord == null )
     {
         $scope.setStart();
     }
     else if ( $scope.$storage.midCoord == null )
     {
         $scope.setMid();
-    }
+    }*/
     
     
     $scope.poiIcon = function( poi )
