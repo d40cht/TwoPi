@@ -93,14 +93,21 @@
                         </div>
                     </div>
                 </form>
-                <br>
-                <small>
-                    <ul class="list-group" id="placeSearchResults">
-                        <li class="list-group-item" ng-repeat="place in foundPlaces">
-                            <a ng-click="moveTo(place.boundingbox)">{{place.display_name}}</a>
-                        </li>
-                    </ul>
-                </small>
+            
+                <div ng-switch on="foundPlaces.length == 0">
+                    <div ng-switch-when="true" class="text-center">
+                        No search results
+                    </div>
+                    <div ng-switch-default>
+                        <small>
+                        <ul class="list-group" id="placeSearchResults">
+                            <li class="list-group-item" ng-repeat="place in foundPlaces">
+                                <a ng-click="moveTo(place.boundingbox)">{{place.display_name}}</a>
+                            </li>
+                        </ul>
+                        </small>
+                    </div>
+                </div>
             </div>
         
             
