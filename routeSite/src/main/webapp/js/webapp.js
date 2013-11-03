@@ -716,8 +716,8 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
         } )
         .success( function( data, status, headers, config )
         {
-            routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )( data, status, headers, config );
             posterParserFn($scope)( data, status, headers, config );
+            routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )( data, status, headers, config );
             
             $timeout( function()
             {
