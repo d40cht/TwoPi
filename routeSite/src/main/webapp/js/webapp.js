@@ -802,16 +802,6 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
     var midMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/green_MarkerE.png", "End", 1, 20, 34 );
     var elevationCrossLinkMarker = new ManagedMarker( mapHolder.getMap(), "/img/mapMarkers/red_MarkerE.png", "", 1, 20, 34 );
     
-    if ( $scope.$storage.startCoord != null )
-    {
-        startMarker.moveMarker( $scope.$storage.startCoord );
-    }
-    
-    if ( $scope.$storage.midCoord != null )
-    {
-        midMarker.moveMarker( $scope.$storage.midCoord );
-    }
-    
     $scope.mapHolder = mapHolder;
     
     $scope.selecting = null;
@@ -880,6 +870,20 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         midMarker.removeMarker();
         $scope.$storage.startCoord = null;
         $scope.$storage.midCoord = null;
+    }
+    
+    if ( $scope.$storage.startCoord != null )
+    {
+        startMarker.moveMarker( $scope.$storage.startCoord );
+    }
+    else
+    {
+        $scope.setStart()
+    }
+    
+    if ( $scope.$storage.midCoord != null )
+    {
+        midMarker.moveMarker( $scope.$storage.midCoord );
     }
     
     // Remember the route mode
@@ -1036,12 +1040,14 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
 }
 
 
-function TypeaheadCtrl($scope, $http)
+function PlaceSearchControl($scope, $http)
 {
     $scope.foundPlaces = [];
+    $scope.searching = false;
     
     $scope.populate = function()
     {
+        $scope.searching = true;
         $http(
         {
             method : 'GET',
@@ -1060,6 +1066,12 @@ function TypeaheadCtrl($scope, $http)
                 results.push( place );
             }
             $scope.foundPlaces = results;
+            $scope.searching = false;
+        } )
+        .error( function(data, status, headers, config)
+        {
+            alert( "Could not find any places matching: " + $scope.placename );
+            $scope.searching = false;
         } );
         
         //http://nominatim.openstreetmap.org/search/appleton,%20oxfordshire?format=json
