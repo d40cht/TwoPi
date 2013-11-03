@@ -217,53 +217,63 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         }
     }
     
-    get("/gpx/:routeId")
+    get("/gpx/:routeId.gpx")
     {
-        contentType = "text/xml"
+        contentType = "application/gpx"
 
-        val routeName = "Example route"
-        persistence.getRoute( params("routeId").toInt ) match
+        val routeId = params("routeId").toInt
+        val routeNameDetails = persistence.getRouteName( routeId )
+        val routeName = routeNameDetails.map( _.name ).getOrElse( "Unnamed route " + routeId )
+        val res = persistence.getRoute( routeId ) match
         {
             case Some(routeResult)    =>
             {
-                <gpx>
-                    <name>{routeName}</name>
-                    <cmt>{routeName}</cmt>
-                    <desc>{routeName}</desc>
-                    <trk><trkseg>
+                <gpx
+            		xmlns="http://www.topografix.com/GPX/1/1"
+            		creator="TwoPI route generator"
+            		version="1.1"
+            		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            		xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+
+            		<metadata>
+            			<name>{routeName}</name>
+            		</metadata>
+
+                    
+                    
                     {
-                        routeResult.directions.flatMap
+                    	routeResult.directions.map
                         { rd =>
                             
-                            rd.outboundNodes.map
-                            { n =>
-                            
-                                <trkpt lat={n.node.coord.lat.toString} lon={n.node.coord.lon.toString}>
-                                    <ele>{n.node.height.toString}</ele>
-                                </trkpt>
-                            }
+                            <wpt lat={rd.coord.lat.toString} lon={rd.coord.lon.toString}>
+                            	<ele>{"%.2f".format(rd.elevation)}</ele>
+                            	<name>{rd.directionsText}</name>
+                            	<sym>generic</sym>
+                            	<type>Generic</type>
+                            </wpt>
                         }
                     }
-                    </trkseg></trk>
-                    
-                    <rte>
-                        <name>{routeName}</name>
-                        <cmt>{routeName}</cmt>
-                        <desc>{routeName}</desc>
-                        {
-                            routeResult.directions.map
-                            { rd =>
-                            
-                                <rtept>
-                                    <name>{rd.directionsText}</name>
-                                    <cmt>{rd.directionsText}</cmt>
-                                    <desc>{rd.directionsText}</desc>
-                                    <lat>{rd.coord.lat.toString}</lat>
-                                    <lon>{rd.coord.lon.toString}</lon>
-                                </rtept>
-                            }
-                        }
-                    </rte>
+
+                    <trk>
+                    	<name>{routeName}</name>
+                    	<trkseg>
+                    	{
+	                        routeResult.directions.flatMap
+	                        { rd =>
+	                            
+	                            rd.outboundNodes.map
+	                            { n =>
+	                            
+	                                <trkpt lat={n.node.coord.lat.toString} lon={n.node.coord.lon.toString}>
+                                    	<ele>{n.node.height.toString}</ele>
+                                    	<!-- This should be a plausible increasing time based on estimated speed -->
+                                    	<time>2010-01-01T00:00:00Z</time>
+                                    </trkpt>
+	                            }
+	                        }
+	                    }
+                    	</trkseg>
+                    </trk>
                 </gpx>
             }
             case None               =>
@@ -271,6 +281,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 <gpx></gpx>
             }
         }
+        
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + res.toString
     }
     
     post("/saveroute")
