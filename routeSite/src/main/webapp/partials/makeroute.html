@@ -19,7 +19,7 @@
                 <div class="tab-content">
                 
                     <div class="tab-pane active" id="startMode">    
-                        <form ng-submit="requestRoute()">
+                        <form ng-submit="requestRoute()" name="startModeForm">
                             <div class="form-group">
                                 <label>Start</label>
                                 <div class="input-group">
@@ -29,7 +29,10 @@
                                     <span class="form-control" ng-class="{highlit : selecting=='start'}">{{renderRoutePoint($storage.startCoord)}}</span>
                                 </div>
                                 <label>Distance (km)</label>
-                                <input class="form-control" type="number" name="distance" ng-model="$storage.distance" required popover-text="Choose the distance for your route" popover-container="#top">
+                                <input class="form-control" type="number" name="distance" max="150.0" ng-model="$storage.distance" required popover-text="Choose the distance for your route." popover-container="#top">
+                                <div class="flashError" ng-show="startModeForm.distance.$dirty && startModeForm.distance.$invalid">
+                                    <small>Distance must be less than 150km</small>
+                                </div>
                                 <br>
                                 <fieldset ng-disabled="$storage.startCoord==null">
                                     <button btn-loading="working" data-loading-text="Working..." name="specifiedStartSubmit" type="submit" class="btn btn-primary" required popover-text="Find a route" popover-container="#top">Go!</button>

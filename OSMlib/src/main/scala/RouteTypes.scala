@@ -38,7 +38,13 @@ trait RouteType
         if ( existing != null ) existing
         else
         {
-            val sc = calcScore( ed )
+            val tagMap = ed.edge.wayTags
+            val access : Option[String] = tagMap.get("access")
+            val sc =
+            {
+                if ( access == Some("private") ) Score(0.0)
+                else calcScore( ed )
+            }
             scoreCache.put( ed, sc )
             
             sc
