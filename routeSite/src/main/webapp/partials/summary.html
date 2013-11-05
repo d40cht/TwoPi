@@ -2,6 +2,7 @@
     <div class="row" height="height:30%">
         <h3>Route summary</h3>
         
+        
         <div class="col-md-6" popover-text="introText" popover-parse popover-placement="right" popover-trigger="onceOnly" id="makeSummaryIntro" popover-container="#top">
         
             <table class="table table-condensed">
@@ -12,6 +13,12 @@
                 <tr><td>Distance</td><td>{{routeData.distance.toFixed(0)}}km</td></tr>
                 <tr><td>Ascent</td><td>{{routeData.ascent.toFixed(0)}}m</td></tr>
             </table>
+            
+            <div ng-switch on="routeName==null">
+                <div ng-switch-when="true" class="text-center">
+                    <strong>Note: route is not saved, it will only be retained for 30 days. Please login to save.</strong>
+                </div>
+            </div>
         
             <div id="elevation" style="height:200px">
             </div>
