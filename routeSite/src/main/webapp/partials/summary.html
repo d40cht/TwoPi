@@ -16,7 +16,7 @@
             
             <div ng-switch on="routeName==null">
                 <div ng-switch-when="true" class="text-center">
-                    <strong>Note: route is not saved, it will only be retained for 30 days. Please login to save.</strong>
+                    <strong>Note: route is not saved, it will only be retained for 30 days. Please sign in to save.</strong>
                 </div>
             </div>
         
@@ -44,7 +44,7 @@
                 </span>
                 
                 <a href="/app/route/{{routeId}}" class="btn btn-info" popover-text="Display this route on the main map" popover-container="#top">Back to map</a>
-                <a href="/gpx/{{routeId}}" class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)" popover-container="#top">Export GPX</a>
+                <a href="/gpx/{{routeId}}.gpx" class="btn btn-default" popover-text="Download route for GPS (Garmin, smartphone etc)" popover-container="#top">Export GPX</a>
             </div>
 
         </div>
