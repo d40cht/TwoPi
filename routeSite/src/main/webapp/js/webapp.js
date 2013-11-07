@@ -70,6 +70,11 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 templateUrl : '/partials/saveRoute.html',
                 controller  : RouteSaveController
             } )
+            .when('/deleteRoute/:routeId',
+            {
+                templateUrl : '/partials/deleteRoute.html',
+                controller  : RouteDeleteController
+            } )
             .when('/poster/:routeId',
             {
                 templateUrl : '/partials/poster.html',
@@ -386,10 +391,55 @@ function UserController($scope, $routeParams, $http)
             method: "GET",
             url : ("/myroutes")
         } )
+        .success( function( response, status, headers, config )
+        {
+            $scope.myroutes = response.data;
+        } );
+}
+
+function RouteDeleteController($scope, $routeParams, $http, $location, $window, analytics)
+{
+    $scope.routeId = $routeParams.routeId
+    
+    $scope.goBack = function()
+    {
+        $window.history.back();
+    };
+    
+    $http( {
+            method: "GET",
+            url : ("/getroutesummary/" + $scope.routeId)
+        } )
+        .success( function( response, status, headers, config )
+        {
+            $scope.routeSummary = response.data;
+        } )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure in fetching route summary: " + status );
+        } );
+        
+    $scope.deleteRoute = function()
+    {   
+        var params = $.param( {
+            routeId : $scope.routeId
+        } );
+        
+        $http( {
+            method: "POST",
+            url : "/deleteroute",
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            data : params
+        } )
         .success( function( data, status, headers, config )
         {
-            $scope.myroutes = data;
+            $location.path("/user")
+        } )
+        .error( function(data, status, headers, config )
+        {
+            alert( "Failure in deleting summary: " + status + " - " + data );
         } );
+    }
 }
 
 function RouteSaveController($scope, $routeParams, $http, $location, analytics)
@@ -400,9 +450,9 @@ function RouteSaveController($scope, $routeParams, $http, $location, analytics)
             method: "GET",
             url : ("/getroutesummary/" + $scope.routeId)
         } )
-        .success( function( data, status, headers, config )
+        .success( function( response, status, headers, config )
         {
-            $scope.routeSummary = data;
+            $scope.routeSummary = response.data;
         } )
         .error( function(data, status, headers, config )
         {
@@ -436,11 +486,11 @@ function RouteSaveController($scope, $routeParams, $http, $location, analytics)
 
 function posterParserFn($scope)
 {
-    return function( data, status, headers, config )
+    return function( response, status, headers, config )
     {
         var pics = [];
         var wiki = [];
-        var route = data.route;
+        var route = response.data.route;
         for ( rd in route.directions )
         {
             var dataEl = route.directions[rd];
@@ -530,8 +580,9 @@ function PosterController($scope, $routeParams, $http, $timeout, analytics)
 
 function routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )
 {
-    return function( namedRoute, status, headers, config )
+    return function( response, status, headers, config )
     {
+        var namedRoute = response.data;
         var routeData = namedRoute.route;
         $scope.routeData = routeData;
         if ( angular.isDefined(namedRoute.name) ) $scope.routeName = namedRoute.name;
@@ -646,9 +697,9 @@ function requestRouteFunction($scope, $location, $http)
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             data : params
         } )
-        .success( function(data, status, headers, config)
+        .success( function(response, status, headers, config)
         {
-            var hash = data;
+            var hash = response.data;
             $location.path( "/summary/" + hash );
             $scope.working = false;
             setRoute( hash );

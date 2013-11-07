@@ -1,0 +1,41 @@
+<div class="row" id="deleteTop">         
+    <div class="col-md-12">
+        <h3>Delete route</h3>
+        
+        <div class="panel panel-info">
+            <div class="panel-heading">
+                <h3 class="panel-title">Route summary</h3>
+            </div>
+            <div class="panel-body">
+                <table class="table table-condensed">
+                    <tr>
+                        <td>Route type</td>
+                        <td>{{routeSummary.routeType}}</td>
+                    </tr>
+                    <tr>
+                        <td>Distance</td>
+                        <td>{{routeSummary.distance.toFixed(0)}} km</td>
+                    </tr>
+                    <tr>
+                        <td>Ascent</td>
+                        <td>{{routeSummary.ascent.toFixed(0)}} m</td>
+                    </tr>
+                    <tr>
+                        <td>Duration</td>
+                        <td>{{(routeSummary.duration / 60).toFixed(0)}} minutes</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="panel panel-primary">
+            <div class="panel-heading">
+                <h3 class="panel-title">Are you sure you want to delete this route?</h3>
+            </div>
+            <div class="panel-body">
+                <button type="button" class="btn btn-default" ng-click="goBack()">Cancel</button>
+                <button type="button" class="btn btn-danger" ng-click="deleteRoute()">Delete</a>
+            </div>
+        </div>
+    </div>
+</div>

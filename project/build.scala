@@ -35,7 +35,8 @@ object Toplevel extends Build
             "org.apache.commons" % "commons-lang3" % "3.1",
             "com.rockymadden.stringmetric" % "stringmetric-core" % "0.25.3",
             "org.apache.commons" % "commons-compress" % "1.5",
-            "net.sf.jgrapht" % "jgrapht" % "0.8.3"
+            "net.sf.jgrapht" % "jgrapht" % "0.8.3",
+            "org.json4s" %% "json4s-native" % "3.2.5"
         ),
         mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
         { v =>

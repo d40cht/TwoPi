@@ -8,6 +8,8 @@ import scala.collection.{mutable, immutable}
 
 import scala.util.control.Breaks._
 
+import org.json4s.native.Serialization.{read => sread, write => swrite}
+
 
 // Changes to algo:
 
@@ -148,6 +150,8 @@ case class ForwardPathElement( val routeAnnotation : RouteAnnotation, val outgoi
     }
 }
 
+case class FoundRoute( val path : Seq[ForwardPathElement] )
+
 case class RouteAnnotation( val routeNode : RouteNode, var cumulativeCost : Double, var cumulativeDistance : Double, var cumulativeHeightDelta : Double )
 {
     var parent : Option[PathElement]    = None
@@ -186,7 +190,7 @@ case class DebugDest( coord : Coord, score : Double, title : String )
 case class DebugData( ways : Array[DebugWay], dests : Array[DebugDest], pois : Array[POI], scenicPoints : Array[ScenicPoint] )
 
 
-// If from and to are the check coord are rotated so that from and to are on the y-axis,
+// If from and to are rotated so that from and to are on the y-axis,
 // check that the y value of c is within from and to y coords
 class BetwixValidator( val from : Coord, val to : Coord )
 {
@@ -211,6 +215,11 @@ class BetwixValidator( val from : Coord, val to : Coord )
 class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[ScenicPoint] ) extends Logging
 {
     import scala.collection.JavaConversions._
+    import org.json4s._
+	import org.json4s.native.JsonMethods._
+	import org.json4s.JsonDSL._
+	implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
+
     
     val treeMap = new RTreeIndex[RouteNode]()
     
@@ -538,8 +547,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     }
     
     // *************** The main mechanics of route finding happens here ***************
-    
-    case class FoundRoute( val path : Seq[ForwardPathElement] )
+
     
     private def filterDestinations( routeType : RouteType, annotations : Seq[RouteAnnotation],  minSpacing : Double ) : Seq[(Double, RouteAnnotation)] =
     {
@@ -757,8 +765,10 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     {
         findRoute( routeType, startNode, midNodeOption, targetDist ).map
         { fullRoute =>
-        
-        
+            
+            val res = swrite( fullRoute )
+            log.info( "Full route serialized: " + res )
+            
             val peSegments = mutable.ArrayBuffer[mutable.ArrayBuffer[ForwardPathElement]]()
             fullRoute.path.foreach
             { pe =>

@@ -17,7 +17,10 @@ import org.json4s.JsonDSL._
 import org.json4s.native.Serialization.{read => sread, write => swrite}
 
 case class User( id : Int, extId : String, name : String, email : String, numLogins : Int, firstLogin : Timestamp, lastLogin : Timestamp )
-case class UserRoute( id : Int, name : String, description : String, startCoord : Coord, distance : Double, ascent : Double, timeAdded : Timestamp )
+
+case class RouteSummary( routeId : Int, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] )
+case class UserRoute( id : Int, name : String, routeType : String, description : String, startCoord : Coord, distance : Double, ascent : Double, timeAdded : Timestamp )
+
 
 case class RouteName( name : String, description : String, timeAdded : Timestamp )
 
@@ -65,7 +68,16 @@ private object RouteNameTable extends Table[(Int, String, String, Timestamp)]("R
     def insCols = routeId ~ name ~ description
 }
 
-case class RouteSummary( routeId : Int, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] )
+private object RouteRating extends Table[(Int, Int, Int, Timestamp)]("RouteRatings")
+{
+    def routeId		= column[Int]("routeId")
+    def userId		= column[Int]("userId")
+    def rating		= column[Int]("rating")
+    def timeAdded   = column[Timestamp]("timeAdded")
+    
+    def * = routeId ~ userId ~ rating ~ timeAdded
+    def insCols = routeId ~ userId ~ rating
+}
 
 trait Persistence
 {
@@ -78,6 +90,8 @@ trait Persistence
     def nameRoute( userId : Int, routeId : Int, name : String, description : String )
     def getUserRoutes( userId : Int ) : List[UserRoute]
     def getAllNamedRoutes() : List[UserRoute]
+    def setRouteRating( userId : Int, routeId : Int, rating : Int ) : Unit
+    def deleteRoute( routeId : Int, userId : Int ) : Unit
 }
 
 class DbPersistence( val db : Database ) extends Persistence
@@ -124,6 +138,31 @@ class DbPersistence( val db : Database ) extends Persistence
         {
             RouteTable.autoInc.insert( (routeData, start.lon, start.lat, routeType, distance, ascent, duration, userId) )
         }
+    }
+    
+    def setRouteRating( userId : Int, routeId : Int, rating : Int )
+    {
+    	db withTransaction
+    	{
+    	    val now = timestampNow
+    	    val existingRating = Query(RouteRating).filter( r => r.userId === userId && r.routeId === routeId )
+    	    
+    	    existingRating.firstOption match
+    	    {
+    	        case None =>
+	            {
+	            	RouteRating.insCols.insert( (userId, routeId, rating) )
+	            }
+    	        case Some(existing) =>
+	            {
+	                existingRating
+	                	.map( r => r.rating ~ r.timeAdded )
+	                	.update( (rating, now) )
+	            }
+    	    }
+    	            
+    	    existingRating
+    	}
     }
     
     
@@ -186,6 +225,24 @@ class DbPersistence( val db : Database ) extends Persistence
         }
     }
     
+    def deleteRoute( routeId : Int, userId : Int )
+    {
+        db withTransaction
+        {
+            val routeUserQ = Query(RouteTable)
+                .filter(r => r.id === routeId && r.userId === userId)
+                .firstOption
+     
+            // Only delete the route (name) if this user has ownership
+            routeUserQ.foreach
+            { _ =>
+                RouteNameTable
+                	.filter( _.routeId === routeId )
+                	.delete
+            }
+        }
+    }
+    
     def getUserRoutes( userId : Int ) : List[UserRoute] =
     {
         db withSession
@@ -194,18 +251,19 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 rn  <- RouteNameTable
                 r   <- RouteTable if rn.routeId === r.id && r.userId === userId
-            } yield ( r.id, rn.name, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
+            } yield ( r.id, rn.name, r.routeType, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
             
             routes.list.map
             { r =>
             	UserRoute(
             	    id = r._1,
             	    name = r._2,
-            	    description = r._3,
-            	    startCoord = Coord(r._4, r._5),
-            	    distance = r._6,
-            	    ascent = r._7,
-            	    timeAdded = r._8 )
+            	    routeType = r._3,
+            	    description = r._4,
+            	    startCoord = Coord(r._5, r._6),
+            	    distance = r._7,
+            	    ascent = r._8,
+            	    timeAdded = r._9 )
             }
         }
     }
@@ -218,18 +276,19 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 rn  <- RouteNameTable
                 r   <- RouteTable if rn.routeId === r.id
-            } yield ( r.id, rn.name, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
+            } yield ( r.id, rn.name, r.routeType, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
             
             routes.list.map
             { r =>
             	UserRoute(
             	    id = r._1,
             	    name = r._2,
-            	    description = r._3,
-            	    startCoord = Coord(r._4, r._5),
-            	    distance = r._6,
-            	    ascent = r._7,
-            	    timeAdded = r._8 )
+            	    routeType = r._3,
+            	    description = r._4,
+            	    startCoord = Coord(r._5, r._6),
+            	    distance = r._7,
+            	    ascent = r._8,
+            	    timeAdded = r._9 )
             }
         }
     }

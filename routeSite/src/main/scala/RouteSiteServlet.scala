@@ -67,7 +67,13 @@ import org.json4s.native.Serialization.{read => sread, write => swrite}
 // > ~ ;copy-resources;aux-compile
 
 
-case class JSONResponse[T]( val status : String, val message : Option[String], val data : T )
+case class JSONResponse[T]( val status : String, val message : Option[String], val data : Option[T] )
+
+object JSONResponse
+{
+    def success[T]( data : T ) = new JSONResponse( "success", None, Some(data) )
+    def error[T]( message : String ) = new JSONResponse( "error", Some(message), None )
+}
 
 class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 	with AuthenticationSupport
@@ -158,12 +164,11 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 
                 val routeId = persistence.addRoute(jsonRendered, startCoord, route.routeType, route.distance, route.ascent, route.duration, userIdOption)
                 
-                routeId.toString
+                swrite( JSONResponse.success( routeId.toString ) )
             }
             case None           =>
             {
-                log.error( "No route found" )
-                "Error"
+                swrite( JSONResponse.error( "No route found" ) )
             }
         }  
     }
@@ -182,10 +187,12 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         val startNode = rg.getClosest( routeType, startCoord )
         val res = rg.debugRoute( routeType, startNode, distInKm * 1000.0 )
         
-        val serialised = swrite(res)
+        val serialised = swrite( JSONResponse.success( res ) )
         log.info( "Debug size: %.2fMb".format( serialised.size.toDouble / (1024.0 * 1024.0) ) )
+        
         serialised
     }
+    
     
     get("/getroute/:routeId")
     {
@@ -200,9 +207,9 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             {
                 val routeName = persistence.getRouteName( params("routeId").toInt )
                 val nr = NamedRoute( routeName, routeData )
-                swrite(nr)
+                swrite( JSONResponse.success( nr ) )
             }
-            case None               => "Error: route not found"
+            case None               => swrite( JSONResponse.error( "Error: route not found" ) )
         }
     }
     
@@ -212,8 +219,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         
         persistence.getRouteSummary( params("routeId").toInt ) match
         {
-            case Some(routeData)    => swrite(routeData)
-            case None               => "Error: route not found"
+            case Some(routeData)    => swrite( JSONResponse.success(routeData) )
+            case None               => swrite( JSONResponse.error("Error: route not found") )
         }
     }
     
@@ -287,6 +294,8 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     post("/saveroute")
     {
+        contentType = "application/json"
+            
         getUser match
         {
             case Some(user) =>
@@ -295,11 +304,32 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 val routeName = params("name")
                 val description = params("description")
                 persistence.nameRoute( user.id, routeId, routeName, description )
-                "success"
+                
+                swrite( JSONResponse.success( None ) )
             }
             case None =>
             {
-                "fail"
+                swrite( JSONResponse.error( "You must be logged in to save a route" ) )
+            }
+        }
+    }
+    
+    post("/deleteroute")
+    {
+    	contentType = "application/json"
+    	    
+    	getUser match
+        {
+            case Some(user) =>
+            {
+            	val routeId = params("routeId").toInt
+            	persistence.deleteRoute( routeId, user.id )
+            	
+            	swrite( JSONResponse.success( None ) )
+            }
+            case None =>
+            {
+                swrite( JSONResponse.error( "You must be logged in to delete" ) )
             }
         }
     }
@@ -313,11 +343,11 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
             {
                 val routes = persistence.getUserRoutes( user.id )
                 
-                val res = swrite(routes)
+                val res = swrite( JSONResponse.success(routes) )
                 
                 res
             }
-            case None       => "fail"
+            case None       => swrite( JSONResponse.error("You must be logged in to retrieve your routes") )
         }
     }
     
@@ -326,7 +356,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         contentType = "application/json"
         
         val routes = persistence.getAllNamedRoutes()
-        swrite(routes)
+        swrite( JSONResponse.success(routes) )
     }
 
     get("/")
