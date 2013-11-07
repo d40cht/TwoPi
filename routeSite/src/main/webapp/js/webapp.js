@@ -90,6 +90,11 @@ angular.module('TwoPi', ['ngCookies', 'ngStorage', 'analytics'], function($provi
                 templateUrl : '/partials/user.html',
                 controller  : UserController
             } )
+            .when('/allRoutes',
+            {
+                templateUrl : '/partials/allRoutes.html',
+                controller  : AllRoutesController
+            } )
             .when('/about',
             {
                 templateUrl : '/partials/about.html'
@@ -390,6 +395,18 @@ function UserController($scope, $routeParams, $http)
     $http( {
             method: "GET",
             url : ("/myroutes")
+        } )
+        .success( function( response, status, headers, config )
+        {
+            $scope.myroutes = response.data;
+        } );
+}
+
+function AllRoutesController($scope, $routeParams, $http)
+{
+    $http( {
+            method: "GET",
+            url : ("/allroutes")
         } )
         .success( function( response, status, headers, config )
         {
