@@ -19,7 +19,7 @@ import org.json4s.native.Serialization.{read => sread, write => swrite}
 case class User( id : Int, extId : String, name : String, email : String, numLogins : Int, firstLogin : Timestamp, lastLogin : Timestamp )
 
 case class RouteSummary( routeId : Int, start : Coord, routeType : String, distance : Double, ascent : Double, duration : Double, userId : Option[Int] )
-case class UserRoute( id : Int, name : String, routeType : String, description : String, startCoord : Coord, distance : Double, ascent : Double, timeAdded : Timestamp )
+case class UserRoute( id : Int, name : String, routeType : String, description : String, startCoord : Coord, distance : Double, ascent : Double, timeAdded : Timestamp, userName : Option[String] )
 
 
 case class RouteName( name : String, description : String, timeAdded : Timestamp )
@@ -251,7 +251,8 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 rn  <- RouteNameTable
                 r   <- RouteTable if rn.routeId === r.id && r.userId === userId
-            } yield ( r.id, rn.name, r.routeType, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
+                u	<- UserTable if u.id === userId
+            } yield ( r.id, rn.name, r.routeType, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded, u.name )
             
             routes.list.map
             { r =>
@@ -263,7 +264,8 @@ class DbPersistence( val db : Database ) extends Persistence
             	    startCoord = Coord(r._5, r._6),
             	    distance = r._7,
             	    ascent = r._8,
-            	    timeAdded = r._9 )
+            	    timeAdded = r._9,
+            	    userName = Some( r._10 ) )
             }
         }
     }
@@ -276,7 +278,8 @@ class DbPersistence( val db : Database ) extends Persistence
             {
                 rn  <- RouteNameTable
                 r   <- RouteTable if rn.routeId === r.id
-            } yield ( r.id, rn.name, r.routeType, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded )
+                u	<- UserTable if u.id === r.userId
+            } yield ( r.id, rn.name, r.routeType, rn.description, r.startLon, r.startLat, r.distance, r.ascent, r.timeAdded, u.name )
             
             routes.list.map
             { r =>
@@ -288,7 +291,8 @@ class DbPersistence( val db : Database ) extends Persistence
             	    startCoord = Coord(r._5, r._6),
             	    distance = r._7,
             	    ascent = r._8,
-            	    timeAdded = r._9 )
+            	    timeAdded = r._9,
+            	    userName = Some( r._10 ) )
             }
         }
     }
