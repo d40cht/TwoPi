@@ -368,7 +368,7 @@ function FlashController($scope, $timeout, $sessionStorage, $location, $window)
     }, 200 );
 }
 
-function FlashRenderController($scope, $sessionStorage, $location, $log)
+function FlashRenderController($scope, $sessionStorage, $location, $rootScope, $log)
 {
     if ( $location.path() != "/flash" && angular.isDefined( $sessionStorage.flash ) )
     {
@@ -376,6 +376,17 @@ function FlashRenderController($scope, $sessionStorage, $location, $log)
         $scope.message = angular.copy( $sessionStorage.flash );
         delete $sessionStorage.flash
     }
+    
+    $scope.dismiss = function()
+    {
+        $scope.messageType=null;
+    }
+    
+    $rootScope.$on("flashMessage", function( event, args )
+    {
+        $scope.messageType = args.messageType;
+        $scope.message = args.message;
+    } );
 }
 
 function AuthenticationController($scope, $window, $location, $http)
@@ -392,7 +403,27 @@ function AuthenticationController($scope, $window, $location, $http)
     }
 }
 
-function UserController($scope, $routeParams, $http)
+function responseHandler( response, successFunction, errorFunction )
+{
+    if ( angular.isDefined( response.message ) )
+    {
+        errorFunction( response.message );
+    }
+    else
+    {
+        successFunction( response.data );
+    }
+}
+
+function defaultErrorFunction( $rootScope )
+{
+    return function( message )
+    {
+        $rootScope.$broadcast( "flashMessage", { messageType : "error", message : message } );
+    }
+}
+
+function UserController($scope, $rootScope, $routeParams, $http)
 {
     $http( {
             method: "GET",
@@ -400,7 +431,10 @@ function UserController($scope, $routeParams, $http)
         } )
         .success( function( response, status, headers, config )
         {
-            $scope.myroutes = response.data;
+            responseHandler( response, function( data )
+            {
+                $scope.myroutes = data;
+            }, defaultErrorFunction( $rootScope ) )
         } );
 }
 
@@ -412,7 +446,10 @@ function AllRoutesController($scope, $routeParams, $http)
         } )
         .success( function( response, status, headers, config )
         {
-            $scope.myroutes = response.data;
+            responseHandler( response, function( data )
+            {
+                $scope.allroutes = data;
+            } )
         } );
 }
 
@@ -431,7 +468,10 @@ function RouteDeleteController($scope, $routeParams, $http, $location, $window, 
         } )
         .success( function( response, status, headers, config )
         {
-            $scope.routeSummary = response.data;
+            responseHandler( response, function( data )
+            {
+                $scope.routeSummary = data;
+            } );
         } )
         .error( function(data, status, headers, config )
         {
@@ -450,9 +490,12 @@ function RouteDeleteController($scope, $routeParams, $http, $location, $window, 
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             data : params
         } )
-        .success( function( data, status, headers, config )
+        .success( function( response, status, headers, config )
         {
-            $location.path("/user")
+            responseHandler( response, function( data )
+            {
+                $location.path("/user");
+            } );
         } )
         .error( function(data, status, headers, config )
         {
@@ -461,7 +504,7 @@ function RouteDeleteController($scope, $routeParams, $http, $location, $window, 
     }
 }
 
-function RouteSaveController($scope, $routeParams, $http, $location, analytics)
+function RouteSaveController($scope, $rootScope, $routeParams, $http, $location, analytics)
 {
     $scope.routeId = $routeParams.routeId
     
@@ -471,7 +514,10 @@ function RouteSaveController($scope, $routeParams, $http, $location, analytics)
         } )
         .success( function( response, status, headers, config )
         {
-            $scope.routeSummary = response.data;
+            responseHandler( response, function( data )
+            {
+                $scope.routeSummary = data;
+            }, defaultErrorFunction( $rootScope ) );
         } )
         .error( function(data, status, headers, config )
         {
@@ -492,11 +538,14 @@ function RouteSaveController($scope, $routeParams, $http, $location, analytics)
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             data : params
         } )
-        .success( function( data, status, headers, config )
+        .success( function( response, status, headers, config )
         {
-            $location.path("/summary/" + $scope.routeId)
+            responseHandler( response, function( data )
+            {
+                $location.path("/summary/" + $scope.routeId)
+            }, defaultErrorFunction( $rootScope ) );
         } )
-        .error( function(data, status, headers, config )
+        .error( function( data, status, headers, config )
         {
             alert( "Failure in saving route summary: " + status + " - " + data );
         } );
@@ -505,11 +554,11 @@ function RouteSaveController($scope, $routeParams, $http, $location, analytics)
 
 function posterParserFn($scope)
 {
-    return function( response, status, headers, config )
+    return function( data, status, headers, config )
     {
         var pics = [];
         var wiki = [];
-        var route = response.data.route;
+        var route = data.route;
         for ( rd in route.directions )
         {
             var dataEl = route.directions[rd];
@@ -559,14 +608,14 @@ function posterParserFn($scope)
             else pic.picClass = "masonrySize3";
         }
         $scope.pics = picsSliced;
-        $scope.wiki = wiki;
+        $scope.wiki = wiki; 
         $scope.routeData = route;
     }
 }
 
 
 
-function PosterController($scope, $routeParams, $http, $timeout, analytics)
+function PosterController($scope, $rootScope, $routeParams, $http, $timeout, analytics)
 {
     $scope.routeId = $routeParams.routeId
     
@@ -574,22 +623,25 @@ function PosterController($scope, $routeParams, $http, $timeout, analytics)
             method: "GET",
             url : ("/getroute/" + $scope.routeId)
         } )
-        .success( function( data, status, headers, config )
+        .success( function( response, status, headers, config )
         {
-            posterParserFn($scope)( data, status, headers, config );
-            
-            $timeout( function()
+            responseHandler( response, function( data )
             {
-                var $container = $('#masonryContainer');
+                posterParserFn($scope)( data, status, headers, config );
                 
-                $container.imagesLoaded( function()
+                $timeout( function()
                 {
-                    $container.masonry( {
-                        columnWidth: 60,
-                        itemSelect : '.masonryItem',
+                    var $container = $('#masonryContainer');
+                    
+                    $container.imagesLoaded( function()
+                    {
+                        $container.masonry( {
+                            columnWidth: 60,
+                            itemSelect : '.masonryItem',
+                        } );
                     } );
-                } );
-            }, 0 );
+                }, 0 );
+            }, defaultErrorFunction( $rootScope ) );
         } )
         .error( function(data, status, headers, config )
         {
@@ -599,9 +651,8 @@ function PosterController($scope, $routeParams, $http, $timeout, analytics)
 
 function routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )
 {
-    return function( response, status, headers, config )
+    return function( namedRoute, status, headers, config )
     {
-        var namedRoute = response.data;
         var routeData = namedRoute.route;
         $scope.routeData = routeData;
         if ( angular.isDefined(namedRoute.name) ) $scope.routeName = namedRoute.name;
@@ -698,7 +749,7 @@ function lonLatToString( lonLat )
     else return lonLat.lng.toFixed(6) + "," + lonLat.lat.toFixed(5);
 }
 
-function requestRouteFunction($scope, $location, $http)
+function requestRouteFunction($scope, $rootScope, $location, $http)
 {
     return function()
     {
@@ -735,10 +786,17 @@ function requestRouteFunction($scope, $location, $http)
         } )
         .success( function(response, status, headers, config)
         {
-            var hash = response.data;
-            $location.path( "/summary/" + hash );
-            $scope.working = false;
-            setRoute( hash );
+            responseHandler( response, function( data )
+            {
+                var hash = data;
+                $location.path( "/summary/" + hash );
+                $scope.working = false;
+                setRoute( hash );
+            }, function( message )
+            {
+                $scope.working = false;
+                defaultErrorFunction( $rootScope )(message)
+            } );
         } )
         .error( function(data, status, headers, config)
         {
@@ -759,7 +817,7 @@ var defaultRouteState =
     routeMode           : "startMode"
 };
 
-function SummaryController($scope, $log, $http, $localStorage, $location, $routeParams, $timeout, $window, UserService, analytics)
+function SummaryController($scope, $rootScope, $log, $http, $localStorage, $location, $routeParams, $timeout, $window, UserService, analytics)
 {
     $scope.$storage = $localStorage.$default( defaultRouteState );
     
@@ -788,7 +846,7 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
     
     $scope.userName = UserService.userName;
     $scope.lonLatToString = lonLatToString;
-    $scope.requestRoute = requestRouteFunction($scope, $location, $http);
+    $scope.requestRoute = requestRouteFunction($scope, $rootScope, $location, $http);
     
     $scope.moveMarker = function( lng, lat )
     {
@@ -801,23 +859,26 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
             method: "GET",
             url : ("/getroute/" + routeId)
         } )
-        .success( function( data, status, headers, config )
+        .success( function( response, status, headers, config )
         {
-            posterParserFn($scope)( data, status, headers, config );
-            routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )( data, status, headers, config );
-            
-            $timeout( function()
+            responseHandler( response, function( data )
             {
-                var $container = $('#masonryContainer');
+                posterParserFn($scope)( data, status, headers, config );
+                routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startMarker, elevationCrossLinkMarker )( data, status, headers, config );
                 
-                $container.imagesLoaded( function()
+                $timeout( function()
                 {
-                    $container.masonry( {
-                        columnWidth: 60,
-                        itemSelect : '.masonryItem',
+                    var $container = $('#masonryContainer');
+                    
+                    $container.imagesLoaded( function()
+                    {
+                        $container.masonry( {
+                            columnWidth: 60,
+                            itemSelect : '.masonryItem',
+                        } );
                     } );
-                } );
-            }, 0 );
+                }, 0 );
+            }, defaultErrorFunction( $rootScope ) );
         } )
         .error( function(data, status, headers, config )
         {
@@ -828,7 +889,7 @@ function SummaryController($scope, $log, $http, $localStorage, $location, $route
 }
 
 
-function RouteController($scope, $log, $http, $location, $localStorage, $routeParams, UserService, $timeout, analytics)
+function RouteController($scope, $rootScope, $log, $http, $location, $localStorage, $routeParams, UserService, $timeout, analytics)
 {   
     $log.info("Route controller started");
     $scope.$storage = $localStorage.$default( defaultRouteState );
@@ -1035,7 +1096,13 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
             method: "GET",
             url : ("/getroute/" + routeId)
         } )
-        .success( routeParserFunction( $scope, routeId, mapHolder, eg, elevationCrossLinkMarker, startMarker ) )
+        .success( function( response, status, headers, config )
+        {
+            responseHandler( response, function( data )
+            {
+                routeParserFunction( $scope, routeId, mapHolder, eg, elevationCrossLinkMarker, startMarker )( data, status, headers, config )
+            }, defaultErrorFunction( $rootScope ) );
+        } )
         .error( function(data, status, headers, config )
         {
             alert( "Failure in setRoute: " + status );
@@ -1071,40 +1138,43 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
                 model : $scope.$storage.routingPreference
             }
         } )
-        .success( function(data, status, headers, config)
+        .success( function(response, status, headers, config)
         {
-            var ways = data.ways;
-            for ( rdi in ways )
+            responseHandler( response, function( data )
             {
-                var rd = ways[rdi];
-                //var score = rd.scenicScore;
-                var score = rd.score;
-                var lineColor = colorFromScore( score );
-                
-                var routePoints = [];
-                for ( ci in rd.coords )
+                var ways = data.ways;
+                for ( rdi in ways )
                 {
-                    var coord = rd.coords[ci];
-                    routePoints.push( new L.LatLng( coord.lat, coord.lon ) );
+                    var rd = ways[rdi];
+                    //var score = rd.scenicScore;
+                    var score = rd.score;
+                    var lineColor = colorFromScore( score );
+                    
+                    var routePoints = [];
+                    for ( ci in rd.coords )
+                    {
+                        var coord = rd.coords[ci];
+                        routePoints.push( new L.LatLng( coord.lat, coord.lon ) );
+                    }
+                    
+                    var nr = L.polyline( routePoints, {color: lineColor} );
+                    nr.addTo(mapHolder.getMap());
                 }
                 
-                var nr = L.polyline( routePoints, {color: lineColor} );
-                nr.addTo(mapHolder.getMap());
-            }
-            
-            var dests = data.dests;
-            //var dests = data.scenicPoints;
-            //var dests = data.pois;
-            for ( di in dests )
-            {
-                var d = dests[di];
-                
-                var color = colorFromScore( d.score );
-                var circle = L.circle( [d.coord.lat, d.coord.lon], 40, { color : color, fillColor: color, fillOpacity: 0.8 } );
-                circle.bindPopup( d.title );
-                circle.addTo( mapHolder.getMap() );
-            }
-            $scope.working = false;
+                var dests = data.dests;
+                //var dests = data.scenicPoints;
+                //var dests = data.pois;
+                for ( di in dests )
+                {
+                    var d = dests[di];
+                    
+                    var color = colorFromScore( d.score );
+                    var circle = L.circle( [d.coord.lat, d.coord.lon], 40, { color : color, fillColor: color, fillOpacity: 0.8 } );
+                    circle.bindPopup( d.title );
+                    circle.addTo( mapHolder.getMap() );
+                }
+                $scope.working = false;
+            }, defaultErrorFunction( $rootScope ) );
         } )
         .error( function(data, status, headers, config)
         {
@@ -1113,7 +1183,7 @@ function RouteController($scope, $log, $http, $location, $localStorage, $routePa
         } );
     }
     
-    $scope.requestRoute = requestRouteFunction($scope, $location, $http)
+    $scope.requestRoute = requestRouteFunction($scope, $rootScope, $location, $http)
     
     $scope.hasWikiData = function(poi)
     {

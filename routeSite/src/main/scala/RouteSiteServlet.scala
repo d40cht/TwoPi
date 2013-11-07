@@ -71,9 +71,10 @@ case class JSONResponse[T]( val status : String, val message : Option[String], v
 
 object JSONResponse
 {
-    def success[T]( data : T ) = new JSONResponse( "success", None, Some(data) )
+	def success[T]( data : T ) = new JSONResponse( "success", None, Some(data) )
     def error[T]( message : String ) = new JSONResponse( "error", Some(message), None )
 }
+
 
 class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 	with AuthenticationSupport
@@ -84,7 +85,11 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
 {
     implicit val formats = org.json4s.native.Serialization.formats(FullTypeHints( List(classOf[POIType]) ))
     
-    private val loginExpirySeconds = 60*60*24*10
+    private final val loginExpirySeconds = 60*60*24*10
+    // If there are no points within this radius (in meters), then an error is thrown
+    private final val maxClosestDistance = 200.0
+    
+    private final val maxMidDistKm = 75.0
     
     val rg = RoutableGraphBuilder.load( new java.io.File( "./default.bin.rg" ) )
      
@@ -97,14 +102,15 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
     
     error
     {
-        case e =>
+        case e : Exception =>
         {
             val sw = new java.io.StringWriter()
             val pw = new java.io.PrintWriter(sw)
             e.printStackTrace(pw)
             log.warning("an exception occurred: " + sw.toString)
             log.warning("the request body is: " + request)
-            NotFound("An error occurred, please contact support")
+            
+            swrite( JSONResponse.error( e.getMessage() ) )
         }
     }
 
@@ -148,8 +154,17 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         log.info( "Request requestroute: %s, %s, %.2f, %s".format( startCoord, midCoordOption, distInKm, costModelName ) )
         
         val routeType = RouteType.allTypesMap( costModelName )
-        val startNode = rg.getClosest( routeType, startCoord )
-        val midNodeOption = midCoordOption.map { mc => rg.getClosest( routeType, mc ) }
+        val startNode = rg.getClosest( routeType, startCoord, maxClosestDistance )
+        val midNodeOption = midCoordOption.map { mc => rg.getClosest( routeType, mc, maxClosestDistance ) }
+        
+        midNodeOption.foreach
+        { mn =>
+            
+            if ( (mn.coord.distFrom( startNode.coord )/1000.0) > maxMidDistKm )
+            {
+                throw new java.lang.IllegalArgumentException( "Start and end position must be within %.0fkm of each other".format( maxMidDistKm ) )
+            }
+        }
         
         
         rg.buildRoute( routeType, startNode, midNodeOption, distInKm * 1000.0 ) match
@@ -184,7 +199,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
         log.info( "Request requestroute: %s, %.2f, %s".format( startCoord, distInKm, costModelName ) )
         
         val routeType = RouteType.allTypesMap( costModelName )
-        val startNode = rg.getClosest( routeType, startCoord )
+        val startNode = rg.getClosest( routeType, startCoord, maxClosestDistance )
         val res = rg.debugRoute( routeType, startNode, distInKm * 1000.0 )
         
         val serialised = swrite( JSONResponse.success( res ) )
@@ -209,7 +224,7 @@ class RouteSiteServlet( val persistence : Persistence ) extends ScalatraServlet
                 val nr = NamedRoute( routeName, routeData )
                 swrite( JSONResponse.success( nr ) )
             }
-            case None               => swrite( JSONResponse.error( "Error: route not found" ) )
+            case None               => swrite( JSONResponse.error( "Error: route not found. Please try again." ) )
         }
     }
     

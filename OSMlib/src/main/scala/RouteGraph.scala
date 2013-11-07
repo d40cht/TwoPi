@@ -227,7 +227,7 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
     nodes.foreach( n => treeMap.add( n.coord, n ) )
     log.info( "... complete." )
     
-    def getClosest( routeType : RouteType, coord : Coord ) : RouteNode =
+    def getClosest( routeType : RouteType, coord : Coord, maxDistance : Double ) : RouteNode =
     {
         val all = treeMap.nearest( coord, 50 )
         
@@ -237,6 +237,8 @@ class RoutableGraph( val nodes : Array[RouteNode], val scenicPoints : Array[Scen
             rn.destinations.exists( ed => !routeType.score(ed).isZero )
         }
 
+        if ( valid.head.coord.distFrom(coord) > maxDistance ) throw new java.lang.IllegalArgumentException( "Could not find a starting point nearby. Please select a point nearer a road or path, and only in the UK")
+        
         valid.head
     }
 

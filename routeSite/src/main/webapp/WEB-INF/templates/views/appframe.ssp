@@ -76,12 +76,12 @@
                 <div class="row" style="position: absolute; top : 0px; width: 100%; z-index: 10000">
                     <div ng-controller="FlashRenderController">
                         <div ng-switch on="messageType">
-                            <div ng-switch-when="error" class="alert alert-error alert-dismissable" id="flashError">
-                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                            <div ng-switch-when="error" class="alert alert-danger alert-dismissable" id="flashError">
+                                <button type="button" class="close" ng-click="dismiss()">&times;</button>
                                 <strong>{{message}}</strong>
                             </div>
                             <div ng-switch-when="info" class="alert alert-info alert-dismissable" id="flashInfo">
-                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                <button type="button" class="close" ng-click="dismiss()">&times;</button>
                                 <strong>{{message}}</strong>
                             </div>
                             <div ng-switch-default>
