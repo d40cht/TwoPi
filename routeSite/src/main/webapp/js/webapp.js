@@ -621,14 +621,19 @@ function routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startM
                 var distance = nodeAndDist.distance / 1000.0;
                 var node = nodeAndDist.node;
                 
-                seriesData.push( { x : distance, y : node.height, lng : node.coord.lon, lat : node.coord.lat } );
+                var h = node.height;
+                if ( h < 0.0 ) h = 0.0;
+                seriesData.push( { x : distance, y : h, lng : node.coord.lon, lat : node.coord.lat } );
                 
                 routePoints.push( new L.LatLng( node.coord.lat, node.coord.lon ) );
                 
                 if ( lastNode != null )
                 {
-                    heightDelta = node.height - lastNode.height;
-                    if ( heightDelta > 0.0 ) ascent += heightDelta;
+                    if ( node.height > 0.0 && lastNode.height > 0.0 )
+                    {
+                        heightDelta = node.height - lastNode.height;
+                        if ( heightDelta > 0.0 ) ascent += heightDelta;
+                    }
                 }
                 lastNode = node;
                 totalDistance = distance;
