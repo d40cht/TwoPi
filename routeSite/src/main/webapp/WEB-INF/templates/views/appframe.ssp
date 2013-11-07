@@ -54,9 +54,15 @@
                                     <a class="btn" ng-click="redirectWithReturnState('${googleOpenIdLink}&')">
                                         <img src="/img/G.png" alt="log in with Google" style="height: 1.5em"></img>
                                     </a>
-                                    <a class="btn" ng-click="redirectWithReturnState('/guestLogin?')" alt="Guest logon" id="guestLogon">
-                                        <span class="glyphicon glyphicon-user"></span>
-                                    </a>
+                                    <span ng-controller="DebugController">
+                                        <span ng-switch on="debugEnabled">
+                                            <span ng-switch-when="true">
+                                                <a class="btn" ng-click="redirectWithReturnState('/guestLogin?')" alt="Guest logon" id="guestLogon">
+                                                    <span class="glyphicon glyphicon-user"></span>
+                                                </a>
+                                            </span>
+                                        </span>
+                                    </span>
                                 </div>
                                 <script> var loggedIn = false; </script>
                             #otherwise

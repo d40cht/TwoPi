@@ -354,6 +354,12 @@ function ElevationGraph( divId )
     }
 }
 
+// Enable from the console using localStorage.setItem("ngStorage-debugEnabled", "true")
+function DebugController($scope, $localStorage)
+{
+    $scope.debugEnabled = angular.isDefined($localStorage.debugEnabled);
+}
+
 // This flash logic is generally horrible (the redirect page is
 // particularly evil). Refactor asap.
 function FlashController($scope, $timeout, $sessionStorage, $location, $window)

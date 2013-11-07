@@ -36,7 +36,13 @@
                                 <br>
                                 <fieldset ng-disabled="$storage.startCoord==null">
                                     <button btn-loading="working" data-loading-text="Working..." name="specifiedStartSubmit" type="submit" class="btn btn-primary" required popover-text="Find a route" popover-container="#makeRouteTop">Go!</button>
-                                    <button btn-loading="working" data-loading-text="Working..."type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
+                                    <span ng-controller="DebugController">
+                                        <span ng-switch on="debugEnabled">
+                                            <span ng-switch-when="true">
+                                                <button btn-loading="working" data-loading-text="Working..."type="button" class="btn btn-info" ng-click="routeDebug()">Debug data</button>
+                                            </span>
+                                        </span>
+                                    </span>
                                 </fieldset>
                             </div>
                         </form>
