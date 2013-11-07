@@ -287,16 +287,18 @@ function RouteMap( mapId, lng, lat, zoom, $scope, $log )
         }
     } );
     
-    var currentRoute = null;
-    this.setRoute = function( newRoute )
+    var currentRouteLayer = null;
+    this.setRoute = function( newRoute, directionPoints )
     {
-        if ( currentRoute != null )
+        if ( currentRouteLayer != null )
         {
-            currentRoute = null;
-            currentRoute.removeFrom(map);
+            currentRouteLayer.removeFrom(map);
+            currentRouteLayer = null;
         }
-        currentRoute = newRoute;
-        currentRoute.addTo(map);
+        var directionPointsLayer = L.layerGroup( directionPoints );
+        
+        currentRouteLayer = L.layerGroup( [newRoute, directionPointsLayer] );
+        currentRouteLayer.addTo(map);
         map.fitBounds( newRoute.getBounds() );
     };
     
@@ -612,9 +614,21 @@ function routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startM
         var totalDistance = 0.0;
         
         var routePoints = [];
+        var directionPoints = [];
         for ( rd in routeData.directions )
         {
             var dataEl = routeData.directions[rd];
+            var marker = new L.CircleMarker( new L.LatLng( dataEl.coord.lat, dataEl.coord.lon ), {
+                radius : 4,
+                stroke : true,
+                color : '#000',
+                fillColor : '#fff',
+                opacity: 1.0,
+                fillOpacity: 1.0
+            } );
+            marker.bindPopup( '' + rd + ": " + dataEl.directionsText );
+            directionPoints.push( marker );
+            
             for ( n in dataEl.outboundNodes )
             {
                 var nodeAndDist = dataEl.outboundNodes[n];
@@ -645,7 +659,7 @@ function routeParserFunction( $scope, routeId, mapHolder, elevationGraph, startM
             }
         }
         
-        mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ) );
+        mapHolder.setRoute( L.polyline( routePoints, {color: 'blue'} ), directionPoints );
 
         elevationGraph.setData( seriesData, function( lonLat )
         {
